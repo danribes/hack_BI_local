@@ -1255,6 +1255,384 @@
         }
       ],
       "testStrategy": "UAT with 3 hospital IT departments, verify all admin functions work"
+    },
+    {
+      "id": "26",
+      "title": "Implement three-tier CKD risk stratification algorithm (Population Triage)",
+      "description": "Build automated population-wide risk stratification system that classifies all patients into Low Risk (Tier 1), Moderate Risk (Tier 2), and High Risk (Tier 3) based on clinical history, diagnoses, medications, and demographics.",
+      "status": "pending",
+      "priority": "high",
+      "tags": ["ckd", "risk-stratification", "phase2", "core-feature"],
+      "dependencies": ["15", "16"],
+      "subtasks": [
+        {
+          "id": "26.1",
+          "title": "Design risk tier classification rules",
+          "description": "Document criteria for each tier: Tier 1 (no risk factors), Tier 2 (age >60, BMI >30, smoker, NSAID use, kidney stones, UTIs), Tier 3 (diabetes, hypertension, CVD, kidney history)",
+          "status": "pending"
+        },
+        {
+          "id": "26.2",
+          "title": "Implement Tier 3 (High Risk) detection algorithm",
+          "description": "Query FHIR Condition resources for ICD-10 codes: diabetes (E11), hypertension (I10), CVD (I50, I21, I63), AKI history, autoimmune diseases",
+          "status": "pending"
+        },
+        {
+          "id": "26.3",
+          "title": "Implement Tier 2 (Moderate Risk) detection algorithm",
+          "description": "Query for: age >60 (Patient.birthDate), BMI >30 (Observation LOINC 39156-5), smoking status (Observation LOINC 72166-2), long-term NSAID use (MedicationRequest), kidney stones (N20), UTI history (N39.0)",
+          "status": "pending"
+        },
+        {
+          "id": "26.4",
+          "title": "Implement population-wide triage batch job",
+          "description": "Create scheduled job (weekly/monthly) to classify entire patient population, store tier assignments in database",
+          "status": "pending"
+        },
+        {
+          "id": "26.5",
+          "title": "Create risk tier assignment database table",
+          "description": "CREATE TABLE patient_risk_tiers (patient_token VARCHAR, tier INT, assigned_at TIMESTAMP, risk_factors JSONB, next_action VARCHAR)",
+          "status": "pending"
+        },
+        {
+          "id": "26.6",
+          "title": "Build tier visualization dashboard",
+          "description": "Admin dashboard showing population distribution: X% Tier 1, Y% Tier 2, Z% Tier 3, with drill-down to patient lists",
+          "status": "pending"
+        },
+        {
+          "id": "26.7",
+          "title": "Implement tier change detection",
+          "description": "Detect when patients move between tiers (e.g., Tier 2 → Tier 3 after diabetes diagnosis), trigger automatic protocol enrollment",
+          "status": "pending"
+        }
+      ],
+      "testStrategy": "Test with synthetic patient population (1000 patients), verify correct tier assignment, compare to manual chart review by nephrologist"
+    },
+    {
+      "id": "27",
+      "title": "Implement active CKD screening and monitoring protocol",
+      "description": "Build automated system to order baseline tests (eGFR, uACR), schedule follow-up tests, and track monitoring compliance for Tier 2 and Tier 3 patients.",
+      "status": "pending",
+      "priority": "high",
+      "tags": ["ckd", "monitoring", "phase2", "clinical-workflow"],
+      "dependencies": ["26"],
+      "subtasks": [
+        {
+          "id": "27.1",
+          "title": "Design monitoring protocol rules",
+          "description": "Define test ordering rules: Tier 3 → eGFR + uACR yearly (or every 6 months if uncontrolled diabetes/hypertension), Tier 2 → eGFR yearly, add uACR if eGFR declining",
+          "status": "pending"
+        },
+        {
+          "id": "27.2",
+          "title": "Implement baseline test order generator",
+          "description": "When patient assigned to Tier 3, automatically flag for eGFR + uACR order at next visit, generate reminder for doctor",
+          "status": "pending"
+        },
+        {
+          "id": "27.3",
+          "title": "Build monitoring schedule tracker",
+          "description": "Track last test dates, calculate next due date based on tier and risk factors, send reminders 30 days before due",
+          "status": "pending"
+        },
+        {
+          "id": "27.4",
+          "title": "Implement test result monitoring",
+          "description": "Automatically fetch new eGFR and uACR results from FHIR Observation resources, link to monitoring protocol",
+          "status": "pending"
+        },
+        {
+          "id": "27.5",
+          "title": "Build monitoring compliance dashboard",
+          "description": "Show which Tier 2/3 patients are overdue for screening, percentage compliance, drill-down to individual patient tracking",
+          "status": "pending"
+        },
+        {
+          "id": "27.6",
+          "title": "Implement eGFR trend detection",
+          "description": "For Tier 2 patients, detect declining eGFR trend (>5% drop in 6 months), automatically flag for uACR test addition",
+          "status": "pending"
+        },
+        {
+          "id": "27.7",
+          "title": "Build doctor notification system for overdue tests",
+          "description": "Alert doctors when patients miss scheduled monitoring tests, include reason (e.g., 'Patient due for annual eGFR - last test 14 months ago')",
+          "status": "pending"
+        }
+      ],
+      "testStrategy": "Pilot with 50 high-risk patients, verify test orders generated correctly, track compliance over 6 months"
+    },
+    {
+      "id": "28",
+      "title": "Implement CKD diagnostic confirmation workflow (3-month rule)",
+      "description": "Build automated system to detect abnormal kidney function test results, trigger 3-month confirmation testing, and formally diagnose CKD when persistence is confirmed.",
+      "status": "pending",
+      "priority": "high",
+      "tags": ["ckd", "diagnosis", "phase2", "clinical-workflow"],
+      "dependencies": ["27"],
+      "subtasks": [
+        {
+          "id": "28.1",
+          "title": "Implement abnormal result detection",
+          "description": "Automatically flag when eGFR < 60 mL/min/1.73m² OR uACR > 30 mg/g, trigger diagnostic confirmation workflow",
+          "status": "pending"
+        },
+        {
+          "id": "28.2",
+          "title": "Build 3-month confirmation tracker",
+          "description": "Create tracking table for patients with initial abnormal results, calculate 3-month confirmation date, schedule repeat test",
+          "status": "pending"
+        },
+        {
+          "id": "28.3",
+          "title": "Implement confirmation test reminder system",
+          "description": "Send reminders to doctor and patient 2 weeks before 3-month confirmation test due, escalate if test not completed",
+          "status": "pending"
+        },
+        {
+          "id": "28.4",
+          "title": "Build diagnostic decision algorithm",
+          "description": "Compare initial and 3-month test results: if both abnormal → confirm CKD diagnosis, if normalized → continue monitoring, if improved but still abnormal → extend observation",
+          "status": "pending"
+        },
+        {
+          "id": "28.5",
+          "title": "Implement CKD staging calculator",
+          "description": "Calculate CKD stage (1-5) based on eGFR and uACR using KDIGO classification, update patient record with formal diagnosis",
+          "status": "pending"
+        },
+        {
+          "id": "28.6",
+          "title": "Build diagnostic notification workflow",
+          "description": "When CKD confirmed, send comprehensive alert to doctor with stage, trend analysis, and recommended next steps",
+          "status": "pending"
+        },
+        {
+          "id": "28.7",
+          "title": "Implement false positive tracking",
+          "description": "Track patients whose initial abnormal results normalized (no CKD diagnosis), analyze reasons (AKI, dehydration, etc.)",
+          "status": "pending"
+        }
+      ],
+      "testStrategy": "Test with retrospective data: 100 patients with abnormal results, verify correct diagnosis confirmation and staging"
+    },
+    {
+      "id": "29",
+      "title": "Implement post-diagnosis CKD management and referral system",
+      "description": "Build automated care coordination system that triggers intensified monitoring schedules, medication reviews, lifestyle intervention plans, and nephrology referrals based on CKD stage.",
+      "status": "pending",
+      "priority": "high",
+      "tags": ["ckd", "management", "phase2", "clinical-workflow"],
+      "dependencies": ["28"],
+      "subtasks": [
+        {
+          "id": "29.1",
+          "title": "Design stage-based care protocols",
+          "description": "Define care plans for each CKD stage: Stage 1-2 (annual monitoring, lifestyle counseling), Stage 3 (every 6 months, medication review), Stage 4-5 (quarterly monitoring, nephrologist required)",
+          "status": "pending"
+        },
+        {
+          "id": "29.2",
+          "title": "Implement intensified monitoring schedule",
+          "description": "After CKD diagnosis, automatically update monitoring frequency based on stage: Stage 1-2 (yearly), Stage 3 (every 6 months), Stage 4-5 (quarterly)",
+          "status": "pending"
+        },
+        {
+          "id": "29.3",
+          "title": "Build medication review alert system",
+          "description": "Flag nephrotoxic medications (NSAIDs, certain antibiotics, contrast dye), alert doctor to review/adjust, suggest kidney-safe alternatives",
+          "status": "pending"
+        },
+        {
+          "id": "29.4",
+          "title": "Implement blood pressure control tracker",
+          "description": "For CKD patients, track BP readings with stricter targets (130/80), alert if consistently above target, suggest treatment intensification",
+          "status": "pending"
+        },
+        {
+          "id": "29.5",
+          "title": "Build automatic nephrology referral trigger",
+          "description": "Automatically flag for nephrology referral when: eGFR < 30 (Stage 4), rapidly declining eGFR (>5 mL/min/year), or uACR > 300 mg/g",
+          "status": "pending"
+        },
+        {
+          "id": "29.6",
+          "title": "Implement lifestyle intervention plan generator",
+          "description": "Generate personalized education materials: low-sodium diet for Stage 3+, protein restriction for Stage 4+, smoking cessation, diabetes control",
+          "status": "pending"
+        },
+        {
+          "id": "29.7",
+          "title": "Build CKD progression tracker",
+          "description": "Track eGFR slope over time, predict time to Stage 5 (dialysis), generate visual progression graphs for doctor and patient",
+          "status": "pending"
+        },
+        {
+          "id": "29.8",
+          "title": "Implement outcomes reporting dashboard",
+          "description": "Show CKD management outcomes: % with controlled BP, % on RAAS inhibitors, % referred to nephrologist, progression rates",
+          "status": "pending"
+        }
+      ],
+      "testStrategy": "Pilot with 30 newly diagnosed CKD patients across different stages, track adherence to care protocols, measure time to nephrology referral for Stage 4"
+    },
+    {
+      "id": "30",
+      "title": "Integrate three-phase CKD protocol with automatic risk recalculation system",
+      "description": "Connect the CKD identification pipeline (triage → monitoring → diagnosis → management) with the event-driven risk recalculation system, enabling seamless patient flow through all phases.",
+      "status": "pending",
+      "priority": "high",
+      "tags": ["ckd", "integration", "phase2", "automation"],
+      "dependencies": ["15", "26", "27", "28", "29"],
+      "subtasks": [
+        {
+          "id": "30.1",
+          "title": "Implement tier re-evaluation triggers",
+          "description": "When automatic risk recalculation detects new diabetes/hypertension diagnosis, automatically re-run tier classification, upgrade patient from Tier 2 → Tier 3 if needed",
+          "status": "pending"
+        },
+        {
+          "id": "30.2",
+          "title": "Connect monitoring protocol to event system",
+          "description": "When new eGFR or uACR result arrives (detected by event system), automatically update monitoring tracker, check if diagnostic confirmation needed",
+          "status": "pending"
+        },
+        {
+          "id": "30.3",
+          "title": "Build unified CKD patient journey dashboard",
+          "description": "Single view showing patient's progression: Current tier → Test history → Monitoring compliance → Diagnostic status → Management plan",
+          "status": "pending"
+        },
+        {
+          "id": "30.4",
+          "title": "Implement smart alert prioritization",
+          "description": "Prioritize alerts: Critical (eGFR < 30, new CKD diagnosis) → High (overdue confirmation test) → Medium (monitoring due soon) → Low (tier reassignment)",
+          "status": "pending"
+        },
+        {
+          "id": "30.5",
+          "title": "Build automated workflow state machine",
+          "description": "State machine tracking patient status: Tier Assigned → Monitoring Active → Abnormal Result → Confirmation Pending → Diagnosed → Under Management",
+          "status": "pending"
+        },
+        {
+          "id": "30.6",
+          "title": "Implement population health analytics",
+          "description": "Aggregate metrics: % of high-risk patients under active monitoring, average time to diagnosis, % diagnosed CKD receiving nephrology care, progression rates by tier",
+          "status": "pending"
+        },
+        {
+          "id": "30.7",
+          "title": "Build quality improvement reports",
+          "description": "Generate monthly/quarterly reports for hospital administration: screening compliance, early detection rates, outcomes compared to national benchmarks",
+          "status": "pending"
+        }
+      ],
+      "testStrategy": "End-to-end testing with 200 patients through full pipeline, verify seamless transitions between phases, measure time from risk detection to diagnosis"
+    },
+    {
+      "id": "31",
+      "title": "Implement urine analysis data integration following Minuteful Kidney protocol",
+      "description": "Build comprehensive integration with home-based urine testing systems (Healthy.io Minuteful Kidney) to automatically ingest uACR, albumin, and creatinine test results from smartphone-based testing into the clinical database following HL7 FHIR R4 standards and real-time processing protocols.",
+      "status": "pending",
+      "priority": "high",
+      "tags": ["urine-analysis", "lab-integration", "minuteful-kidney", "phase2", "data-ingestion"],
+      "dependencies": ["2", "4", "15", "27"],
+      "subtasks": [
+        {
+          "id": "31.1",
+          "title": "Design urine analysis database schema",
+          "description": "CREATE TABLE urine_tests (test_id UUID PRIMARY KEY, patient_token VARCHAR(255), session_id UUID, test_datetime TIMESTAMP, uacr_value NUMERIC(6,2), albumin_mg_l NUMERIC(6,2), creatinine_mg_dl NUMERIC(6,2), kit_batch_number VARCHAR(50), device_type VARCHAR(100), app_version VARCHAR(20), processing_status VARCHAR(20), ai_confidence_score NUMERIC(3,2), quality_score JSONB, created_at TIMESTAMP, updated_at TIMESTAMP); CREATE INDEX idx_patient_urine ON urine_tests(patient_token, test_datetime DESC);",
+          "status": "pending"
+        },
+        {
+          "id": "31.2",
+          "title": "Implement Healthy.io Minuteful Kidney API client",
+          "description": "Build API client for Healthy.io integration: Base URL https://api.minuteful.com/v2, OAuth 2.0 + JWT authentication, implement endpoints for patient management (GET/POST /patients), test results (GET /patients/{id}/results, POST /results), and webhook subscription for real-time notifications",
+          "status": "pending"
+        },
+        {
+          "id": "31.3",
+          "title": "Build FHIR Observation resource parser for urine tests",
+          "description": "Implement parser to extract uACR data from FHIR Observation resources: LOINC codes for uACR (9318-7), urine albumin (14958-3), urine creatinine (2161-8), map to internal database schema, handle unit conversions (mg/g, mg/L, mg/dL)",
+          "status": "pending"
+        },
+        {
+          "id": "31.4",
+          "title": "Implement real-time urine test data ingestion pipeline",
+          "description": "Build real-time processing pipeline: Subscribe to FHIR server webhooks for new Observation resources, receive encrypted JSON payloads (AES-256-GCM), validate digital signatures (SHA-256), decrypt and parse test data, store in PostgreSQL with <60 second latency, trigger automatic risk recalculation",
+          "status": "pending"
+        },
+        {
+          "id": "31.5",
+          "title": "Implement batch urine test data ingestion",
+          "description": "Build batch processing for bulk data imports: Support NDJSON bulk export format, scheduled daily import at 02:00 UTC, GPG decryption with healthcare provider private key, bulk insert with transaction support, conflict resolution for duplicate tests",
+          "status": "pending"
+        },
+        {
+          "id": "31.6",
+          "title": "Build uACR data validation and quality control",
+          "description": "Implement validation rules: Check uACR range (0-5000 mg/g), validate albumin (0-500 mg/L) and creatinine (0-500 mg/dL) ranges, flag outliers for review, validate kit expiration dates, check AI confidence scores (minimum 0.80), implement quality control flags for lighting/positioning scores",
+          "status": "pending"
+        },
+        {
+          "id": "31.7",
+          "title": "Implement SMART on FHIR authorization for urine data access",
+          "description": "Build SMART on FHIR authorization flow: Client registration (POST /auth/register), authorization request with scopes (patient/Observation.read, patient/DiagnosticReport.read), token exchange (POST /auth/token), resource access with Bearer tokens, implement refresh token rotation",
+          "status": "pending"
+        },
+        {
+          "id": "31.8",
+          "title": "Build urine test result notification system",
+          "description": "Implement automatic notifications for abnormal uACR results: Trigger alerts when uACR > 30 mg/g (microalbuminuria threshold), send WebSocket notifications to providers in real-time, create email digest for offline providers, link to CKD diagnostic confirmation workflow (Task 28), log all notifications in audit trail",
+          "status": "pending"
+        },
+        {
+          "id": "31.9",
+          "title": "Implement urine test trend analysis and visualization",
+          "description": "Build trend analysis for serial uACR measurements: Calculate eGFR slope from serial creatinine values, detect worsening albuminuria trends (>20% increase in 3 months), generate visual graphs (time series for uACR, albumin, creatinine), compare to KDIGO thresholds, predict progression risk",
+          "status": "pending"
+        },
+        {
+          "id": "31.10",
+          "title": "Build data transfer security protocols",
+          "description": "Implement security measures following Minuteful Kidney protocol: HTTPS/TLS 1.3 for all API communications, WebSocket Secure (WSS) for live monitoring, AES-256-GCM encryption for data at rest, column-level encryption for sensitive fields (patient identifiers, test results), implement certificate pinning for mobile app",
+          "status": "pending"
+        },
+        {
+          "id": "31.11",
+          "title": "Implement offline capability and sync mechanism",
+          "description": "Build offline data handling: Local encryption (AES-256) for tests captured offline, secure storage on device until network available, automatic sync when connectivity restored, conflict resolution for duplicate submissions, progress tracking with user notifications, retry mechanism with exponential backoff",
+          "status": "pending"
+        },
+        {
+          "id": "31.12",
+          "title": "Build integration with primary healthcare system databases",
+          "description": "Implement bidirectional sync with primary care databases: PostgreSQL 14 connection with SSL/TLS client certificates, real-time replication + daily snapshots, support for multiple connection protocols (Direct API, HL7 FHIR R4, Batch NDJSON export), implement ETL pipeline for legacy database formats, maintain data consistency across systems",
+          "status": "pending"
+        },
+        {
+          "id": "31.13",
+          "title": "Implement Apache Kafka stream processing for urine tests",
+          "description": "Build stream processing pipeline: Set up Kafka topics (urine-test-raw, urine-test-validated, urine-test-alerts), implement producer for incoming test data, build consumer for validation and enrichment, implement dead letter queue for failed processing, configure retention policies, enable real-time analytics",
+          "status": "pending"
+        },
+        {
+          "id": "31.14",
+          "title": "Build urine test audit logging and compliance tracking",
+          "description": "Implement comprehensive audit trail: Log all data access (who, what, when), track data modifications with before/after snapshots, record API calls with request/response payloads, implement immutable audit log storage, generate HIPAA-compliant audit reports, maintain 10-year retention for audit trails",
+          "status": "pending"
+        },
+        {
+          "id": "31.15",
+          "title": "Create urine test data API endpoints for third-party access",
+          "description": "Build RESTful API endpoints: GET /api/urine-tests/{patient_token} (retrieve patient's test history), POST /api/urine-tests (submit new test results), GET /api/urine-tests/{test_id}/images (retrieve test strip images), GET /api/urine-tests/analytics (aggregate statistics), implement rate limiting (1000 requests/hour per client), OAuth 2.0 authentication",
+          "status": "pending"
+        }
+      ],
+      "testStrategy": "End-to-end testing with 100 synthetic urine test submissions via Minuteful Kidney API, verify real-time processing (<60s latency), validate FHIR Observation resource creation, test batch import with 1000 records, verify integration with CKD diagnostic confirmation workflow, validate security protocols and encryption, test offline sync with network interruptions"
     }
   ]
 }
