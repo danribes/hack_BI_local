@@ -367,20 +367,26 @@ The Healthcare AI Clinical Data Analyzer is a GDPR-compliant clinical decision s
 
 ### MVP Scope (Recommended for First Release)
 
-**MVP = Phase 1 + Phase 2 + Phase 3 (US1 only)**
-- **Timeline**: 6 weeks
+**MVP = Phase 1 + Phase 2 + Phase 3 (US1) + Phase 4 (US2)**
+- **Timeline**: 8-10 weeks (56 tasks: T001-T056)
 - **Features**:
   - SMART on FHIR integration
-  - Single patient AI risk analysis (diabetes complications)
-  - Basic audit logging
+  - Single patient AI risk analysis (US1 - diabetes complications, <2s response time)
+  - Batch population scanning (US2 - "Scan All Patients" button, progress tracking)
+  - Basic audit logging (10-year retention)
   - Docker Compose deployment
-- **Success Criteria**: 5-10 pilot doctors can analyze patients with <2 second response time
+- **Success Criteria**:
+  - 5-10 pilot doctors can analyze individual patients (US1) with <2 second response time
+  - Doctors can scan their entire patient panel (US2) and receive prioritized high-risk list
+  - Zero GDPR violations
+  - 70%+ positive feedback from pilot users
+
+**Rationale**: Both US1 and US2 are marked Priority P1 in spec.md and labeled 🎯 MVP. US2 (Population Scanning) is essential for pilot doctors to identify high-risk patients across their entire panel, not just during individual consultations.
 
 **Post-MVP Phases**:
-- **Release 2** (Weeks 7-10): Add US2 (Population Scanning) + US3 (Automatic Recalculation)
-- **Release 3** (Weeks 11-16): Add US4 (CKD Protocol) + US5 (Urine Analysis)
-- **Release 4** (Weeks 17-21): Add US6 (Country Integrations) + US7 (Explainable AI)
-- **Release 5** (Weeks 22-24): Production hardening and deployment
+- **Release 2** (Weeks 11-26): Add US3 (Automatic Recalculation) + US4 (CKD Protocol) + US5 (Urine Analysis)
+- **Release 3** (Weeks 27-39): Add US6 (Country Integrations) + US7 (Explainable AI)
+- **Release 4** (Weeks 40-42): Production hardening and deployment (Phase 10 - Polish)
 
 ---
 
@@ -466,12 +472,13 @@ The Healthcare AI Clinical Data Analyzer is a GDPR-compliant clinical decision s
 1. **Review and approve this plan.md** with stakeholders (technical team, product owner, compliance officer)
 2. **Begin Phase 1: Setup** (Tasks T001-T008 in tasks.md) - create monorepo structure, initialize Git, set up CI/CD
 3. **Parallel workstream**: Start EHR vendor approval process (Epic Sandbox registration, Cerner app certification)
-4. **Week 2**: Begin Phase 2 (Foundational tasks) - Docker setup, PostgreSQL, SMART on FHIR client
-5. **Week 4**: Start US1 implementation (AI Risk Assessment) - first user-visible feature
-6. **Week 6**: MVP demo with 2-3 pilot doctors, gather feedback, iterate
+4. **Week 2-3**: Complete Phase 2 (Foundational tasks) - Docker setup, PostgreSQL, SMART on FHIR client, pseudonymization
+5. **Week 4-7**: Implement US1 (AI Risk Assessment) - first user-visible feature
+6. **Week 8-10**: Implement US2 (Population Scanning) - "Scan All Patients" functionality
+7. **Week 10**: MVP demo with 5-10 pilot doctors, gather feedback, iterate
 
-**Key Milestone**: End of Week 6 - **MVP deployed to pilot hospital, 5 doctors successfully analyzing patients**
+**Key Milestone**: End of Week 10 - **MVP (US1 + US2) deployed to pilot hospital, 5-10 doctors successfully analyzing individual patients AND scanning their entire patient panel**
 
 ---
 
-*This plan aligns with the 155 tasks defined in `tasks.md` and the 7 user stories in `spec.md`. For detailed task breakdown, see `tasks.md`. For architectural rationale, see `docs/technical-decision-record.md`.*
+*This plan aligns with the 157 tasks defined in `tasks.md` (including T156 for GDPR data retention and T157 for air-gapped deployment) and the 7 user stories in `spec.md`. For detailed task breakdown, see `tasks.md`. For architectural rationale, see `docs/technical-decision-record.md`.*
