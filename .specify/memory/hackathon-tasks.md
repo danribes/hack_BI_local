@@ -218,6 +218,28 @@
   - **Logs Created**: Documented in git commit
   - **Completed**: 2025-11-08
 
+### Phase H4: Deployment (1 task - 1-2 hours)
+
+- [ ] **H040** Deploy to Render.com (cloud hosting)
+  - **Corresponds to**: T040
+  - **Time**: 60-90 minutes
+  - **Deliverable**: Full-stack application live and accessible via public URL
+  - **Platform**: Render.com (free tier, no domain required, provides subdomain)
+  - **Why Render**: Free tier, Docker support, managed PostgreSQL, GitHub auto-deploy, no credit card required, provides app-name.onrender.com subdomain
+  - **Components to Deploy**:
+    1. PostgreSQL Database (managed instance on Render)
+    2. Backend API (Node.js/Express service from Docker)
+    3. Frontend (React/Vite static site or nginx service)
+  - **Environment Variables**: ANTHROPIC_API_KEY, DATABASE_URL, VITE_API_URL, CORS_ORIGIN
+  - **Success Criteria**:
+    - Database initialized with mock patients and schema
+    - Backend API accessible and responding to health checks
+    - Frontend accessible and can connect to backend
+    - AI risk analysis working end-to-end
+    - All 3 risk tiers functioning correctly
+  - **Testing**: Manual testing of all API endpoints, frontend components, and AI integration
+  - **Documentation**: Deployment guide with live URLs, configuration steps, troubleshooting
+
 ---
 
 ## Task Completion Format
@@ -262,18 +284,18 @@ When marking a task complete, use this format:
 
 ## Progress Summary
 
-**Total Tasks**: 19
-**Completed**: 19 ✅ 🎉
+**Total Tasks**: 20
+**Completed**: 19 ✅
 **In Progress**: 0
-**Remaining**: 0
+**Remaining**: 1 (H040 - Deployment)
 
-**Estimated Time Remaining**: 0 hours
+**Estimated Time Remaining**: 1-2 hours
 
-**Progress**: 100% (19/19 tasks) ✨
+**Progress**: 95% (19/20 tasks)
 
 ---
 
-## 🎉 ALL TASKS COMPLETE! 🎉
+## 🎉 DEVELOPMENT COMPLETE - READY FOR DEPLOYMENT! 🎉
 
 **Full-Stack AI-Powered CKD Risk Screening System**
 
@@ -293,4 +315,4 @@ When marking a task complete, use this format:
 ✅ **Documentation**: Comprehensive task tracking and completion logs
 ✅ **Version Control**: All changes committed and pushed to repository
 
-**System Ready for Hackathon Demo!** 🚀
+⏳ **Next Step**: Deploy to Render.com (H040) for live hackathon demo! 🚀
