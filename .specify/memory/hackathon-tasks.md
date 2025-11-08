@@ -191,10 +191,14 @@
   - **Logs Created**: Documented in git commit
   - **Completed**: 2025-11-08
 
-- [ ] H035 React: Risk Analysis Button component
+- [x] **H035** React: Risk Analysis Button component
   - **Corresponds to**: T035
   - **Time**: 30 minutes
   - **Deliverable**: Reusable button component with loading state
+  - **Implementation**: Created frontend/src/components/RiskAnalysisButton.tsx (267 lines) - Reusable React button component that triggers AI risk analysis. Component features: TypeScript with RiskAnalysisButtonProps interface (patientId, onAnalysisComplete, onAnalysisError, className, variant, size, disabled), AnalysisResult interface for API response. State management: useState hooks for isLoading, error, success states. API integration: fetch POST /api/analyze/:patientId with JSON body (storeResults: true, includePatientData: true, skipCache: false), uses VITE_API_URL environment variable, parses JSON response. Loading state: animated spinner SVG (animate-spin), "Analyzing..." text, button disabled during analysis. Success state: checkmark icon, "Analysis Complete!" text, green background (bg-green-600), auto-dismiss after 3s setTimeout, calls onAnalysisComplete callback. Error state: X icon, error message display with text-red-600, "Retry Analysis" button text, calls onAnalysisError callback. Tailwind CSS styling: 3 variants (primary: bg-blue-600, secondary: bg-gray-600, outline: border-2 border-blue-600), 3 sizes (sm: px-3 py-1.5, md: px-4 py-2, lg: px-6 py-3), hover/focus/disabled states, transition-colors duration-200, focus:ring-2 focus:ring-blue-500. Accessibility: disabled prop support, role="alert" on error messages, focus:outline-none with focus ring, keyboard navigation support. Helper functions: getVariantClasses(), getSizeClasses(), getButtonContent().
+  - **Tests**: T035_risk_button_test.sh - 59/59 tests passed ✅ (100%). Categories: File existence (1), Component structure (5), Props interface (6), State management (4), API integration (6), Request configuration (3), Loading states (4), Success handling (4), Error handling (5), Tailwind CSS styling (7), Button variants (4), Button sizes (4), Accessibility (3), File quality (3).
+  - **Logs Created**: Documented in git commit
+  - **Completed**: 2025-11-08
 
 - [ ] H036 React: Risk Assessment Display component
   - **Corresponds to**: T036
@@ -251,18 +255,18 @@ When marking a task complete, use this format:
 ## Progress Summary
 
 **Total Tasks**: 19
-**Completed**: 16 ✅
+**Completed**: 17 ✅
 **In Progress**: 0
-**Remaining**: 3
+**Remaining**: 2
 
-**Estimated Time Remaining**: 8.3-10.3 hours
+**Estimated Time Remaining**: 7.8-10.3 hours
 
-**Progress**: 84.21% (16/19 tasks)
+**Progress**: 89.47% (17/19 tasks)
 
 ---
 
 ## Next Task
 
-**To Start**: H035 - React: Risk Analysis Button component
-**Estimated Time**: 30 minutes
-**Note**: Create reusable React button component that triggers risk analysis. This will call the POST /api/analyze/:patientId endpoint (H033) and handle loading states, success/error feedback. Uses Tailwind CSS for styling, integrates with React state management.
+**To Start**: H036 - React: Risk Assessment Display component
+**Estimated Time**: 60 minutes
+**Note**: Create comprehensive React component to display AI risk analysis results. Shows risk score, risk level (low/medium/high), risk tier (1/2/3), key findings (abnormal labs, risk factors), CKD analysis (current stage, kidney function, progression risk), and recommendations (immediate actions, follow-up, lifestyle modifications). Uses Tailwind CSS for styling, displays data from RiskAnalysisButton onAnalysisComplete callback.
