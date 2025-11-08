@@ -56,7 +56,7 @@ export async function processPatientRiskAnalysis(
   const startTime = Date.now();
   const {
     storeResults = true,
-    includePatientData = true,
+    includePatientData: _includePatientData = true,
     skipCache = false,
   } = config;
 
