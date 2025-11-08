@@ -38,28 +38,26 @@
 
 ## 📋 IMPORTANT: Implementation Workflow (Follow for EVERY Task)
 
-Before starting any task, read this workflow carefully. This applies to **every single task** in this hackathon plan.
+**Let's go for the next task.** Before starting, read this workflow carefully. This applies to **every single task** in this hackathon plan.
 
 ### Step-by-Step Workflow for Each Task
 
-#### 1. Check Last Completed Task
-```bash
-# Check which task was last implemented
-cat /web/.specify/memory/tasks.md
-# Find the last task marked with [x]
-```
+#### 1. Check the Implementation Plan to Find the Last Task Implemented
+- Review the implementation plan or check `/web/.specify/memory/tasks.md`
+- Find the last task marked with `[x]`
+- Proceed with the next uncompleted task
 
-#### 2. Write the Implementation Code
-- Follow the task instructions below
+#### 2. Write the Code for the Implementation of the Task
+- Follow the task instructions provided in the detailed sections below
 - Write clean, well-structured code
-- **Use Tailwind CSS for ALL styling** (no custom CSS files unless absolutely necessary)
+- **Use Tailwind for all the CSS related code** (no custom CSS files unless absolutely necessary)
 
-#### 3. Write Test Code
-- Create tests for the implemented functionality
+#### 3. Write the Test Code for the Implemented Code
+- Create comprehensive tests for the implemented functionality
 - Use appropriate testing framework (Jest for backend, Vitest for frontend)
-- Aim for key functionality coverage
+- Cover key functionality and edge cases
 
-#### 4. Run Tests and Fix Errors
+#### 4. Run the Tests, Analyse the Errors and Fix Them
 ```bash
 # Backend tests
 cd backend && npm test
@@ -67,30 +65,39 @@ cd backend && npm test
 # Frontend tests
 cd frontend && npm test
 ```
-- Analyze any errors
+- Analyze any errors that appear
 - Fix issues until all tests pass
-- Re-run tests to verify
+- Re-run tests to verify fixes
 
-#### 5. Create Log Files (REQUIRED - 3 Files per Task)
+#### 5. Write the Following Log Files (REQUIRED - 3 Files per Task)
 
-**⚠️ CRITICAL**: All log files MUST be named with capital **T** + three-digit task number (e.g., **T001**, **T024**, **T156**)
+**⚠️ CRITICAL**: Make sure the files are named starting with **T** (capital T) and the task number in a three figures number (e.g., **T001**, **T024**, **T065**)
 
-**a) Implementation Task Log**
-- **Location**: `/web/log_files/TXXX_TaskName_Log.md`
-- **Example**: `/web/log_files/T001_MonorepoSetup_Log.md`
+**a) Implementation Task Log File**
+- **Save it in**: `log_files` folder
+- **Filename**: `TXXX_"name of the task"_Log.md`
+- **Example**: `T001_MonorepoSetup_Log.md`
 - **Content**: What was implemented, decisions made, challenges faced
 
-**b) Test Log**
-- **Location**: `/web/log_tests/TXXX_TaskName_TestLog.md`
-- **Example**: `/web/log_tests/T001_MonorepoSetup_TestLog.md`
+**b) Test Log File**
+- **Write it in**: `log_tests` folder
+- **Filename**: `TXXX_"name of the task"_TestLog.md`
+- **Example**: `T001_MonorepoSetup_TestLog.md`
 - **Content**: Test cases written, test results, coverage details
 
-**c) Learn/Guide File (Didactic Log)**
-- **Location**: `/web/log_learn/TXXX_TaskName_Guide.md`
-- **Example**: `/web/log_learn/T001_MonorepoSetup_Guide.md`
-- **Content**: Educational explanation of what was developed, why it was done this way, how it works, best practices
+**c) Log Learn File (Didactic Log File)**
+- **Save it in**: `log_learn` folder
+- **Filename**: `TXXX_"name of the task"_Guide.md`
+- **Example**: `T001_MonorepoSetup_Guide.md`
+- **Content**: Explaining what has been developed in the project, why and how. Educational explanation with best practices.
 
-#### 6. Update tasks.md and Mark Complete
+#### 6. Update the tasks.md File and Cross the Task You Just Completed
+
+**Please don't forget** to update the tasks.md file with the implementation details, crossing the task you just completed once you're done with:
+- ✅ Tests completed
+- ✅ Log file completed
+- ✅ Learn file completed
+
 ```bash
 # Edit the tasks.md file
 vim /web/.specify/memory/tasks.md
@@ -101,19 +108,19 @@ vim /web/.specify/memory/tasks.md
 # To:
 - [x] H001 Create monorepo project structure
   - Implementation: Created /backend, /frontend, /infrastructure directories
-  - Tests: Verified directory structure exists
+  - Tests: All tests passing
   - Logs: T001_MonorepoSetup_Log.md, T001_MonorepoSetup_TestLog.md, T001_MonorepoSetup_Guide.md
 ```
 
 ### 🐳 Important Reminders
 
-**Docker Environment**:
-- ⚠️ This setup is **containerized in Docker**
+**Please, don't forget this setup is containerized in Docker**:
+- ⚠️ There is **NO need to install the database or the Redis file**
+- Everything runs in containers via `docker-compose up`
 - **DO NOT** install PostgreSQL locally
 - **DO NOT** install Redis locally
-- Everything runs in containers via `docker-compose up`
 
-**Tailwind CSS**:
+**Please, don't forget to use Tailwind for all the CSS related code**:
 - ⚠️ Use **Tailwind utility classes** for all styling
 - Example: `className="bg-blue-600 text-white px-4 py-2 rounded-lg"`
 - Avoid writing custom CSS files unless absolutely necessary
@@ -123,9 +130,9 @@ vim /web/.specify/memory/tasks.md
 For every task, verify:
 - [ ] Code written and working
 - [ ] Tests written and passing
-- [ ] Implementation log created (`/web/log_files/TXXX_TaskName_Log.md`)
-- [ ] Test log created (`/web/log_tests/TXXX_TaskName_TestLog.md`)
-- [ ] Learn/Guide log created (`/web/log_learn/TXXX_TaskName_Guide.md`)
+- [ ] Implementation log created in `log_files/TXXX_TaskName_Log.md`
+- [ ] Test log created in `log_tests/TXXX_TaskName_TestLog.md`
+- [ ] Learn/Guide log created in `log_learn/TXXX_TaskName_Guide.md`
 - [ ] tasks.md updated with implementation details
 - [ ] Task marked as complete in tasks.md with `[x]`
 
@@ -234,15 +241,18 @@ For every task, verify:
 
 ## 📝 Task Details (Step-by-Step Implementation)
 
-> **⚠️ IMPORTANT REMINDER**: For EVERY task below, you MUST follow the complete workflow:
-> 1. Check `/web/.specify/memory/tasks.md` for last completed task
-> 2. Write implementation code
-> 3. Write test code
-> 4. Run tests and fix errors
-> 5. **Create 3 log files**: Implementation Log, Test Log, Learn/Guide (in `/web/log_files/`, `/web/log_tests/`, `/web/log_learn/`)
-> 6. Update `tasks.md` and mark task complete with `[x]`
+> **⚠️ IMPORTANT REMINDER**: Let's go for the next task. For EVERY task below, you MUST follow the complete workflow:
+> 1. **Check the implementation plan** to find the last task implemented
+> 2. **Write the code** for the implementation of the task
+> 3. **Write the test code** for the implemented code
+> 4. **Run the tests**, analyse the errors and fix them
+> 5. **Write the following log files** (starting with T + 3-digit number, e.g., T001, T024, T065):
+>    - Implementation task log: `log_files/TXXX_TaskName_Log.md`
+>    - Test log: `log_tests/TXXX_TaskName_TestLog.md`
+>    - Log learn file: `log_learn/TXXX_TaskName_Guide.md`
+> 6. **Update the tasks.md file** with implementation details, crossing the task you just completed once you're done with tests, log file, and learn file
 >
-> **Remember**: Use Docker (no local PostgreSQL/Redis) • Use Tailwind CSS for all styling • Log files MUST start with capital T + 3-digit number (e.g., T001)
+> **Please, don't forget**: This setup is containerized in Docker (no need to install database or Redis) • Use Tailwind for all CSS related code
 >
 > See the **"Implementation Workflow"** section above for full details.
 
@@ -1771,13 +1781,13 @@ docker-compose up --build
 ## ✅ Pre-Demo Checklist
 
 **Day Before Hackathon**:
-- [ ] **Verify all 16 tasks completed** in `/web/.specify/memory/tasks.md` (all marked with `[x]`)
+- [ ] **Verify all 16 tasks completed** in `tasks.md` (all marked with `[x]`)
 - [ ] **Verify all log files created** (48 files total: 16 tasks × 3 logs each):
   ```bash
   # Should have 16 files in each directory
-  ls /web/log_files/T0*.md | wc -l   # Should show 16
-  ls /web/log_tests/T0*.md | wc -l   # Should show 16
-  ls /web/log_learn/T0*.md | wc -l   # Should show 16
+  ls log_files/T0*.md | wc -l   # Should show 16
+  ls log_tests/T0*.md | wc -l   # Should show 16
+  ls log_learn/T0*.md | wc -l   # Should show 16
   ```
 - [ ] Test full demo end-to-end (5 times minimum)
 - [ ] Verify AI API key works (check quota/balance)
