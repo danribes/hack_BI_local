@@ -292,7 +292,7 @@ router.get('/recent', async (req: Request, res: Response) => {
  *   - average_risk_score: number
  *   - last_analyzed: string | null
  */
-router.get('/statistics', async (req: Request, res: Response) => {
+router.get('/statistics', async (_req: Request, res: Response) => {
   try {
     const statistics = await getAnalysisStatistics();
 
@@ -358,7 +358,7 @@ router.delete('/cache', async (req: Request, res: Response) => {
  *   - service: string
  *   - timestamp: string
  */
-router.get('/health', async (req: Request, res: Response) => {
+router.get('/health', async (_req: Request, res: Response) => {
   res.status(200).json({
     status: 'healthy',
     service: 'risk-analysis',

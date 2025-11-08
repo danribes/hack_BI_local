@@ -6,7 +6,7 @@
  */
 
 import { getPatientSummary, getPatientsByRiskTier } from './patientService';
-import { analyzeCKDRisk, analyzeBatch } from './aiService';
+import { analyzeCKDRisk } from './aiService';
 import { query } from '../config/database';
 import { AIRiskAnalysisResponse } from '../types/ai';
 
@@ -90,7 +90,6 @@ export async function processPatientRiskAnalysis(
     // Call AI service to analyze CKD risk
     const analysis = await analyzeCKDRisk({
       patient: patientSummary,
-      include_patient_data: includePatientData,
     });
 
     // Store results in database if configured
@@ -233,8 +232,11 @@ async function getCachedAnalysis(
       risk_tier: cached.risk_tier,
       key_findings: cached.key_findings,
       ckd_analysis: cached.ckd_analysis,
+      risk_factors: cached.risk_factors,
+      reasoning: cached.reasoning,
+      clinical_summary: cached.clinical_summary,
       recommendations: cached.recommendations,
-      confidence_score: cached.confidence_score,
+      confidence: cached.confidence,
       model_version: cached.model_version,
       analyzed_at: cached.analyzed_at,
     };
@@ -261,11 +263,14 @@ async function storeAnalysisResult(
         risk_tier,
         key_findings,
         ckd_analysis,
+        risk_factors,
+        reasoning,
+        clinical_summary,
         recommendations,
-        confidence_score,
+        confidence,
         model_version,
         analyzed_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
       ON CONFLICT (patient_id, analyzed_at)
       DO UPDATE SET
         risk_score = EXCLUDED.risk_score,
@@ -273,8 +278,11 @@ async function storeAnalysisResult(
         risk_tier = EXCLUDED.risk_tier,
         key_findings = EXCLUDED.key_findings,
         ckd_analysis = EXCLUDED.ckd_analysis,
+        risk_factors = EXCLUDED.risk_factors,
+        reasoning = EXCLUDED.reasoning,
+        clinical_summary = EXCLUDED.clinical_summary,
         recommendations = EXCLUDED.recommendations,
-        confidence_score = EXCLUDED.confidence_score,
+        confidence = EXCLUDED.confidence,
         model_version = EXCLUDED.model_version`,
       [
         analysis.patient_id,
@@ -283,8 +291,11 @@ async function storeAnalysisResult(
         analysis.risk_tier,
         JSON.stringify(analysis.key_findings),
         JSON.stringify(analysis.ckd_analysis),
+        JSON.stringify(analysis.risk_factors),
+        analysis.reasoning,
+        analysis.clinical_summary,
         JSON.stringify(analysis.recommendations),
-        analysis.confidence_score,
+        analysis.confidence,
         analysis.model_version,
         analysis.analyzed_at,
       ]
@@ -323,8 +334,11 @@ export async function getRecentAnalyses(
       risk_tier: row.risk_tier,
       key_findings: row.key_findings,
       ckd_analysis: row.ckd_analysis,
+      risk_factors: row.risk_factors,
+      reasoning: row.reasoning,
+      clinical_summary: row.clinical_summary,
       recommendations: row.recommendations,
-      confidence_score: row.confidence_score,
+      confidence: row.confidence,
       model_version: row.model_version,
       analyzed_at: row.analyzed_at,
     }));

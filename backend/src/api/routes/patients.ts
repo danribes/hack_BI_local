@@ -123,7 +123,7 @@ router.get('/risk-tier/:tier', async (req: Request, res: Response) => {
 
     const patients = await getPatientsByRiskTier(tier as RiskTier);
 
-    res.json({
+    return res.json({
       status: 'success',
       data: patients,
       count: patients.length,
@@ -132,7 +132,7 @@ router.get('/risk-tier/:tier', async (req: Request, res: Response) => {
     });
   } catch (error) {
     console.error('Error fetching patients by risk tier:', error);
-    res.status(500).json({
+    return res.status(500).json({
       status: 'error',
       error: 'Failed to fetch patients by risk tier',
       message: error instanceof Error ? error.message : 'Unknown error',
@@ -188,14 +188,14 @@ router.get('/mrn/:mrn', async (req: Request, res: Response) => {
       });
     }
 
-    res.json({
+    return res.json({
       status: 'success',
       data: patient,
       timestamp: new Date().toISOString()
     });
   } catch (error) {
     console.error('Error fetching patient by MRN:', error);
-    res.status(500).json({
+    return res.status(500).json({
       status: 'error',
       error: 'Failed to fetch patient',
       message: error instanceof Error ? error.message : 'Unknown error',
@@ -237,14 +237,14 @@ router.get('/:id', async (req: Request, res: Response) => {
       });
     }
 
-    res.json({
+    return res.json({
       status: 'success',
       data: patient,
       timestamp: new Date().toISOString()
     });
   } catch (error) {
     console.error('Error fetching patient summary:', error);
-    res.status(500).json({
+    return res.status(500).json({
       status: 'error',
       error: 'Failed to fetch patient summary',
       message: error instanceof Error ? error.message : 'Unknown error',
