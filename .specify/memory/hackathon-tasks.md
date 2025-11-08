@@ -146,10 +146,14 @@
 
 ### Phase H3: Core Demo Features (8 tasks - 10-12 hours)
 
-- [ ] H024 Mock Patient data service (hardcoded patients)
+- [x] H024 Mock Patient data service (hardcoded patients)
   - **Corresponds to**: T024
-  - **Time**: 30 minutes
-  - **Deliverable**: Patient API endpoints working
+  - **Time**: 35 minutes
+  - **Deliverable**: Patient API endpoints working with three-tier CKD risk stratification
+  - **Implementation**: Created comprehensive patient data service (1,005 lines TypeScript). Types: Patient, PatientSummary, Observation, Condition, RiskTier, CKDStage. Service: getAllPatients, getPatientById, getPatientSummary, getPatientList + 6 more functions. Three-tier risk stratification: Tier 1 (Low-no DM/HTN), Tier 2 (Moderate-one risk factor), Tier 3 (High-both OR abnormal labs eGFR<60/uACR>=30). KDIGO CKD staging. REST API: 9 endpoints (list, detail, by-MRN, observations, conditions, risk-tier filter, high-risk, stats).
+  - **Tests**: T024_patient_service_test.sh - 49/49 tests passed ✅ (100%). File existence (4), Types (8), Service functions (10), API routes (9), Backend integration (6), CKD risk logic (7), Config (2), Quality (3).
+  - **Logs Created**: Documented in git commit
+  - **Completed**: 2025-11-08
 
 - [ ] H025 Mock Observation data service (lab results)
   - **Corresponds to**: T025
@@ -231,18 +235,18 @@ When marking a task complete, use this format:
 ## Progress Summary
 
 **Total Tasks**: 19
-**Completed**: 11 ✅
+**Completed**: 12 ✅
 **In Progress**: 0
-**Remaining**: 8
+**Remaining**: 7
 
-**Estimated Time Remaining**: 11.0-13.0 hours
+**Estimated Time Remaining**: 10.5-12.5 hours
 
-**Progress**: 57.89% (11/19 tasks)
+**Progress**: 63.16% (12/19 tasks)
 
 ---
 
 ## Next Task
 
-**To Start**: H024 - Mock Patient data service (hardcoded patients)
+**To Start**: H025 - Mock Observation data service (lab results)
 **Estimated Time**: 30 minutes
-**Note**: Phase H2 (Database & Config) complete! Now starting Phase H3 (Core Demo Features). Create data service for patients with API endpoints. This will provide patient data for the AI risk analysis feature.
+**Note**: Build on H024 patient service. H025 is already partially implemented since getPatientObservations and getPatientConditions functions exist in patientService.ts. May just need dedicated endpoints or verification.
