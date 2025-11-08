@@ -15,6 +15,7 @@ claude-task-master/
 dist/
 build/
 *.log
+*.tsbuildinfo
 
 # IDE
 .vscode/
