@@ -2,6 +2,8 @@ import express, { Request, Response } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import { testConnection, closePool, getPoolStats, query } from './config/database';
+import patientRoutes from './api/routes/patients';
+import analyzeRoutes from './api/routes/analyze';
 
 // Load environment variables
 dotenv.config();
@@ -43,8 +45,28 @@ app.get('/api', (_req: Request, res: Response) => {
     endpoints: {
       health: '/health',
       dbHealth: '/api/db/health',
-      patients: '/api/patients (coming soon)',
-      analysis: '/api/analyze (coming soon)'
+      dbTest: '/api/db/test',
+      patients: {
+        list: 'GET /api/patients',
+        detail: 'GET /api/patients/:id',
+        byMRN: 'GET /api/patients/mrn/:mrn',
+        observations: 'GET /api/patients/:id/observations',
+        conditions: 'GET /api/patients/:id/conditions',
+        riskAssessments: 'GET /api/patients/:id/risk-assessments',
+        byRiskTier: 'GET /api/patients/risk-tier/:tier',
+        highRisk: 'GET /api/patients/high-risk',
+        stats: 'GET /api/patients/stats/risk-tiers'
+      },
+      analyze: {
+        singlePatient: 'POST /api/analyze/:patientId',
+        batch: 'POST /api/analyze/batch',
+        highRisk: 'POST /api/analyze/high-risk',
+        byTier: 'POST /api/analyze/tier/:tier',
+        recent: 'GET /api/analyze/recent',
+        statistics: 'GET /api/analyze/statistics',
+        clearCache: 'DELETE /api/analyze/cache',
+        health: 'GET /api/analyze/health'
+      }
     }
   });
 });
@@ -105,6 +127,10 @@ app.get('/api/db/test', async (_req: Request, res: Response) => {
   }
 });
 
+// API Routes
+app.use('/api/patients', patientRoutes);
+app.use('/api/analyze', analyzeRoutes);
+
 // 404 handler
 app.use((req: Request, res: Response) => {
   res.status(404).json({
@@ -133,6 +159,8 @@ app.listen(PORT, async () => {
   console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`✅ Health check: http://localhost:${PORT}/health`);
   console.log(`🗄️  DB health: http://localhost:${PORT}/api/db/health`);
+  console.log(`👥 Patients API: http://localhost:${PORT}/api/patients`);
+  console.log(`🤖 AI Analysis: http://localhost:${PORT}/api/analyze`);
   console.log(`📖 API info: http://localhost:${PORT}/api`);
   console.log('='.repeat(60));
 
