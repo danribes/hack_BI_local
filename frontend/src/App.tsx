@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import './App.css'
+import PatientList from './components/PatientList'
 
 interface HealthCheckResponse {
   status: string;
@@ -13,6 +14,7 @@ function App() {
   const [backendHealth, setBackendHealth] = useState<HealthCheckResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showStatus, setShowStatus] = useState(true);
 
   useEffect(() => {
     const checkBackendHealth = async () => {
@@ -40,106 +42,99 @@ function App() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
-      <div className="container mx-auto px-4 py-12">
-        <header className="text-center mb-12">
-          <h1 className="text-5xl font-bold text-indigo-900 mb-4">
+      <div className="container mx-auto px-4 py-8">
+        <header className="text-center mb-8">
+          <h1 className="text-4xl font-bold text-indigo-900 mb-2">
             🏥 Healthcare AI Clinical Data Analyzer
           </h1>
-          <p className="text-xl text-gray-700">
+          <p className="text-lg text-gray-700">
             AI-Powered Clinical Decision Support System
           </p>
         </header>
 
-        <main className="max-w-2xl mx-auto">
-          <div className="bg-white rounded-lg shadow-lg p-8 mb-8">
-            <h2 className="text-2xl font-semibold text-gray-800 mb-4">
-              System Status
-            </h2>
+        <main className="max-w-7xl mx-auto">
+          {/* Collapsible System Status */}
+          <div className="mb-6">
+            <button
+              onClick={() => setShowStatus(!showStatus)}
+              className="w-full bg-white rounded-lg shadow p-4 flex justify-between items-center hover:shadow-md transition-shadow"
+            >
+              <span className="font-semibold text-gray-800">System Status</span>
+              <span className="text-gray-600">{showStatus ? '▲' : '▼'}</span>
+            </button>
 
-            {loading && (
-              <div className="flex items-center justify-center py-8">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
-                <span className="ml-4 text-gray-600">Checking backend connection...</span>
-              </div>
-            )}
+            {showStatus && (
+              <div className="bg-white rounded-b-lg shadow-lg p-6 mt-2">
+                {loading && (
+                  <div className="flex items-center justify-center py-8">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
+                    <span className="ml-4 text-gray-600">Checking backend connection...</span>
+                  </div>
+                )}
 
-            {error && !loading && (
-              <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded">
-                <div className="flex items-center">
-                  <div className="flex-shrink-0">
-                    <span className="text-2xl">❌</span>
+                {error && !loading && (
+                  <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded">
+                    <div className="flex items-center">
+                      <div className="flex-shrink-0">
+                        <span className="text-2xl">❌</span>
+                      </div>
+                      <div className="ml-3">
+                        <h3 className="text-red-800 font-semibold">Backend Connection Failed</h3>
+                        <p className="text-red-700 mt-1">{error}</p>
+                      </div>
+                    </div>
                   </div>
-                  <div className="ml-3">
-                    <h3 className="text-red-800 font-semibold">Backend Connection Failed</h3>
-                    <p className="text-red-700 mt-1">{error}</p>
-                    <p className="text-red-600 text-sm mt-2">
-                      Make sure the backend server is running on port 3000
-                    </p>
-                  </div>
-                </div>
-              </div>
-            )}
+                )}
 
-            {backendHealth && !loading && !error && (
-              <div className="bg-green-50 border-l-4 border-green-500 p-4 rounded">
-                <div className="flex items-center mb-4">
-                  <div className="flex-shrink-0">
-                    <span className="text-2xl">✅</span>
-                  </div>
-                  <div className="ml-3">
-                    <h3 className="text-green-800 font-semibold">Backend Connected</h3>
-                    <p className="text-green-700">All systems operational</p>
-                  </div>
-                </div>
+                {backendHealth && !loading && !error && (
+                  <div className="bg-green-50 border-l-4 border-green-500 p-4 rounded">
+                    <div className="flex items-center mb-4">
+                      <div className="flex-shrink-0">
+                        <span className="text-2xl">✅</span>
+                      </div>
+                      <div className="ml-3">
+                        <h3 className="text-green-800 font-semibold">Backend Connected</h3>
+                        <p className="text-green-700">All systems operational</p>
+                      </div>
+                    </div>
 
-                <div className="mt-4 space-y-2 text-sm">
-                  <div className="flex justify-between border-b border-green-200 pb-2">
-                    <span className="text-gray-600 font-medium">Service:</span>
-                    <span className="text-gray-800">{backendHealth.service}</span>
+                    <div className="mt-4 grid grid-cols-2 gap-4 text-sm">
+                      <div>
+                        <span className="text-gray-600 font-medium">Service:</span>
+                        <span className="ml-2 text-gray-800">{backendHealth.service}</span>
+                      </div>
+                      <div>
+                        <span className="text-gray-600 font-medium">Environment:</span>
+                        <span className="ml-2 text-gray-800">{backendHealth.environment}</span>
+                      </div>
+                    </div>
                   </div>
-                  <div className="flex justify-between border-b border-green-200 pb-2">
-                    <span className="text-gray-600 font-medium">Version:</span>
-                    <span className="text-gray-800">{backendHealth.version}</span>
-                  </div>
-                  <div className="flex justify-between border-b border-green-200 pb-2">
-                    <span className="text-gray-600 font-medium">Environment:</span>
-                    <span className="text-gray-800">{backendHealth.environment}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600 font-medium">Status:</span>
-                    <span className="text-green-600 font-semibold uppercase">{backendHealth.status}</span>
-                  </div>
-                </div>
+                )}
               </div>
             )}
           </div>
 
-          <div className="bg-white rounded-lg shadow-lg p-8">
-            <h2 className="text-2xl font-semibold text-gray-800 mb-4">
-              Features (Coming Soon)
-            </h2>
-            <ul className="space-y-3 text-left">
-              <li className="flex items-start">
-                <span className="text-indigo-600 mr-3">📊</span>
-                <span className="text-gray-700">Patient clinical data analysis</span>
-              </li>
-              <li className="flex items-start">
-                <span className="text-indigo-600 mr-3">🤖</span>
-                <span className="text-gray-700">AI-powered risk assessment</span>
-              </li>
-              <li className="flex items-start">
-                <span className="text-indigo-600 mr-3">💊</span>
-                <span className="text-gray-700">Treatment recommendations</span>
-              </li>
-              <li className="flex items-start">
-                <span className="text-indigo-600 mr-3">📈</span>
-                <span className="text-gray-700">Trend analysis and predictions</span>
-              </li>
-            </ul>
-          </div>
+          {/* Patient List */}
+          {backendHealth && !error && (
+            <div className="bg-white rounded-lg shadow-lg p-6">
+              <PatientList />
+            </div>
+          )}
+
+          {/* Error State - Show Instructions */}
+          {error && (
+            <div className="bg-white rounded-lg shadow-lg p-8 text-center">
+              <h2 className="text-2xl font-semibold text-gray-800 mb-4">
+                Unable to Load Patients
+              </h2>
+              <p className="text-gray-600 mb-4">
+                Please ensure the backend service is running and accessible.
+              </p>
+            </div>
+          )}
         </main>
 
-        <footer className="text-center mt-12 text-gray-600">
+        <footer className="text-center mt-8 text-gray-600">
           <p className="text-sm">
             Built with React + Vite + TypeScript + Tailwind CSS
           </p>
