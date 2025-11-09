@@ -12,6 +12,10 @@ import { Pool, QueryResult } from 'pg';
 const dbConfig = process.env.DATABASE_URL
   ? {
       connectionString: process.env.DATABASE_URL,
+      // SSL required for Render PostgreSQL
+      ssl: {
+        rejectUnauthorized: false,
+      },
       // Connection pool settings
       max: parseInt(process.env.DB_POOL_MAX || '10', 10),
       idleTimeoutMillis: 30000,
