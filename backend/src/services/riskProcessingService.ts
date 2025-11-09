@@ -201,7 +201,10 @@ async function getCachedAnalysis(
 ): Promise<AIRiskAnalysisResponse | null> {
   try {
     const result = await query(
-      `SELECT * FROM risk_assessments
+      `SELECT id::text, patient_id::text, risk_score, risk_level, risk_tier,
+              key_findings, ckd_analysis, risk_factors, reasoning,
+              clinical_summary, recommendations, confidence, model_version, analyzed_at
+       FROM risk_assessments
        WHERE patient_id = $1
        ORDER BY analyzed_at DESC
        LIMIT 1`,
@@ -321,7 +324,10 @@ export async function getRecentAnalyses(
 ): Promise<AIRiskAnalysisResponse[]> {
   try {
     const result = await query(
-      `SELECT * FROM risk_assessments
+      `SELECT id::text, patient_id::text, risk_score, risk_level, risk_tier,
+              key_findings, ckd_analysis, risk_factors, reasoning,
+              clinical_summary, recommendations, confidence, model_version, analyzed_at
+       FROM risk_assessments
        ORDER BY analyzed_at DESC
        LIMIT $1`,
       [limit]

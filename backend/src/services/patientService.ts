@@ -174,7 +174,7 @@ function calculateRiskTier(
  * Get all patients
  */
 export async function getAllPatients(): Promise<PatientWithAge[]> {
-  const result = await query('SELECT * FROM patients ORDER BY last_name, first_name');
+  const result = await query('SELECT id::text, medical_record_number, first_name, last_name, date_of_birth, gender, email, phone, created_at, updated_at FROM patients ORDER BY last_name, first_name');
   return result.rows.map(enrichPatient);
 }
 
@@ -182,7 +182,7 @@ export async function getAllPatients(): Promise<PatientWithAge[]> {
  * Get patient by ID
  */
 export async function getPatientById(patientId: string): Promise<PatientWithAge | null> {
-  const result = await query('SELECT * FROM patients WHERE id = $1', [patientId]);
+  const result = await query('SELECT id::text, medical_record_number, first_name, last_name, date_of_birth, gender, email, phone, created_at, updated_at FROM patients WHERE id = $1', [patientId]);
 
   if (result.rows.length === 0) {
     return null;
@@ -196,7 +196,7 @@ export async function getPatientById(patientId: string): Promise<PatientWithAge 
  */
 export async function getPatientByMRN(mrn: string): Promise<PatientWithAge | null> {
   const result = await query(
-    'SELECT * FROM patients WHERE medical_record_number = $1',
+    'SELECT id::text, medical_record_number, first_name, last_name, date_of_birth, gender, email, phone, created_at, updated_at FROM patients WHERE medical_record_number = $1',
     [mrn]
   );
 
@@ -212,7 +212,8 @@ export async function getPatientByMRN(mrn: string): Promise<PatientWithAge | nul
  */
 export async function getPatientObservations(patientId: string): Promise<Observation[]> {
   const result = await query(
-    `SELECT * FROM observations
+    `SELECT id::text, patient_id::text, observation_type, value_numeric, value_text, unit, observation_date, status, notes, created_at
+     FROM observations
      WHERE patient_id = $1
      ORDER BY observation_date DESC`,
     [patientId]
@@ -226,7 +227,8 @@ export async function getPatientObservations(patientId: string): Promise<Observa
  */
 export async function getPatientConditions(patientId: string): Promise<Condition[]> {
   const result = await query(
-    `SELECT * FROM conditions
+    `SELECT id::text, patient_id::text, condition_code, condition_name, clinical_status, onset_date, recorded_date, severity, notes, created_at
+     FROM conditions
      WHERE patient_id = $1
      ORDER BY onset_date DESC`,
     [patientId]
@@ -240,7 +242,8 @@ export async function getPatientConditions(patientId: string): Promise<Condition
  */
 export async function getPatientRiskAssessments(patientId: string): Promise<RiskAssessment[]> {
   const result = await query(
-    `SELECT * FROM risk_assessments
+    `SELECT id::text, patient_id::text, risk_score, risk_level, recommendations, reasoning, assessed_at, created_at
+     FROM risk_assessments
      WHERE patient_id = $1
      ORDER BY assessed_at DESC`,
     [patientId]
