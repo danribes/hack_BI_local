@@ -8,6 +8,7 @@
 import { Pool } from 'pg';
 import { getPatientById } from './patientService';
 import { assessPatientRisk } from './riskMonitoringService';
+import { detectCKDDiagnosisOnset, processNewCKDDiagnosis } from './ckdDiagnosisDetection';
 
 export interface RiskChangeResult {
   priority_changed: boolean;
@@ -139,6 +140,24 @@ export class RiskChangeMonitor {
       // If notification is required, create it
       if (result.requires_notification) {
         await this.createStateChangeNotification(patient, assessment, result);
+      }
+
+      // Check for CKD diagnosis onset
+      console.log(`[RiskChangeMonitor] Checking for CKD diagnosis onset...`);
+      const diagnosisResult = await detectCKDDiagnosisOnset(patient);
+
+      if (diagnosisResult.newly_diagnosed && diagnosisResult.diagnosis_event_id) {
+        console.log(`[RiskChangeMonitor] 🔔 NEW CKD DIAGNOSIS DETECTED for ${mrn}!`);
+        console.log(`   - Diagnosis Event ID: ${diagnosisResult.diagnosis_event_id}`);
+        console.log(`   - Requires Confirmation: ${diagnosisResult.requires_confirmation}`);
+        console.log(`   - Treatment Recommended: ${diagnosisResult.treatment_protocol_recommended}`);
+
+        // Process the new diagnosis (create actions, protocols, notifications)
+        await processNewCKDDiagnosis(patient, diagnosisResult.diagnosis_event_id);
+
+        console.log(`[RiskChangeMonitor] ✓ CKD diagnosis workflow initiated for ${mrn}`);
+      } else {
+        console.log(`[RiskChangeMonitor] No new CKD diagnosis for ${mrn}`);
       }
 
     } catch (error) {

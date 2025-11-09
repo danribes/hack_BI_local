@@ -3,6 +3,7 @@ import './App.css'
 import PatientList from './components/PatientList'
 import HighRiskMonitoringDashboard from './components/HighRiskMonitoringDashboard'
 import NotificationsDashboard from './components/NotificationsDashboard'
+import CKDDiagnosisActionQueue from './components/CKDDiagnosisActionQueue'
 
 interface HealthCheckResponse {
   status: string;
@@ -12,7 +13,7 @@ interface HealthCheckResponse {
   environment: string;
 }
 
-type ViewMode = 'patients' | 'monitoring' | 'notifications';
+type ViewMode = 'patients' | 'monitoring' | 'notifications' | 'ckd-diagnosis';
 
 function App() {
   const [backendHealth, setBackendHealth] = useState<HealthCheckResponse | null>(null);
@@ -154,6 +155,16 @@ function App() {
                   >
                     📧 Notifications
                   </button>
+                  <button
+                    onClick={() => setActiveView('ckd-diagnosis')}
+                    className={`flex-1 px-6 py-4 font-semibold transition-colors ${
+                      activeView === 'ckd-diagnosis'
+                        ? 'text-indigo-600 border-b-2 border-indigo-600 bg-indigo-50'
+                        : 'text-gray-600 hover:text-gray-800 hover:bg-gray-50'
+                    }`}
+                  >
+                    🏥 CKD Diagnosis
+                  </button>
                 </div>
               </div>
 
@@ -173,6 +184,13 @@ function App() {
               {activeView === 'notifications' && (
                 <div className="bg-white rounded-lg shadow-lg p-6">
                   <NotificationsDashboard />
+                </div>
+              )}
+
+              {/* CKD Diagnosis View */}
+              {activeView === 'ckd-diagnosis' && (
+                <div className="bg-white rounded-lg shadow-lg p-6">
+                  <CKDDiagnosisActionQueue />
                 </div>
               )}
             </>

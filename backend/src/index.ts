@@ -6,6 +6,7 @@ import patientRoutes from './api/routes/patients';
 import analyzeRoutes from './api/routes/analyze';
 import monitoringRoutes from './api/routes/monitoring';
 import notificationRoutes from './api/routes/notifications';
+import ckdDiagnosisRoutes from './api/routes/ckdDiagnosis';
 import { initializeRiskChangeMonitor, stopRiskChangeMonitor } from './services/riskChangeMonitor';
 
 // Load environment variables
@@ -83,6 +84,16 @@ app.get('/api', (_req: Request, res: Response) => {
         acknowledge: 'PUT /api/notifications/:id/acknowledge',
         stats: 'GET /api/notifications/stats/summary',
         patientHistory: 'GET /api/notifications/patient/:patientId/history'
+      },
+      ckdDiagnosis: {
+        actions: 'GET /api/ckd-diagnosis/actions',
+        actionDetail: 'GET /api/ckd-diagnosis/actions/:id',
+        confirmDiagnosis: 'POST /api/ckd-diagnosis/actions/:id/confirm-diagnosis',
+        approveTreatment: 'POST /api/ckd-diagnosis/actions/:id/approve-treatment',
+        declineAction: 'POST /api/ckd-diagnosis/actions/:id/decline',
+        patientHistory: 'GET /api/ckd-diagnosis/patient/:patientId/history',
+        patientProtocols: 'GET /api/ckd-diagnosis/patient/:patientId/protocols',
+        stats: 'GET /api/ckd-diagnosis/stats'
       }
     }
   });
@@ -149,6 +160,7 @@ app.use('/api/patients', patientRoutes);
 app.use('/api/analyze', analyzeRoutes);
 app.use('/api/monitoring', monitoringRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/ckd-diagnosis', ckdDiagnosisRoutes);
 
 // 404 handler
 app.use((req: Request, res: Response) => {
@@ -182,6 +194,7 @@ app.listen(PORT, async () => {
   console.log(`🤖 AI Analysis: http://localhost:${PORT}/api/analyze`);
   console.log(`🔍 Risk Monitoring: http://localhost:${PORT}/api/monitoring`);
   console.log(`📧 Notifications: http://localhost:${PORT}/api/notifications`);
+  console.log(`🏥 CKD Diagnosis: http://localhost:${PORT}/api/ckd-diagnosis`);
   console.log(`📖 API info: http://localhost:${PORT}/api`);
   console.log('='.repeat(60));
 
