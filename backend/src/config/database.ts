@@ -95,6 +95,14 @@ export function getPoolStats() {
 }
 
 /**
+ * Get the database pool instance
+ * @returns Pool instance
+ */
+export function getPool(): Pool {
+  return pool;
+}
+
+/**
  * Close all database connections
  * Use this when shutting down the application
  */

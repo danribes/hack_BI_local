@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import './App.css'
 import PatientList from './components/PatientList'
 import HighRiskMonitoringDashboard from './components/HighRiskMonitoringDashboard'
+import NotificationsDashboard from './components/NotificationsDashboard'
 
 interface HealthCheckResponse {
   status: string;
@@ -11,7 +12,7 @@ interface HealthCheckResponse {
   environment: string;
 }
 
-type ViewMode = 'patients' | 'monitoring';
+type ViewMode = 'patients' | 'monitoring' | 'notifications';
 
 function App() {
   const [backendHealth, setBackendHealth] = useState<HealthCheckResponse | null>(null);
@@ -143,6 +144,16 @@ function App() {
                   >
                     🔍 High-Risk Monitoring
                   </button>
+                  <button
+                    onClick={() => setActiveView('notifications')}
+                    className={`flex-1 px-6 py-4 font-semibold transition-colors ${
+                      activeView === 'notifications'
+                        ? 'text-indigo-600 border-b-2 border-indigo-600 bg-indigo-50'
+                        : 'text-gray-600 hover:text-gray-800 hover:bg-gray-50'
+                    }`}
+                  >
+                    📧 Notifications
+                  </button>
                 </div>
               </div>
 
@@ -156,6 +167,13 @@ function App() {
               {/* High-Risk Monitoring View */}
               {activeView === 'monitoring' && (
                 <HighRiskMonitoringDashboard />
+              )}
+
+              {/* Notifications View */}
+              {activeView === 'notifications' && (
+                <div className="bg-white rounded-lg shadow-lg p-6">
+                  <NotificationsDashboard />
+                </div>
               )}
             </>
           )}

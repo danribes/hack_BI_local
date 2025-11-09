@@ -1,10 +1,12 @@
 import express, { Request, Response } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import { testConnection, closePool, getPoolStats, query } from './config/database';
+import { testConnection, closePool, getPoolStats, query, getPool } from './config/database';
 import patientRoutes from './api/routes/patients';
 import analyzeRoutes from './api/routes/analyze';
 import monitoringRoutes from './api/routes/monitoring';
+import notificationRoutes from './api/routes/notifications';
+import { initializeRiskChangeMonitor, stopRiskChangeMonitor } from './services/riskChangeMonitor';
 
 // Load environment variables
 dotenv.config();
@@ -73,6 +75,14 @@ app.get('/api', (_req: Request, res: Response) => {
         stats: 'GET /api/monitoring/stats',
         critical: 'GET /api/monitoring/critical',
         byPriority: 'GET /api/monitoring/priority/:priority'
+      },
+      notifications: {
+        list: 'GET /api/notifications',
+        pending: 'GET /api/notifications/pending',
+        detail: 'GET /api/notifications/:id',
+        acknowledge: 'PUT /api/notifications/:id/acknowledge',
+        stats: 'GET /api/notifications/stats/summary',
+        patientHistory: 'GET /api/notifications/patient/:patientId/history'
       }
     }
   });
@@ -138,6 +148,7 @@ app.get('/api/db/test', async (_req: Request, res: Response) => {
 app.use('/api/patients', patientRoutes);
 app.use('/api/analyze', analyzeRoutes);
 app.use('/api/monitoring', monitoringRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 // 404 handler
 app.use((req: Request, res: Response) => {
@@ -170,12 +181,24 @@ app.listen(PORT, async () => {
   console.log(`👥 Patients API: http://localhost:${PORT}/api/patients`);
   console.log(`🤖 AI Analysis: http://localhost:${PORT}/api/analyze`);
   console.log(`🔍 Risk Monitoring: http://localhost:${PORT}/api/monitoring`);
+  console.log(`📧 Notifications: http://localhost:${PORT}/api/notifications`);
   console.log(`📖 API info: http://localhost:${PORT}/api`);
   console.log('='.repeat(60));
 
   // Test database connection on startup
   console.log('Testing database connection...');
   await testConnection();
+
+  // Initialize Risk Change Monitor
+  console.log('Initializing Risk Change Monitor...');
+  try {
+    const pool = getPool();
+    await initializeRiskChangeMonitor(pool);
+    console.log('✓ Risk Change Monitor active - listening for patient data updates');
+  } catch (error) {
+    console.error('⚠️  Failed to initialize Risk Change Monitor:', error);
+    console.log('Server will continue without automatic monitoring');
+  }
 
   console.log('='.repeat(60));
   console.log('Ready to accept requests...\n');
@@ -184,12 +207,14 @@ app.listen(PORT, async () => {
 // Graceful shutdown
 process.on('SIGTERM', async () => {
   console.log('\n🛑 SIGTERM signal received: closing HTTP server');
+  await stopRiskChangeMonitor();
   await closePool();
   process.exit(0);
 });
 
 process.on('SIGINT', async () => {
   console.log('\n🛑 SIGINT signal received: closing HTTP server');
+  await stopRiskChangeMonitor();
   await closePool();
   process.exit(0);
 });
