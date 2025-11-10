@@ -131,7 +131,7 @@ const EnhancedCKDPatientCard: React.FC<EnhancedCKDPatientCardProps> = ({
   // Calculate BMI if not provided
   const calculatedBMI = patient.bmi ?? (
     patient.weight && patient.height
-      ? Number((patient.weight / Math.pow(patient.height / 100, 2)).toFixed(1))
+      ? Number((patient.weight / Math.pow(patient.height / 100, 2)).toFixed(2))
       : undefined
   );
 
@@ -177,7 +177,7 @@ const EnhancedCKDPatientCard: React.FC<EnhancedCKDPatientCardProps> = ({
             {calculatedBMI && (
               <div className={`${calculatedBMI >= 30 ? 'text-orange-800' : calculatedBMI >= 25 ? 'text-yellow-800' : 'text-green-800'}`}>
                 <p className="text-xs font-medium">BMI</p>
-                <p className="text-lg font-bold">{calculatedBMI}</p>
+                <p className="text-lg font-bold">{calculatedBMI.toFixed(2)}</p>
               </div>
             )}
           </div>
@@ -276,7 +276,7 @@ const EnhancedCKDPatientCard: React.FC<EnhancedCKDPatientCardProps> = ({
               {patient.serumCreatinine && (
                 <div className="bg-gray-50 p-2 rounded">
                   <p className="text-xs text-gray-600">Creatinine</p>
-                  <p className="text-base font-bold">{patient.serumCreatinine}</p>
+                  <p className="text-base font-bold text-gray-900">{patient.serumCreatinine}</p>
                   <p className="text-xs text-gray-500">mg/dL</p>
                 </div>
               )}
@@ -284,7 +284,7 @@ const EnhancedCKDPatientCard: React.FC<EnhancedCKDPatientCardProps> = ({
               {patient.bun && (
                 <div className="bg-gray-50 p-2 rounded">
                   <p className="text-xs text-gray-600">BUN</p>
-                  <p className="text-base font-bold">{patient.bun}</p>
+                  <p className="text-base font-bold text-gray-900">{patient.bun}</p>
                   <p className="text-xs text-gray-500">mg/dL</p>
                 </div>
               )}
@@ -292,7 +292,7 @@ const EnhancedCKDPatientCard: React.FC<EnhancedCKDPatientCardProps> = ({
               {patient.hemoglobin && (
                 <div className={`p-2 rounded ${isLowHemoglobin ? 'bg-red-50' : 'bg-gray-50'}`}>
                   <p className="text-xs text-gray-600">Hemoglobin</p>
-                  <p className="text-base font-bold">{patient.hemoglobin}</p>
+                  <p className="text-base font-bold text-gray-900">{patient.hemoglobin}</p>
                   <p className="text-xs text-gray-500">g/dL</p>
                 </div>
               )}
@@ -300,7 +300,7 @@ const EnhancedCKDPatientCard: React.FC<EnhancedCKDPatientCardProps> = ({
               {patient.potassium && (
                 <div className={`p-2 rounded ${isHighPotassium ? 'bg-red-50' : 'bg-gray-50'}`}>
                   <p className="text-xs text-gray-600">Potassium</p>
-                  <p className="text-base font-bold">{patient.potassium}</p>
+                  <p className="text-base font-bold text-gray-900">{patient.potassium}</p>
                   <p className="text-xs text-gray-500">mEq/L</p>
                 </div>
               )}
@@ -308,7 +308,7 @@ const EnhancedCKDPatientCard: React.FC<EnhancedCKDPatientCardProps> = ({
               {patient.calcium && (
                 <div className="bg-gray-50 p-2 rounded">
                   <p className="text-xs text-gray-600">Calcium</p>
-                  <p className="text-base font-bold">{patient.calcium}</p>
+                  <p className="text-base font-bold text-gray-900">{patient.calcium}</p>
                   <p className="text-xs text-gray-500">mg/dL</p>
                 </div>
               )}
@@ -316,7 +316,7 @@ const EnhancedCKDPatientCard: React.FC<EnhancedCKDPatientCardProps> = ({
               {patient.phosphorus && (
                 <div className={`p-2 rounded ${isHighPhosphorus ? 'bg-orange-50' : 'bg-gray-50'}`}>
                   <p className="text-xs text-gray-600">Phosphorus</p>
-                  <p className="text-base font-bold">{patient.phosphorus}</p>
+                  <p className="text-base font-bold text-gray-900">{patient.phosphorus}</p>
                   <p className="text-xs text-gray-500">mg/dL</p>
                 </div>
               )}
@@ -324,7 +324,7 @@ const EnhancedCKDPatientCard: React.FC<EnhancedCKDPatientCardProps> = ({
               {patient.albumin && (
                 <div className="bg-gray-50 p-2 rounded">
                   <p className="text-xs text-gray-600">Albumin</p>
-                  <p className="text-base font-bold">{patient.albumin}</p>
+                  <p className="text-base font-bold text-gray-900">{patient.albumin}</p>
                   <p className="text-xs text-gray-500">g/dL</p>
                 </div>
               )}
@@ -339,14 +339,14 @@ const EnhancedCKDPatientCard: React.FC<EnhancedCKDPatientCardProps> = ({
                 {patient.hba1c && (
                   <div className="bg-gray-50 p-2 rounded">
                     <p className="text-xs text-gray-600">HbA1c</p>
-                    <p className="text-base font-bold">{patient.hba1c}%</p>
+                    <p className="text-base font-bold text-gray-900">{patient.hba1c}%</p>
                   </div>
                 )}
 
                 {patient.ldl && (
                   <div className="bg-gray-50 p-2 rounded">
                     <p className="text-xs text-gray-600">LDL</p>
-                    <p className="text-base font-bold">{patient.ldl}</p>
+                    <p className="text-base font-bold text-gray-900">{patient.ldl}</p>
                     <p className="text-xs text-gray-500">mg/dL</p>
                   </div>
                 )}
@@ -354,7 +354,7 @@ const EnhancedCKDPatientCard: React.FC<EnhancedCKDPatientCardProps> = ({
                 {patient.hdl && (
                   <div className="bg-gray-50 p-2 rounded">
                     <p className="text-xs text-gray-600">HDL</p>
-                    <p className="text-base font-bold">{patient.hdl}</p>
+                    <p className="text-base font-bold text-gray-900">{patient.hdl}</p>
                     <p className="text-xs text-gray-500">mg/dL</p>
                   </div>
                 )}
