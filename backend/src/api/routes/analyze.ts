@@ -19,61 +19,127 @@ import {
 
 const router = Router();
 
+// ============================================
+// IMPORTANT: Route Order Matters!
+// Specific routes must be defined BEFORE parameterized routes like /:patientId
+// Otherwise Express will match "/batch" as ":patientId" parameter
+// ============================================
+
 /**
- * POST /api/analyze/:patientId
- * Analyze a single patient's CKD risk
+ * GET /api/analyze/health
+ * Health check endpoint for risk analysis service
  *
- * Request params:
- *   - patientId: Patient UUID
+ * Response:
+ *   - status: string
+ *   - service: string
+ *   - timestamp: string
+ */
+router.get('/health', async (_req: Request, res: Response) => {
+  res.status(200).json({
+    status: 'healthy',
+    service: 'risk-analysis',
+    timestamp: new Date().toISOString(),
+  });
+});
+
+/**
+ * GET /api/analyze/recent
+ * Get recent risk analyses
  *
- * Request body (optional):
- *   - storeResults: boolean (default: true)
- *   - includePatientData: boolean (default: true)
- *   - skipCache: boolean (default: false)
+ * Query params:
+ *   - limit?: number (default: 10, max: 100)
+ *
+ * Response:
+ *   - analyses: AIRiskAnalysisResponse[]
+ *   - count: number
+ */
+router.get('/recent', async (req: Request, res: Response) => {
+  try {
+    const limit = Math.min(
+      parseInt(req.query.limit as string) || 10,
+      100 // Max limit
+    );
+
+    const analyses = await getRecentAnalyses(limit);
+
+    res.status(200).json({
+      analyses,
+      count: analyses.length,
+      limit,
+    });
+  } catch (error) {
+    console.error('Error in GET /api/analyze/recent:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error fetching recent analyses',
+      details: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+});
+
+/**
+ * GET /api/analyze/statistics
+ * Get aggregate statistics about risk analyses
+ *
+ * Response:
+ *   - total_analyses: number
+ *   - by_risk_level: { low: number, medium: number, high: number }
+ *   - by_risk_tier: { tier_1: number, tier_2: number, tier_3: number }
+ *   - average_risk_score: number
+ *   - last_analyzed: string | null
+ */
+router.get('/statistics', async (_req: Request, res: Response) => {
+  try {
+    const statistics = await getAnalysisStatistics();
+
+    res.status(200).json(statistics);
+  } catch (error) {
+    console.error('Error in GET /api/analyze/statistics:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Internal server error fetching statistics',
+      details: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+});
+
+/**
+ * DELETE /api/analyze/cache
+ * Clear old cached analyses
+ *
+ * Query params:
+ *   - olderThanHours?: number (default: 24)
  *
  * Response:
  *   - success: boolean
- *   - patient_id: string
- *   - analysis?: AIRiskAnalysisResponse
- *   - error?: string
- *   - cached?: boolean
- *   - processing_time_ms?: number
+ *   - deletedCount: number
+ *   - olderThanHours: number
  */
-router.post('/:patientId', async (req: Request, res: Response) => {
+router.delete('/cache', async (req: Request, res: Response) => {
   try {
-    const { patientId } = req.params;
+    const olderThanHours = parseInt(req.query.olderThanHours as string) || 24;
 
-    // Validate patient ID format (UUID)
-    const uuidRegex =
-      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    if (!uuidRegex.test(patientId)) {
+    // Validate hours (must be positive)
+    if (olderThanHours <= 0) {
       res.status(400).json({
         success: false,
-        error: 'Invalid patient ID format. Must be a valid UUID.',
+        error: 'olderThanHours must be a positive number',
       });
       return;
     }
 
-    // Extract configuration from request body
-    const config: ProcessConfig = {
-      storeResults: req.body.storeResults ?? true,
-      includePatientData: req.body.includePatientData ?? true,
-      skipCache: req.body.skipCache ?? false,
-    };
+    const deletedCount = await clearOldAnalyses(olderThanHours);
 
-    // Process patient risk analysis
-    const result = await processPatientRiskAnalysis(patientId, config);
-
-    if (result.success) {
-      res.status(200).json(result);
-    } else {
-      res.status(404).json(result);
-    }
+    res.status(200).json({
+      success: true,
+      deletedCount,
+      olderThanHours,
+    });
   } catch (error) {
-    console.error('Error in POST /api/analyze/:patientId:', error);
+    console.error('Error in DELETE /api/analyze/cache:', error);
     res.status(500).json({
       success: false,
-      error: 'Internal server error during risk analysis',
+      error: 'Internal server error clearing cache',
       details: error instanceof Error ? error.message : 'Unknown error',
     });
   }
@@ -247,123 +313,65 @@ router.post('/tier/:tier', async (req: Request, res: Response) => {
 });
 
 /**
- * GET /api/analyze/recent
- * Get recent risk analyses
+ * POST /api/analyze/:patientId
+ * Analyze a single patient's CKD risk
  *
- * Query params:
- *   - limit?: number (default: 10, max: 100)
+ * Request params:
+ *   - patientId: Patient UUID
  *
- * Response:
- *   - analyses: AIRiskAnalysisResponse[]
- *   - count: number
- */
-router.get('/recent', async (req: Request, res: Response) => {
-  try {
-    const limit = Math.min(
-      parseInt(req.query.limit as string) || 10,
-      100 // Max limit
-    );
-
-    const analyses = await getRecentAnalyses(limit);
-
-    res.status(200).json({
-      analyses,
-      count: analyses.length,
-      limit,
-    });
-  } catch (error) {
-    console.error('Error in GET /api/analyze/recent:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Internal server error fetching recent analyses',
-      details: error instanceof Error ? error.message : 'Unknown error',
-    });
-  }
-});
-
-/**
- * GET /api/analyze/statistics
- * Get aggregate statistics about risk analyses
- *
- * Response:
- *   - total_analyses: number
- *   - by_risk_level: { low: number, medium: number, high: number }
- *   - by_risk_tier: { tier_1: number, tier_2: number, tier_3: number }
- *   - average_risk_score: number
- *   - last_analyzed: string | null
- */
-router.get('/statistics', async (_req: Request, res: Response) => {
-  try {
-    const statistics = await getAnalysisStatistics();
-
-    res.status(200).json(statistics);
-  } catch (error) {
-    console.error('Error in GET /api/analyze/statistics:', error);
-    res.status(500).json({
-      success: false,
-      error: 'Internal server error fetching statistics',
-      details: error instanceof Error ? error.message : 'Unknown error',
-    });
-  }
-});
-
-/**
- * DELETE /api/analyze/cache
- * Clear old cached analyses
- *
- * Query params:
- *   - olderThanHours?: number (default: 24)
+ * Request body (optional):
+ *   - storeResults: boolean (default: true)
+ *   - includePatientData: boolean (default: true)
+ *   - skipCache: boolean (default: false)
  *
  * Response:
  *   - success: boolean
- *   - deletedCount: number
- *   - olderThanHours: number
+ *   - patient_id: string
+ *   - analysis?: AIRiskAnalysisResponse
+ *   - error?: string
+ *   - cached?: boolean
+ *   - processing_time_ms?: number
+ *
+ * NOTE: This route MUST be last because it's a catch-all for any POST /api/analyze/:anything
  */
-router.delete('/cache', async (req: Request, res: Response) => {
+router.post('/:patientId', async (req: Request, res: Response) => {
   try {
-    const olderThanHours = parseInt(req.query.olderThanHours as string) || 24;
+    const { patientId } = req.params;
 
-    // Validate hours (must be positive)
-    if (olderThanHours <= 0) {
+    // Validate patient ID format (UUID)
+    const uuidRegex =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(patientId)) {
       res.status(400).json({
         success: false,
-        error: 'olderThanHours must be a positive number',
+        error: 'Invalid patient ID format. Must be a valid UUID.',
       });
       return;
     }
 
-    const deletedCount = await clearOldAnalyses(olderThanHours);
+    // Extract configuration from request body
+    const config: ProcessConfig = {
+      storeResults: req.body.storeResults ?? true,
+      includePatientData: req.body.includePatientData ?? true,
+      skipCache: req.body.skipCache ?? false,
+    };
 
-    res.status(200).json({
-      success: true,
-      deletedCount,
-      olderThanHours,
-    });
+    // Process patient risk analysis
+    const result = await processPatientRiskAnalysis(patientId, config);
+
+    if (result.success) {
+      res.status(200).json(result);
+    } else {
+      res.status(404).json(result);
+    }
   } catch (error) {
-    console.error('Error in DELETE /api/analyze/cache:', error);
+    console.error('Error in POST /api/analyze/:patientId:', error);
     res.status(500).json({
       success: false,
-      error: 'Internal server error clearing cache',
+      error: 'Internal server error during risk analysis',
       details: error instanceof Error ? error.message : 'Unknown error',
     });
   }
-});
-
-/**
- * GET /api/analyze/health
- * Health check endpoint for risk analysis service
- *
- * Response:
- *   - status: string
- *   - service: string
- *   - timestamp: string
- */
-router.get('/health', async (_req: Request, res: Response) => {
-  res.status(200).json({
-    status: 'healthy',
-    service: 'risk-analysis',
-    timestamp: new Date().toISOString(),
-  });
 });
 
 export default router;
