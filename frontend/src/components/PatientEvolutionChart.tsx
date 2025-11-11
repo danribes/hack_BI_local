@@ -136,7 +136,6 @@ export default function PatientEvolutionChart({ patientId, patientName }: Props)
   };
 
   const yScale = selectedMetric === 'egfr' ? yScaleEgfr : yScaleUacr;
-  const values = selectedMetric === 'egfr' ? egfrValues : uacrValues;
   const minValue = selectedMetric === 'egfr' ? egfrMin : uacrMin;
   const maxValue = selectedMetric === 'egfr' ? egfrMax : uacrMax;
 
