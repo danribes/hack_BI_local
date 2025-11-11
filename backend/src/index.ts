@@ -211,9 +211,24 @@ app.listen(PORT, async () => {
   console.log(`📖 API info: http://localhost:${PORT}/api`);
   console.log('='.repeat(60));
 
+  // Check ANTHROPIC_API_KEY
+  console.log('Checking environment configuration...');
+  if (!process.env.ANTHROPIC_API_KEY) {
+    console.warn('⚠️  WARNING: ANTHROPIC_API_KEY not set!');
+    console.warn('   AI analysis features will not work.');
+    console.warn('   Set this variable in your Render dashboard:');
+    console.warn('   Dashboard → Service → Environment → Add ANTHROPIC_API_KEY');
+  } else {
+    console.log('✓ ANTHROPIC_API_KEY configured');
+  }
+
   // Test database connection on startup
   console.log('Testing database connection...');
-  await testConnection();
+  const dbConnected = await testConnection();
+  if (!dbConnected) {
+    console.error('⚠️  WARNING: Database connection failed!');
+    console.error('   Some features may not work correctly.');
+  }
 
   // Initialize Risk Change Monitor
   console.log('Initializing Risk Change Monitor...');

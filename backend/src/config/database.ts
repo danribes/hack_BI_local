@@ -37,9 +37,11 @@ const dbConfig = process.env.DATABASE_URL
 const pool = new Pool(dbConfig);
 
 // Pool error handler
+// Note: This is called for idle clients, not for query errors
 pool.on('error', (err) => {
-  console.error('Unexpected database pool error:', err);
-  process.exit(-1);
+  console.error('Unexpected database pool error (idle client):', err);
+  console.error('Connection will be removed from pool. Server continues running.');
+  // Don't exit process - let the pool handle it
 });
 
 /**
