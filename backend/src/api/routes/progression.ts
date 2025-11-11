@@ -9,7 +9,7 @@ import { getPool } from '../../config/database';
 import { runProgressionMonitoring } from '../../services/progressionMonitor';
 import { classifyKDIGOHealthState } from '../../services/kdigoClassifier';
 import { initializeBaseline, generateNextCycle, getProgressionState } from '../../services/dynamicProgressionGenerator';
-import { advanceCohortCycle, generateEnhancedCycle } from '../../services/enhancedProgressionGenerator';
+import { advanceCohortCycle } from '../../services/enhancedProgressionGenerator';
 
 const router = Router();
 

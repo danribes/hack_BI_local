@@ -82,9 +82,10 @@ const TREATMENT_EFFECTS = {
     uacr_reduction_min: 0.15,
     uacr_reduction_max: 0.30,
   },
-  // Combination therapy bonus (additive effects)
-  COMBINATION_BONUS: 0.2, // 20% additional benefit for combination therapy
-};
+} as const;
+
+// Combination therapy bonus (additive effects)
+const COMBINATION_BONUS = 0.2; // 20% additional benefit for combination therapy
 
 // ============================================
 // Core Functions
@@ -241,8 +242,8 @@ function calculateTreatmentEffect(
 
   // Combination therapy bonus
   if (treatments.length > 1) {
-    total_egfr_benefit *= (1 + TREATMENT_EFFECTS.COMBINATION_BONUS);
-    total_uacr_reduction *= (1 + TREATMENT_EFFECTS.COMBINATION_BONUS);
+    total_egfr_benefit *= (1 + COMBINATION_BONUS);
+    total_uacr_reduction *= (1 + COMBINATION_BONUS);
   }
 
   const average_adherence = adherence_sum / treatments.length;
@@ -785,7 +786,7 @@ async function initiateRandomTreatment(
 /**
  * Update adherence randomly (simulate real-world adherence changes)
  */
-async function updateRandomAdherence(patientId: string, cycle: number): Promise<void> {
+async function updateRandomAdherence(patientId: string, _cycle: number): Promise<void> {
   const pool = getPool();
 
   const treatments = await getActiveTreatments(patientId);
