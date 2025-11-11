@@ -62,9 +62,13 @@ export default function ProgressionTimeline() {
         const response = await fetch(`${apiUrl}/api/patients`);
         if (!response.ok) throw new Error('Failed to fetch patients');
         const data = await response.json();
-        setPatients(data.slice(0, 20)); // Show first 20 for demo
-        if (data.length > 0) {
-          setSelectedPatientId(data[0].id);
+
+        // Ensure data is an array before slicing
+        const patientsArray = Array.isArray(data) ? data : [];
+        setPatients(patientsArray.slice(0, 20)); // Show first 20 for demo
+
+        if (patientsArray.length > 0) {
+          setSelectedPatientId(patientsArray[0].id);
         }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load patients');
@@ -106,19 +110,19 @@ export default function ProgressionTimeline() {
           cycle_number: cycleData.cycle_number,
           egfr_value: cycleData.egfr_value,
           uacr_value: cycleData.uacr_value,
-          gfr_category: cycleData.classification.gfr_category,
-          albuminuria_category: cycleData.classification.albuminuria_category,
-          health_state: cycleData.classification.health_state,
-          risk_level: cycleData.classification.risk_level,
-          risk_color: cycleData.classification.risk_color,
-          ckd_stage: cycleData.classification.ckd_stage,
-          ckd_stage_name: cycleData.classification.ckd_stage_name || `CKD Stage ${cycleData.classification.ckd_stage || 'N/A'}`,
-          requires_nephrology_referral: cycleData.classification.nephrology_referral_needed,
-          requires_dialysis_planning: cycleData.classification.dialysis_planning_needed,
-          recommend_ras_inhibitor: cycleData.classification.treatment_recommendations?.ras_inhibitor || false,
-          recommend_sglt2i: cycleData.classification.treatment_recommendations?.sglt2_inhibitor || false,
-          target_bp: cycleData.classification.treatment_recommendations?.bp_target || '<130/80',
-          monitoring_frequency: cycleData.classification.monitoring_frequency || 'Every 6-12 months'
+          gfr_category: cycleData.classification.gfrCategory,
+          albuminuria_category: cycleData.classification.albuminuriaCategory,
+          health_state: cycleData.classification.healthState,
+          risk_level: cycleData.classification.riskLevel,
+          risk_color: cycleData.classification.riskColor,
+          ckd_stage: cycleData.classification.ckdStage,
+          ckd_stage_name: cycleData.classification.ckdStageName || `CKD Stage ${cycleData.classification.ckdStage || 'N/A'}`,
+          requires_nephrology_referral: cycleData.classification.requiresNephrologyReferral,
+          requires_dialysis_planning: cycleData.classification.requiresDialysisPlanning,
+          recommend_ras_inhibitor: cycleData.classification.recommendRASInhibitor || false,
+          recommend_sglt2i: cycleData.classification.recommendSGLT2i || false,
+          target_bp: cycleData.classification.targetBP || '<130/80',
+          monitoring_frequency: cycleData.classification.monitoringFrequency || 'Every 6-12 months'
         };
 
         setHealthStates(new Map([[0, baseline]]));
@@ -166,19 +170,19 @@ export default function ProgressionTimeline() {
         cycle_number: cycleData.cycle_number,
         egfr_value: cycleData.egfr_value,
         uacr_value: cycleData.uacr_value,
-        gfr_category: cycleData.classification.gfr_category,
-        albuminuria_category: cycleData.classification.albuminuria_category,
-        health_state: cycleData.classification.health_state,
-        risk_level: cycleData.classification.risk_level,
-        risk_color: cycleData.classification.risk_color,
-        ckd_stage: cycleData.classification.ckd_stage,
-        ckd_stage_name: cycleData.classification.ckd_stage_name || `CKD Stage ${cycleData.classification.ckd_stage || 'N/A'}`,
-        requires_nephrology_referral: cycleData.classification.nephrology_referral_needed,
-        requires_dialysis_planning: cycleData.classification.dialysis_planning_needed,
-        recommend_ras_inhibitor: cycleData.classification.treatment_recommendations?.ras_inhibitor || false,
-        recommend_sglt2i: cycleData.classification.treatment_recommendations?.sglt2_inhibitor || false,
-        target_bp: cycleData.classification.treatment_recommendations?.bp_target || '<130/80',
-        monitoring_frequency: cycleData.classification.monitoring_frequency || 'Every 6-12 months'
+        gfr_category: cycleData.classification.gfrCategory,
+        albuminuria_category: cycleData.classification.albuminuriaCategory,
+        health_state: cycleData.classification.healthState,
+        risk_level: cycleData.classification.riskLevel,
+        risk_color: cycleData.classification.riskColor,
+        ckd_stage: cycleData.classification.ckdStage,
+        ckd_stage_name: cycleData.classification.ckdStageName || `CKD Stage ${cycleData.classification.ckdStage || 'N/A'}`,
+        requires_nephrology_referral: cycleData.classification.requiresNephrologyReferral,
+        requires_dialysis_planning: cycleData.classification.requiresDialysisPlanning,
+        recommend_ras_inhibitor: cycleData.classification.recommendRASInhibitor || false,
+        recommend_sglt2i: cycleData.classification.recommendSGLT2i || false,
+        target_bp: cycleData.classification.targetBP || '<130/80',
+        monitoring_frequency: cycleData.classification.monitoringFrequency || 'Every 6-12 months'
       };
 
       // Store new state
