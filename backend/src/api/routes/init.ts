@@ -448,6 +448,267 @@ router.get('/status', async (_req: Request, res: Response): Promise<any> => {
 });
 
 /**
+ * POST /api/init/populate-realistic-cohort
+ * Populate database with realistic patient distribution matching real-world prevalence
+ * Body: { patient_count: number } (default: 1000)
+ */
+router.post('/populate-realistic-cohort', async (req: Request, res: Response): Promise<any> => {
+  try {
+    const pool = getPool();
+    const targetCount = req.body.patient_count || 1000;
+
+    console.log(`Generating ${targetCount} patients with real-world prevalence...`);
+
+    // Distribution based on real-world prevalence
+    const distribution = {
+      nonCkdLowModerate: Math.floor(targetCount * 0.245), // 24.5%
+      nonCkdHigh: Math.floor(targetCount * 0.40), // 40%
+      ckdMild: Math.floor(targetCount * 0.08), // 8%
+      ckdModerate: Math.floor(targetCount * 0.25), // 25%
+      ckdSevere: Math.floor(targetCount * 0.02), // 2%
+      ckdKidneyFailure: Math.floor(targetCount * 0.005) // 0.5%
+    };
+
+    // Monitoring/treatment percentages
+    const nonCkdHighMonitoredPercent = 0.60; // 60% of high-risk non-CKD
+    const ckdMonitoredPercent = 0.90; // 90% of all CKD
+    const ckdTreatedPercent = 0.80; // 80% of all CKD
+
+    const treatments = [
+      { name: 'Jardiance (Empagliflozin)', class: 'SGLT2i' },
+      { name: 'Farxiga (Dapagliflozin)', class: 'SGLT2i' },
+      { name: 'Invokana (Canagliflozin)', class: 'SGLT2i' },
+      { name: 'Kerendia (Finerenone)', class: 'MRA' },
+      { name: 'Vicadrostat (Investigational)', class: 'Investigational' }
+    ];
+
+    const firstNames = ['James', 'Mary', 'John', 'Patricia', 'Robert', 'Jennifer', 'Michael', 'Linda', 'William', 'Barbara', 'David', 'Elizabeth', 'Richard', 'Susan', 'Joseph', 'Jessica', 'Thomas', 'Sarah', 'Charles', 'Karen', 'Daniel', 'Nancy', 'Matthew', 'Lisa', 'Anthony', 'Betty', 'Donald', 'Margaret', 'Mark', 'Sandra', 'Paul', 'Ashley', 'Steven', 'Kimberly', 'Andrew', 'Emily', 'Kenneth', 'Donna', 'Joshua', 'Michelle'];
+    const lastNames = ['Smith', 'Johnson', 'Williams', 'Brown', 'Jones', 'Garcia', 'Miller', 'Davis', 'Rodriguez', 'Martinez', 'Hernandez', 'Lopez', 'Gonzalez', 'Wilson', 'Anderson', 'Thomas', 'Taylor', 'Moore', 'Jackson', 'Martin', 'Lee', 'Perez', 'Thompson', 'White', 'Harris', 'Sanchez', 'Clark', 'Ramirez', 'Lewis', 'Robinson'];
+
+    let patientsCreated = 0;
+    const today = new Date();
+
+    // Helper function to generate patient
+    const generatePatient = async (category: string, _index: number) => {
+      const firstName = firstNames[Math.floor(Math.random() * firstNames.length)];
+      const lastName = lastNames[Math.floor(Math.random() * lastNames.length)];
+      const gender = Math.random() > 0.5 ? 'male' : 'female';
+
+      // Age 66-90 with random variation
+      const age = 66 + Math.floor(Math.random() * 25);
+      const birthYear = today.getFullYear() - age;
+      const birthMonth = Math.floor(Math.random() * 12);
+      const birthDay = Math.floor(Math.random() * 28) + 1;
+      const dateOfBirth = new Date(birthYear, birthMonth, birthDay);
+
+      // Generate labs based on category
+      let egfr: number, uacr: number, severity: string | null, ckdStage: number | null;
+      let riskLevel: string | null, isMonitored: boolean, isTreated: boolean;
+
+      switch (category) {
+        case 'nonCkdLowModerate':
+          egfr = 75 + Math.random() * 30; // 75-105
+          uacr = Math.random() * 25; // 0-25
+          severity = null;
+          ckdStage = null;
+          riskLevel = Math.random() > 0.5 ? 'low' : 'moderate';
+          isMonitored = false;
+          isTreated = false;
+          break;
+
+        case 'nonCkdHigh':
+          egfr = 60 + Math.random() * 20; // 60-80
+          uacr = 30 + Math.random() * 270; // 30-300
+          severity = null;
+          ckdStage = null;
+          riskLevel = 'high';
+          isMonitored = Math.random() < nonCkdHighMonitoredPercent;
+          isTreated = false;
+          break;
+
+        case 'ckdMild':
+          egfr = 65 + Math.random() * 25; // 65-90
+          uacr = 30 + Math.random() * 70; // 30-100
+          severity = 'mild';
+          ckdStage = Math.random() > 0.5 ? 1 : 2;
+          riskLevel = null;
+          isMonitored = Math.random() < ckdMonitoredPercent;
+          isTreated = Math.random() < ckdTreatedPercent;
+          break;
+
+        case 'ckdModerate':
+          egfr = 30 + Math.random() * 30; // 30-60
+          uacr = 30 + Math.random() * 270; // 30-300
+          severity = 'moderate';
+          ckdStage = 3;
+          riskLevel = null;
+          isMonitored = Math.random() < ckdMonitoredPercent;
+          isTreated = Math.random() < ckdTreatedPercent;
+          break;
+
+        case 'ckdSevere':
+          egfr = 15 + Math.random() * 15; // 15-30
+          uacr = 100 + Math.random() * 400; // 100-500
+          severity = 'severe';
+          ckdStage = 4;
+          riskLevel = null;
+          isMonitored = Math.random() < ckdMonitoredPercent;
+          isTreated = Math.random() < ckdTreatedPercent;
+          break;
+
+        case 'ckdKidneyFailure':
+          egfr = 5 + Math.random() * 10; // 5-15
+          uacr = 300 + Math.random() * 200; // 300-500
+          severity = 'kidney_failure';
+          ckdStage = 5;
+          riskLevel = null;
+          isMonitored = true; // All kidney failure patients monitored
+          isTreated = true; // All kidney failure patients treated
+          break;
+
+        default:
+          throw new Error('Invalid category');
+      }
+
+      // Insert patient
+      const patientResult = await pool.query(`
+        INSERT INTO patients (
+          medical_record_number, first_name, last_name, date_of_birth, gender,
+          email, phone, last_visit_date
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        RETURNING id
+      `, [
+        `MRN${String(patientsCreated + 1).padStart(6, '0')}`,
+        firstName,
+        lastName,
+        dateOfBirth,
+        gender,
+        `${firstName.toLowerCase()}.${lastName.toLowerCase()}@email.com`,
+        `+1-555-${String(Math.floor(Math.random() * 10000)).padStart(4, '0')}`,
+        new Date(Date.now() - Math.floor(Math.random() * 90) * 24 * 60 * 60 * 1000)
+      ]);
+
+      const newPatientId = patientResult.rows[0].id;
+
+      // Insert observations
+      await pool.query(`
+        INSERT INTO observations (patient_id, observation_type, value_numeric, unit, observation_date, status)
+        VALUES
+          ($1, 'eGFR', $2, 'mL/min/1.73m²', $3, 'final'),
+          ($1, 'uACR', $4, 'mg/g', $3, 'final')
+      `, [newPatientId, egfr, today, uacr]);
+
+      // Calculate KDIGO for health state
+      const kdigo = classifyKDIGO(egfr, uacr);
+      const monitoringFreq = getMonitoringFrequencyCategory(kdigo);
+
+      // Insert into appropriate tracking table
+      if (severity) {
+        // CKD patient
+        const ckdDataResult = await pool.query(`
+          INSERT INTO ckd_patient_data (
+            patient_id, ckd_severity, ckd_stage,
+            kdigo_gfr_category, kdigo_albuminuria_category, kdigo_health_state,
+            is_monitored, monitoring_device, monitoring_frequency, is_treated
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+          RETURNING id
+        `, [
+          newPatientId, severity, ckdStage,
+          kdigo.gfr_category, kdigo.albuminuria_category, kdigo.health_state,
+          isMonitored, isMonitored ? 'Minuteful Kidney Kit' : null, monitoringFreq, isTreated
+        ]);
+
+        // Add treatment if treated
+        if (isTreated) {
+          const randomTreatment = treatments[Math.floor(Math.random() * treatments.length)];
+          await pool.query(`
+            INSERT INTO ckd_treatments (
+              ckd_patient_data_id, treatment_name, treatment_class, is_active, start_date
+            ) VALUES ($1, $2, $3, true, $4)
+          `, [ckdDataResult.rows[0].id, randomTreatment.name, randomTreatment.class, today]);
+        }
+      } else {
+        // Non-CKD patient
+        await pool.query(`
+          INSERT INTO non_ckd_patient_data (
+            patient_id, risk_level, kdigo_health_state,
+            is_monitored, monitoring_device, monitoring_frequency
+          ) VALUES ($1, $2, $3, $4, $5, $6)
+        `, [
+          newPatientId, riskLevel, kdigo.health_state,
+          isMonitored, isMonitored ? 'Minuteful Kidney Kit' : null, monitoringFreq
+        ]);
+      }
+
+      patientsCreated++;
+      if (patientsCreated % 100 === 0) {
+        console.log(`✓ Created ${patientsCreated} patients...`);
+      }
+    };
+
+    // Generate patients for each category
+    console.log('Generating Non-CKD Low/Moderate Risk patients...');
+    for (let i = 0; i < distribution.nonCkdLowModerate; i++) {
+      await generatePatient('nonCkdLowModerate', i);
+    }
+
+    console.log('Generating Non-CKD High Risk patients...');
+    for (let i = 0; i < distribution.nonCkdHigh; i++) {
+      await generatePatient('nonCkdHigh', i);
+    }
+
+    console.log('Generating Mild CKD patients...');
+    for (let i = 0; i < distribution.ckdMild; i++) {
+      await generatePatient('ckdMild', i);
+    }
+
+    console.log('Generating Moderate CKD patients...');
+    for (let i = 0; i < distribution.ckdModerate; i++) {
+      await generatePatient('ckdModerate', i);
+    }
+
+    console.log('Generating Severe CKD patients...');
+    for (let i = 0; i < distribution.ckdSevere; i++) {
+      await generatePatient('ckdSevere', i);
+    }
+
+    console.log('Generating Kidney Failure patients...');
+    for (let i = 0; i < distribution.ckdKidneyFailure; i++) {
+      await generatePatient('ckdKidneyFailure', i);
+    }
+
+    console.log(`✓ Successfully created ${patientsCreated} patients with realistic distribution`);
+
+    res.json({
+      status: 'success',
+      message: 'Realistic patient cohort generated successfully',
+      patients_created: patientsCreated,
+      distribution: {
+        'Non-CKD Low/Moderate Risk': distribution.nonCkdLowModerate,
+        'Non-CKD High Risk': distribution.nonCkdHigh,
+        'Mild CKD': distribution.ckdMild,
+        'Moderate CKD': distribution.ckdModerate,
+        'Severe CKD': distribution.ckdSevere,
+        'Kidney Failure': distribution.ckdKidneyFailure
+      },
+      monitoring_treatment: {
+        'Non-CKD High Risk Monitored': `${nonCkdHighMonitoredPercent * 100}%`,
+        'CKD Monitored': `${ckdMonitoredPercent * 100}%`,
+        'CKD Treated': `${ckdTreatedPercent * 100}%`
+      }
+    });
+
+  } catch (error) {
+    console.error('[Init API] Error populating realistic cohort:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to populate realistic cohort',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+/**
  * POST /api/init/update-patient-ages
  * Update all patient ages to be over 65 with random variation
  */
