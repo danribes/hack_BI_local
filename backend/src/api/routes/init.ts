@@ -778,6 +778,177 @@ router.post('/populate-realistic-cohort', async (req: Request, res: Response): P
               ckd_patient_data_id, treatment_name, treatment_class, is_active, start_date
             ) VALUES ($1, $2, $3, true, $4)
           `, [ckdDataResult.rows[0].id, randomTreatment.name, randomTreatment.class, today]);
+
+          // ============================================
+          // Add Jardiance prescription and adherence tracking
+          // ============================================
+
+          // Determine if this is Jardiance (SGLT2i) - 60% of treated patients
+          const isJardiance = randomTreatment.class === 'SGLT2i' || Math.random() < 0.6;
+
+          if (isJardiance) {
+            const dosage = Math.random() < 0.7 ? '10mg' : '25mg';
+            const medication = `Jardiance (empagliflozin) ${dosage}`;
+
+            // Prescription started 6-12 months ago
+            const monthsAgo = 6 + Math.floor(Math.random() * 7);
+            const prescriptionStartDate = new Date(today.getTime() - monthsAgo * 30 * 24 * 60 * 60 * 1000);
+
+            // Determine adherence category (realistic distribution)
+            // High: 50%, Medium: 30%, Low: 20%
+            let adherenceCategory: string;
+            const adherenceRand = Math.random();
+
+            if (adherenceRand < 0.5) {
+              // High adherence: MPR 80-95%
+              adherenceCategory = 'High';
+            } else if (adherenceRand < 0.8) {
+              // Medium adherence: MPR 60-79%
+              adherenceCategory = 'Medium';
+            } else {
+              // Low adherence: MPR 30-59%
+              adherenceCategory = 'Low';
+            }
+
+            // Create prescription
+            const prescriptionResult = await pool.query(`
+              INSERT INTO jardiance_prescriptions (
+                patient_id, medication, dosage, start_date,
+                prescribed, currently_taking,
+                prescriber_name, indication
+              ) VALUES ($1, $2, $3, $4, true, true, $5, $6)
+              RETURNING id
+            `, [
+              newPatientId,
+              medication,
+              dosage,
+              prescriptionStartDate,
+              'Dr. John Smith',
+              'CKD with diabetes'
+            ]);
+
+            const prescriptionId = prescriptionResult.rows[0].id;
+
+            // Generate realistic refill history
+            // Standard refill: 30 days supply
+            const daysSupply = 30;
+            const refillsNeeded = monthsAgo; // Roughly one per month
+
+            let currentRefillDate = new Date(prescriptionStartDate);
+            let totalDaysSupply = 0;
+
+            for (let refillNum = 0; refillNum < refillsNeeded; refillNum++) {
+              // Calculate expected next refill
+              const expectedRefillDate = new Date(currentRefillDate.getTime() + daysSupply * 24 * 60 * 60 * 1000);
+
+              // Add realistic gaps based on adherence category
+              let gapDays = 0;
+
+              if (adherenceCategory === 'High') {
+                // High adherence: mostly on-time, occasional 1-5 day delays
+                gapDays = Math.random() < 0.8 ? 0 : Math.floor(Math.random() * 5);
+              } else if (adherenceCategory === 'Medium') {
+                // Medium adherence: 7-14 day gaps common
+                gapDays = Math.random() < 0.5 ? Math.floor(Math.random() * 7) : 7 + Math.floor(Math.random() * 8);
+              } else {
+                // Low adherence: long gaps, sometimes 30+ days
+                gapDays = Math.random() < 0.3 ? 15 + Math.floor(Math.random() * 15) : 30 + Math.floor(Math.random() * 30);
+              }
+
+              // Actual refill date = expected + gap
+              const actualRefillDate = new Date(expectedRefillDate.getTime() + gapDays * 24 * 60 * 60 * 1000);
+
+              // Don't create refills in the future
+              if (actualRefillDate > today) break;
+
+              // Insert refill
+              await pool.query(`
+                INSERT INTO jardiance_refills (
+                  prescription_id, refill_date, days_supply, quantity,
+                  expected_refill_date, gap_days,
+                  pharmacy_name, copay_amount, cost_barrier_reported
+                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+              `, [
+                prescriptionId,
+                actualRefillDate,
+                daysSupply,
+                daysSupply, // 30 tablets for 30 days
+                expectedRefillDate,
+                gapDays,
+                'CVS Pharmacy',
+                Math.random() < 0.3 ? 10 + Math.random() * 40 : null, // 30% report copay
+                gapDays > 14 && Math.random() < 0.3 // Cost barrier if long gap
+              ]);
+
+              totalDaysSupply += daysSupply;
+              currentRefillDate = actualRefillDate;
+            }
+
+            // Calculate actual MPR/PDC
+            const totalDays = Math.floor((today.getTime() - prescriptionStartDate.getTime()) / (24 * 60 * 60 * 1000));
+            const actualMPR = Math.min((totalDaysSupply / totalDays) * 100, 100);
+            const actualPDC = actualMPR; // Simplified PDC = MPR for this scenario
+
+            // Insert adherence metric
+            await pool.query(`
+              INSERT INTO jardiance_adherence (
+                prescription_id, assessment_date,
+                period_start_date, period_end_date, period_days,
+                mpr, pdc, category,
+                total_refills, total_days_supply, total_quantity,
+                total_gap_days, max_gap_days, gap_count
+              ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+            `, [
+              prescriptionId,
+              today,
+              prescriptionStartDate,
+              today,
+              totalDays,
+              actualMPR.toFixed(2),
+              actualPDC.toFixed(2),
+              adherenceCategory,
+              refillsNeeded,
+              totalDaysSupply,
+              totalDaysSupply,
+              0, // Will be calculated from refills
+              0, // Will be calculated from refills
+              0  // Will be calculated from refills
+            ]);
+
+            // Add barriers for non-adherent patients
+            if (adherenceCategory === 'Low' || adherenceCategory === 'Medium') {
+              const possibleBarriers = [
+                { type: 'Cost concerns', severity: 'High' },
+                { type: 'Forgetfulness', severity: 'Medium' },
+                { type: 'Side effects', severity: 'High' },
+                { type: 'Lack of symptoms', severity: 'Low' },
+                { type: 'Complex regimen', severity: 'Medium' }
+              ];
+
+              // Add 1-3 barriers
+              const barrierCount = adherenceCategory === 'Low' ? 2 + Math.floor(Math.random() * 2) : 1;
+
+              for (let b = 0; b < barrierCount; b++) {
+                const barrier = possibleBarriers[Math.floor(Math.random() * possibleBarriers.length)];
+                const identifiedDate = new Date(today.getTime() - Math.random() * 60 * 24 * 60 * 60 * 1000); // Within last 60 days
+
+                await pool.query(`
+                  INSERT INTO adherence_barriers (
+                    prescription_id, barrier_type, severity,
+                    identified_date, resolved,
+                    intervention_required
+                  ) VALUES ($1, $2, $3, $4, $5, $6)
+                `, [
+                  prescriptionId,
+                  barrier.type,
+                  barrier.severity,
+                  identifiedDate,
+                  Math.random() < 0.2, // 20% chance barrier is already resolved
+                  true
+                ]);
+              }
+            }
+          }
         }
       } else {
         // Non-CKD patient
