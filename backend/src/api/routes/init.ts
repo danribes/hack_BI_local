@@ -459,20 +459,10 @@ router.post('/populate-realistic-cohort', async (req: Request, res: Response): P
 
     console.log(`Generating ${targetCount} patients with real-world prevalence...`);
 
-    // Get current max MRN to avoid duplicates
-    const maxMrnResult = await pool.query(`
-      SELECT medical_record_number FROM patients
-      WHERE medical_record_number ~ '^MRN[0-9]+$'
-      ORDER BY CAST(SUBSTRING(medical_record_number FROM 4) AS INTEGER) DESC
-      LIMIT 1
-    `);
-
-    let startingMrnNumber = 1;
-    if (maxMrnResult.rows.length > 0) {
-      const maxMrn = maxMrnResult.rows[0].medical_record_number;
-      startingMrnNumber = parseInt(maxMrn.substring(3)) + 1;
-      console.log(`Starting from MRN number: ${startingMrnNumber}`);
-    }
+    // Get current patient count to avoid MRN duplicates
+    const countResult = await pool.query('SELECT COUNT(*) FROM patients');
+    const startingMrnNumber = parseInt(countResult.rows[0].count) + 1;
+    console.log(`Starting from MRN number: ${startingMrnNumber}`);
 
     // Distribution based on real-world prevalence
     const distribution = {
