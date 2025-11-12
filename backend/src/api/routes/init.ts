@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { getPool } from '../../config/database';
-import { classifyKDIGO } from '../../utils/kdigo';
+import { classifyKDIGO, getCKDSeverity, getMonitoringFrequencyCategory } from '../../utils/kdigo';
 
 const router = Router();
 
@@ -147,8 +147,192 @@ router.post('/migrate', async (_req: Request, res: Response): Promise<any> => {
 });
 
 /**
+ * POST /api/init/populate-tracking-tables
+ * Populate CKD and non-CKD patient tracking tables with risk factors and treatments
+ */
+router.post('/populate-tracking-tables', async (_req: Request, res: Response): Promise<any> => {
+  try {
+    const pool = getPool();
+
+    console.log('Populating patient tracking tables...');
+
+    // Get all patients with their latest observations
+    const patientsResult = await pool.query(`
+      SELECT
+        p.id,
+        p.cvd_history,
+        p.smoking_status,
+        p.family_history_esrd,
+        (SELECT value_numeric FROM observations
+         WHERE patient_id = p.id AND observation_type = 'eGFR'
+         ORDER BY observation_date DESC LIMIT 1) as latest_egfr,
+        (SELECT value_numeric FROM observations
+         WHERE patient_id = p.id AND observation_type = 'uACR'
+         ORDER BY observation_date DESC LIMIT 1) as latest_uacr,
+        (SELECT value_numeric FROM observations
+         WHERE patient_id = p.id AND observation_type = 'BMI'
+         ORDER BY observation_date DESC LIMIT 1) as latest_bmi,
+        (SELECT value_numeric FROM observations
+         WHERE patient_id = p.id AND observation_type = 'HbA1c'
+         ORDER BY observation_date DESC LIMIT 1) as latest_hba1c
+      FROM patients p
+    `);
+
+    const treatments = [
+      { name: 'Jardiance (Empagliflozin)', class: 'SGLT2i' },
+      { name: 'Farxiga (Dapagliflozin)', class: 'SGLT2i' },
+      { name: 'Invokana (Canagliflozin)', class: 'SGLT2i' },
+      { name: 'Kerendia (Finerenone)', class: 'MRA' },
+      { name: 'Vicadrostat (Investigational)', class: 'Investigational' }
+    ];
+
+    let ckdPatientsProcessed = 0;
+    let nonCkdPatientsProcessed = 0;
+
+    for (const patient of patientsResult.rows) {
+      const egfr = patient.latest_egfr || 90;
+      const uacr = patient.latest_uacr || 15;
+
+      const kdigo = classifyKDIGO(egfr, uacr);
+      const monitoringFreq = getMonitoringFrequencyCategory(kdigo);
+
+      if (kdigo.has_ckd) {
+        // CKD Patient - Insert into ckd_patient_data
+        const severity = getCKDSeverity(kdigo.ckd_stage);
+        const isMonitored = kdigo.risk_level === 'high' || kdigo.risk_level === 'very_high';
+
+        const ckdDataResult = await pool.query(`
+          INSERT INTO ckd_patient_data (
+            patient_id, ckd_severity, ckd_stage,
+            kdigo_gfr_category, kdigo_albuminuria_category, kdigo_health_state,
+            is_monitored, monitoring_device, monitoring_frequency
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+          ON CONFLICT (patient_id) DO UPDATE SET
+            ckd_severity = EXCLUDED.ckd_severity,
+            ckd_stage = EXCLUDED.ckd_stage,
+            is_monitored = EXCLUDED.is_monitored,
+            monitoring_frequency = EXCLUDED.monitoring_frequency,
+            updated_at = CURRENT_TIMESTAMP
+          RETURNING id
+        `, [
+          patient.id,
+          severity,
+          kdigo.ckd_stage,
+          kdigo.gfr_category,
+          kdigo.albuminuria_category,
+          kdigo.health_state,
+          isMonitored,
+          isMonitored ? 'Minuteful Kidney Kit' : null,
+          monitoringFreq
+        ]);
+
+        const ckdDataId = ckdDataResult.rows[0].id;
+
+        // Assign treatment to all CKD patients
+        const randomTreatment = treatments[Math.floor(Math.random() * treatments.length)];
+        await pool.query(`
+          INSERT INTO ckd_treatments (
+            ckd_patient_data_id, treatment_name, treatment_class, is_active, start_date
+          ) VALUES ($1, $2, $3, $4, CURRENT_DATE)
+          ON CONFLICT DO NOTHING
+        `, [ckdDataId, randomTreatment.name, randomTreatment.class, true]);
+
+        // Update is_treated flag
+        await pool.query(`
+          UPDATE ckd_patient_data SET is_treated = true WHERE id = $1
+        `, [ckdDataId]);
+
+        ckdPatientsProcessed++;
+
+      } else {
+        // Non-CKD Patient - Insert into non_ckd_patient_data
+        const riskLevel = kdigo.risk_level === 'very_high' ? 'high' : kdigo.risk_level;
+        const isMonitored = kdigo.risk_level === 'high' || kdigo.risk_level === 'very_high';
+
+        const nonCkdDataResult = await pool.query(`
+          INSERT INTO non_ckd_patient_data (
+            patient_id, risk_level, kdigo_health_state,
+            is_monitored, monitoring_device, monitoring_frequency
+          ) VALUES ($1, $2, $3, $4, $5, $6)
+          ON CONFLICT (patient_id) DO UPDATE SET
+            risk_level = EXCLUDED.risk_level,
+            is_monitored = EXCLUDED.is_monitored,
+            monitoring_frequency = EXCLUDED.monitoring_frequency,
+            updated_at = CURRENT_TIMESTAMP
+          RETURNING id
+        `, [
+          patient.id,
+          riskLevel,
+          kdigo.health_state,
+          isMonitored,
+          isMonitored ? 'Minuteful Kidney Kit' : null,
+          monitoringFreq
+        ]);
+
+        const nonCkdDataId = nonCkdDataResult.rows[0].id;
+
+        // Add risk factors
+        const riskFactors: Array<{ type: string; value: string; severity: string }> = [];
+
+        if (patient.cvd_history) {
+          riskFactors.push({ type: 'cardiovascular_disease', value: 'History of CVD', severity: 'moderate' });
+        }
+
+        if (patient.smoking_status === 'Current') {
+          riskFactors.push({ type: 'smoking', value: 'Current smoker', severity: 'severe' });
+        } else if (patient.smoking_status === 'Former') {
+          riskFactors.push({ type: 'smoking', value: 'Former smoker', severity: 'mild' });
+        }
+
+        if (patient.family_history_esrd) {
+          riskFactors.push({ type: 'family_history', value: 'Family history of ESRD', severity: 'moderate' });
+        }
+
+        if (patient.latest_bmi && patient.latest_bmi >= 30) {
+          riskFactors.push({ type: 'obesity', value: `BMI ${patient.latest_bmi}`, severity: patient.latest_bmi >= 35 ? 'severe' : 'moderate' });
+        }
+
+        if (patient.latest_hba1c && patient.latest_hba1c >= 6.5) {
+          riskFactors.push({ type: 'diabetes', value: `HbA1c ${patient.latest_hba1c}%`, severity: patient.latest_hba1c >= 8.0 ? 'severe' : 'moderate' });
+        }
+
+        // Insert risk factors
+        for (const rf of riskFactors) {
+          await pool.query(`
+            INSERT INTO non_ckd_risk_factors (
+              non_ckd_patient_data_id, risk_factor_type, risk_factor_value, severity
+            ) VALUES ($1, $2, $3, $4)
+            ON CONFLICT DO NOTHING
+          `, [nonCkdDataId, rf.type, rf.value, rf.severity]);
+        }
+
+        nonCkdPatientsProcessed++;
+      }
+    }
+
+    console.log(`✓ Processed ${ckdPatientsProcessed} CKD patients`);
+    console.log(`✓ Processed ${nonCkdPatientsProcessed} non-CKD patients`);
+
+    res.json({
+      status: 'success',
+      message: 'Patient tracking tables populated successfully',
+      ckd_patients: ckdPatientsProcessed,
+      non_ckd_patients: nonCkdPatientsProcessed
+    });
+
+  } catch (error) {
+    console.error('[Init API] Error populating tracking tables:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to populate tracking tables',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+/**
  * POST /api/init/assign-monitoring-treatment
- * Assign monitoring and treatment based on risk classification
+ * Assign monitoring and treatment based on risk classification (DEPRECATED - use populate-tracking-tables)
  */
 router.post('/assign-monitoring-treatment', async (_req: Request, res: Response): Promise<any> => {
   try {

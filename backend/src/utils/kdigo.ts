@@ -214,7 +214,62 @@ export function classifyKDIGO(egfr: number, uacr: number): KDIGOClassification {
 }
 
 /**
- * Get risk category label for patient list grouping
+ * Get CKD severity classification based on stage
+ */
+export function getCKDSeverity(ckdStage: number | null): 'mild' | 'moderate' | 'severe' | 'kidney_failure' | null {
+  if (ckdStage === null) return null;
+
+  switch (ckdStage) {
+    case 1:
+    case 2:
+      return 'mild';
+    case 3:
+      return 'moderate';
+    case 4:
+      return 'severe';
+    case 5:
+      return 'kidney_failure';
+    default:
+      return null;
+  }
+}
+
+/**
+ * Get human-readable severity label
+ */
+export function getCKDSeverityLabel(severity: 'mild' | 'moderate' | 'severe' | 'kidney_failure' | null): string {
+  switch (severity) {
+    case 'mild':
+      return 'Mild CKD';
+    case 'moderate':
+      return 'Moderate CKD';
+    case 'severe':
+      return 'Severe CKD';
+    case 'kidney_failure':
+      return 'Kidney Failure';
+    default:
+      return 'No CKD';
+  }
+}
+
+/**
+ * Get monitoring frequency category for database storage
+ */
+export function getMonitoringFrequencyCategory(kdigo: KDIGOClassification): string {
+  switch (kdigo.risk_level) {
+    case 'very_high':
+      return 'monthly'; // Every 1-3 months
+    case 'high':
+      return 'quarterly'; // Every 3-6 months
+    case 'moderate':
+      return 'biannually'; // Every 6-12 months
+    default:
+      return 'annually'; // Annually
+  }
+}
+
+/**
+ * Get risk category label for patient list grouping (NEW NOMENCLATURE)
  */
 export function getRiskCategoryLabel(classification: KDIGOClassification): string {
   if (!classification.has_ckd) {
@@ -231,18 +286,8 @@ export function getRiskCategoryLabel(classification: KDIGOClassification): strin
         return 'Low Risk';
     }
   } else {
-    // CKD patients
-    switch (classification.risk_level) {
-      case 'low':
-        return 'CKD Low Risk';
-      case 'moderate':
-        return 'CKD Moderate Risk';
-      case 'high':
-        return 'CKD High Risk';
-      case 'very_high':
-        return 'CKD Very High Risk';
-      default:
-        return 'CKD Low Risk';
-    }
+    // CKD patients - Use severity-based labels
+    const severity = getCKDSeverity(classification.ckd_stage);
+    return getCKDSeverityLabel(severity);
   }
 }
