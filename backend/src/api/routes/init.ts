@@ -220,6 +220,50 @@ router.post('/fix-trigger', async (_req: Request, res: Response): Promise<any> =
 });
 
 /**
+ * POST /api/init/clear-patients
+ * Clear all patients and related data from the database
+ * WARNING: This deletes ALL patient data!
+ */
+router.post('/clear-patients', async (_req: Request, res: Response): Promise<any> => {
+  try {
+    const pool = getPool();
+
+    console.log('Clearing all patient data...');
+
+    // Count existing patients
+    const countResult = await pool.query('SELECT COUNT(*) FROM patients');
+    const existingCount = parseInt(countResult.rows[0].count);
+
+    if (existingCount === 0) {
+      return res.json({
+        status: 'success',
+        message: 'Database is already empty',
+        deleted_patients: 0
+      });
+    }
+
+    // Delete all patients (cascade will handle related tables)
+    await pool.query('DELETE FROM patients');
+
+    console.log(`✓ Deleted ${existingCount} patients and all related data`);
+
+    res.json({
+      status: 'success',
+      message: 'All patient data cleared successfully',
+      deleted_patients: existingCount
+    });
+
+  } catch (error) {
+    console.error('[Init API] Error clearing patients:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to clear patient data',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+/**
  * POST /api/init/populate-tracking-tables
  * Populate CKD and non-CKD patient tracking tables with risk factors and treatments
  */
@@ -532,21 +576,20 @@ router.post('/populate-realistic-cohort', async (req: Request, res: Response): P
 
     console.log(`Generating ${targetCount} patients with real-world prevalence...`);
 
-    // Find the maximum MRN number to avoid duplicates
-    const maxMrnResult = await pool.query(`
-      SELECT medical_record_number
-      FROM patients
-      WHERE medical_record_number ~ '^MRN[0-9]+$'
-      ORDER BY CAST(REGEXP_REPLACE(medical_record_number, '[^0-9]', '', 'g') AS INTEGER) DESC
-      LIMIT 1
-    `);
+    // Check if database already has patients
+    const countResult = await pool.query('SELECT COUNT(*) FROM patients');
+    const existingCount = parseInt(countResult.rows[0].count);
 
-    let startingMrnNumber = 1;
-    if (maxMrnResult.rows.length > 0) {
-      const maxMrn = maxMrnResult.rows[0].medical_record_number;
-      const maxNumber = parseInt(maxMrn.replace(/[^0-9]/g, ''));
-      startingMrnNumber = maxNumber + 1;
+    if (existingCount > 0) {
+      return res.status(400).json({
+        status: 'error',
+        message: `Database already contains ${existingCount} patients. Please clear the database first using /api/init/clear-patients`,
+        existing_patients: existingCount
+      });
     }
+
+    // Start MRN numbering from 1 (will be formatted as MRN000001, MRN000002, etc.)
+    const startingMrnNumber = 1;
     console.log(`Starting from MRN number: ${startingMrnNumber}`);
 
     // Distribution based on real-world prevalence
