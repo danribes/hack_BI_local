@@ -885,7 +885,8 @@ router.post('/populate-realistic-cohort', async (req: Request, res: Response): P
             }
 
             // Calculate actual MPR/PDC
-            const totalDays = Math.floor((today.getTime() - prescriptionStartDate.getTime()) / (24 * 60 * 60 * 1000));
+            // Period days must match the constraint: (end_date - start_date + 1)
+            const totalDays = Math.floor((today.getTime() - prescriptionStartDate.getTime()) / (24 * 60 * 60 * 1000)) + 1;
             const actualMPR = Math.min((totalDaysSupply / totalDays) * 100, 100);
             const actualPDC = actualMPR; // Simplified PDC = MPR for this scenario
 
