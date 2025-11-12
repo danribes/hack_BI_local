@@ -32,6 +32,11 @@ interface Patient {
   created_at: string;
   kdigo_classification?: KDIGOClassification;
   risk_category?: string;
+  // New tracking data from separate tables
+  is_monitored?: boolean;
+  monitoring_device?: string | null;
+  is_treated?: boolean;
+  // Legacy fields (for backward compatibility)
   home_monitoring_device?: string | null;
   home_monitoring_active?: boolean;
   ckd_treatment_active?: boolean;
@@ -236,18 +241,24 @@ function App() {
   const getRiskCategoryBadgeColor = (category?: string): string => {
     if (!category) return 'bg-gray-100 text-gray-700';
 
-    // CKD Patients - Traditional risk colors (Green → Yellow → Orange → Red)
-    if (category.includes('CKD')) {
+    // NEW NOMENCLATURE: CKD Patients - Severity-based classification
+    if (category.includes('CKD') || category.includes('Kidney Failure')) {
+      if (category === 'Kidney Failure') return 'bg-red-600 text-white border-2 border-red-700';
+      if (category === 'Severe CKD') return 'bg-orange-600 text-white border-2 border-orange-700';
+      if (category === 'Moderate CKD') return 'bg-yellow-600 text-white border-2 border-yellow-700';
+      if (category === 'Mild CKD') return 'bg-green-600 text-white border-2 border-green-700';
+
+      // Legacy support for old nomenclature
       if (category.includes('Very High')) return 'bg-red-600 text-white';
       if (category.includes('High')) return 'bg-orange-500 text-white';
       if (category.includes('Moderate')) return 'bg-yellow-500 text-white';
-      return 'bg-green-500 text-white'; // CKD Low Risk
+      return 'bg-green-500 text-white';
     }
 
-    // Non-CKD Patients - Blue/Purple color scheme for distinction
-    if (category === 'Low Risk') return 'bg-blue-500 text-white';
-    if (category === 'Moderate Risk') return 'bg-purple-500 text-white';
-    if (category === 'High Risk') return 'bg-pink-500 text-white';
+    // Non-CKD Patients - Blue/Purple/Pink color scheme for distinction
+    if (category === 'Low Risk') return 'bg-blue-500 text-white border-2 border-blue-600';
+    if (category === 'Moderate Risk') return 'bg-purple-500 text-white border-2 border-purple-600';
+    if (category === 'High Risk') return 'bg-pink-600 text-white border-2 border-pink-700';
 
     return 'bg-gray-100 text-gray-700';
   };
@@ -347,42 +358,60 @@ function App() {
                 </div>
               </div>
 
-              {/* CKD Health State & Risk Classification */}
+              {/* Health State & Risk Classification */}
               <div className="bg-white rounded-lg shadow-xl overflow-hidden">
-                <div className="bg-gradient-to-r from-purple-600 to-pink-600 px-8 py-4">
+                <div className={`px-8 py-4 ${selectedPatient.kdigo_classification.has_ckd
+                  ? 'bg-gradient-to-r from-red-600 to-orange-600'
+                  : 'bg-gradient-to-r from-blue-600 to-indigo-600'}`}>
                   <h2 className="text-2xl font-bold text-white flex items-center">
                     <svg className="h-6 w-6 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
-                    CKD Health State Classification
+                    {selectedPatient.kdigo_classification.has_ckd ? 'CKD Patient' : 'Non-CKD Patient'} - Health Classification
                   </h2>
                 </div>
 
                 <div className="p-8">
-                  {/* KDIGO Health State Badge */}
-                  <div className="flex flex-wrap items-center gap-4 mb-6">
-                    <div className="flex items-center">
-                      <span className="text-sm font-semibold text-gray-600 mr-3">Health State:</span>
-                      <span className={`px-6 py-3 rounded-full text-2xl font-bold border-2 ${getKDIGORiskColorClass(selectedPatient.kdigo_classification.risk_color)}`}>
-                        {selectedPatient.kdigo_classification.health_state}
-                      </span>
-                    </div>
-
-                    <div className="flex items-center">
-                      <span className="text-sm font-semibold text-gray-600 mr-3">Risk Category:</span>
-                      <span className={`px-4 py-2 rounded-full text-sm font-bold ${getRiskCategoryBadgeColor(selectedPatient.risk_category)}`}>
-                        {selectedPatient.risk_category}
-                      </span>
-                    </div>
-
+                  {/* Primary Classification Badge - Larger and More Prominent */}
+                  <div className="flex flex-col items-center mb-8 p-6 bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl border-2 border-gray-200">
+                    <span className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">
+                      {selectedPatient.kdigo_classification.has_ckd ? 'CKD Severity Classification' : 'Kidney Health Risk Level'}
+                    </span>
+                    <span className={`px-8 py-4 rounded-2xl text-3xl font-bold shadow-lg ${getRiskCategoryBadgeColor(selectedPatient.risk_category)}`}>
+                      {selectedPatient.risk_category}
+                    </span>
                     {selectedPatient.kdigo_classification.has_ckd && (
-                      <div className="flex items-center">
-                        <span className="text-sm font-semibold text-gray-600 mr-3">CKD Stage:</span>
-                        <span className="px-4 py-2 rounded-full text-sm font-bold bg-blue-100 text-blue-800 border border-blue-300">
+                      <div className="mt-4">
+                        <span className="text-sm text-gray-600">Stage: </span>
+                        <span className="text-lg font-bold text-gray-900">
                           {selectedPatient.kdigo_classification.ckd_stage_name}
                         </span>
                       </div>
                     )}
+                  </div>
+
+                  {/* KDIGO Technical Details */}
+                  <div className="mb-6">
+                    <h3 className="text-sm font-bold text-gray-700 mb-3 flex items-center">
+                      <svg className="h-4 w-4 mr-2 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      KDIGO Classification Details
+                    </h3>
+                    <div className="flex flex-wrap items-center gap-3">
+                      <div className="flex items-center">
+                        <span className="text-xs font-medium text-gray-500 mr-2">Health State:</span>
+                        <span className={`px-4 py-2 rounded-lg text-sm font-bold border-2 ${getKDIGORiskColorClass(selectedPatient.kdigo_classification.risk_color)}`}>
+                          {selectedPatient.kdigo_classification.health_state}
+                        </span>
+                      </div>
+                      <div className="flex items-center">
+                        <span className="text-xs font-medium text-gray-500 mr-2">Risk Level:</span>
+                        <span className={`px-4 py-2 rounded-lg text-sm font-bold capitalize ${getKDIGORiskColorClass(selectedPatient.kdigo_classification.risk_color)}`}>
+                          {selectedPatient.kdigo_classification.risk_level}
+                        </span>
+                      </div>
+                    </div>
                   </div>
 
                   {/* Classification Details */}
@@ -1069,20 +1098,20 @@ function App() {
                           {/* Monitoring/Treatment Status Badge */}
                           {patient.kdigo_classification && !patient.kdigo_classification.has_ckd && (
                             <span className={`px-2 py-1 rounded text-xs font-semibold ${
-                              patient.home_monitoring_active
+                              (patient.is_monitored !== undefined ? patient.is_monitored : patient.home_monitoring_active)
                                 ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
                                 : 'bg-gray-100 text-gray-600 border border-gray-300'
                             }`}>
-                              {patient.home_monitoring_active ? '✓ Monitored' : 'Not Monitored'}
+                              {(patient.is_monitored !== undefined ? patient.is_monitored : patient.home_monitoring_active) ? '✓ Monitored' : 'Not Monitored'}
                             </span>
                           )}
                           {patient.kdigo_classification && patient.kdigo_classification.has_ckd && (
                             <span className={`px-2 py-1 rounded text-xs font-semibold ${
-                              patient.ckd_treatment_active
+                              (patient.is_treated !== undefined ? patient.is_treated : patient.ckd_treatment_active)
                                 ? 'bg-teal-100 text-teal-800 border border-teal-300'
                                 : 'bg-gray-100 text-gray-600 border border-gray-300'
                             }`}>
-                              {patient.ckd_treatment_active ? '✓ Under Treatment' : 'Not Treated'}
+                              {(patient.is_treated !== undefined ? patient.is_treated : patient.ckd_treatment_active) ? '✓ Under Treatment' : 'Not Treated'}
                             </span>
                           )}
                         </div>
