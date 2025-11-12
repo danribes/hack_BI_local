@@ -297,16 +297,16 @@ function App() {
                     </svg>
                     Anthropometrics
                   </h3>
-                  <div className="space-y-3">
-                    <div>
+                  <div className="space-y-0 divide-y divide-gray-200">
+                    <div className="py-3">
                       <div className="text-sm text-gray-600">Weight</div>
                       <div className="text-xl font-semibold text-gray-900">{selectedPatient.weight ? `${selectedPatient.weight} kg` : 'N/A'}</div>
                     </div>
-                    <div>
+                    <div className="py-3">
                       <div className="text-sm text-gray-600">Height</div>
                       <div className="text-xl font-semibold text-gray-900">{selectedPatient.height ? `${selectedPatient.height} cm` : 'N/A'}</div>
                     </div>
-                    <div>
+                    <div className="py-3">
                       <div className="text-sm text-gray-600">BMI</div>
                       <div className="text-xl font-semibold text-gray-900">
                         {bmi ? `${bmi.toFixed(1)} kg/m²` : 'N/A'}
@@ -328,24 +328,24 @@ function App() {
                     </svg>
                     Clinical History
                   </h3>
-                  <div className="space-y-3">
-                    <div className="flex justify-between items-center">
+                  <div className="space-y-0 divide-y divide-gray-200">
+                    <div className="flex justify-between items-center py-3">
                       <span className="text-sm text-gray-600">Smoking Status</span>
                       <span className="text-sm font-semibold text-gray-900">{selectedPatient.smoking_status || 'Unknown'}</span>
                     </div>
-                    <div className="flex justify-between items-center">
+                    <div className="flex justify-between items-center py-3">
                       <span className="text-sm text-gray-600">CVD History</span>
                       <span className={`text-sm font-semibold ${selectedPatient.cvd_history ? 'text-red-600' : 'text-green-600'}`}>
                         {selectedPatient.cvd_history ? 'Yes' : 'No'}
                       </span>
                     </div>
-                    <div className="flex justify-between items-center">
+                    <div className="flex justify-between items-center py-3">
                       <span className="text-sm text-gray-600">Family History ESRD</span>
                       <span className={`text-sm font-semibold ${selectedPatient.family_history_esrd ? 'text-red-600' : 'text-green-600'}`}>
                         {selectedPatient.family_history_esrd ? 'Yes' : 'No'}
                       </span>
                     </div>
-                    <div className="flex justify-between items-center">
+                    <div className="flex justify-between items-center py-3">
                       <span className="text-sm text-gray-600">Nephrologist Referral</span>
                       <span className={`text-sm font-semibold ${selectedPatient.nephrologist_referral ? 'text-green-600' : 'text-gray-600'}`}>
                         {selectedPatient.nephrologist_referral ? 'Yes' : 'No'}
@@ -362,20 +362,20 @@ function App() {
                     </svg>
                     Medications
                   </h3>
-                  <div className="space-y-3">
-                    <div className="flex justify-between items-center">
+                  <div className="space-y-0 divide-y divide-gray-200">
+                    <div className="flex justify-between items-center py-3">
                       <span className="text-sm text-gray-600">RAS Inhibitor</span>
                       <span className={`text-sm font-semibold ${selectedPatient.on_ras_inhibitor ? 'text-blue-600' : 'text-gray-400'}`}>
                         {selectedPatient.on_ras_inhibitor ? 'Active' : 'No'}
                       </span>
                     </div>
-                    <div className="flex justify-between items-center">
+                    <div className="flex justify-between items-center py-3">
                       <span className="text-sm text-gray-600">SGLT2 Inhibitor</span>
                       <span className={`text-sm font-semibold ${selectedPatient.on_sglt2i ? 'text-blue-600' : 'text-gray-400'}`}>
                         {selectedPatient.on_sglt2i ? 'Active' : 'No'}
                       </span>
                     </div>
-                    <div className="flex justify-between items-center">
+                    <div className="flex justify-between items-center py-3">
                       <span className="text-sm text-gray-600">Nephrotoxic Meds</span>
                       <span className={`text-sm font-semibold ${selectedPatient.nephrotoxic_meds ? 'text-red-600' : 'text-green-600'}`}>
                         {selectedPatient.nephrotoxic_meds ? 'Yes' : 'No'}
@@ -394,15 +394,15 @@ function App() {
                   Visit Information
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div>
+                  <div className="border border-gray-200 rounded-lg p-4">
                     <div className="text-sm text-gray-600">Diagnosis Date</div>
                     <div className="text-lg font-semibold text-gray-900 mt-1">{formatDate(selectedPatient.diagnosis_date)}</div>
                   </div>
-                  <div>
+                  <div className="border border-gray-200 rounded-lg p-4">
                     <div className="text-sm text-gray-600">Last Visit</div>
                     <div className="text-lg font-semibold text-gray-900 mt-1">{formatDate(selectedPatient.last_visit_date)}</div>
                   </div>
-                  <div>
+                  <div className="border border-gray-200 rounded-lg p-4">
                     <div className="text-sm text-gray-600">Next Visit</div>
                     <div className="text-lg font-semibold text-gray-900 mt-1">{formatDate(selectedPatient.next_visit_date)}</div>
                   </div>
@@ -651,29 +651,29 @@ function App() {
                     Risk Assessment
                   </h3>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <div>
+                    <div className="border border-gray-200 rounded-lg p-4">
                       <div className="text-sm text-gray-600">Risk Score</div>
                       <div className="text-3xl font-bold text-gray-900 mt-1">{selectedPatient.risk_assessment.risk_score.toFixed(2)}</div>
                     </div>
-                    <div>
+                    <div className="border border-gray-200 rounded-lg p-4">
                       <div className="text-sm text-gray-600">Risk Level</div>
                       <span className={`inline-block px-4 py-2 rounded-full text-lg font-bold mt-1 border ${getRiskColor(selectedPatient.risk_assessment.risk_level)}`}>
                         {selectedPatient.risk_assessment.risk_level.toUpperCase()}
                       </span>
                     </div>
-                    <div>
+                    <div className="border border-gray-200 rounded-lg p-4">
                       <div className="text-sm text-gray-600">Assessed</div>
                       <div className="text-lg font-semibold text-gray-900 mt-1">{formatDate(selectedPatient.risk_assessment.assessed_at)}</div>
                     </div>
                   </div>
                   {selectedPatient.risk_assessment.reasoning && (
-                    <div className="mt-4 p-4 bg-blue-50 rounded-lg">
+                    <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
                       <div className="text-sm font-semibold text-gray-700 mb-2">Reasoning</div>
                       <div className="text-sm text-gray-700">{selectedPatient.risk_assessment.reasoning}</div>
                     </div>
                   )}
                   {selectedPatient.risk_assessment.recommendations && selectedPatient.risk_assessment.recommendations.length > 0 && (
-                    <div className="mt-4">
+                    <div className="mt-4 p-4 border border-gray-200 rounded-lg">
                       <div className="text-sm font-semibold text-gray-700 mb-2">Recommendations</div>
                       <ul className="list-disc list-inside space-y-1">
                         {selectedPatient.risk_assessment.recommendations.map((rec, index) => (
