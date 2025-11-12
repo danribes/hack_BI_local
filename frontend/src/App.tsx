@@ -1,5 +1,24 @@
 import { useState, useEffect } from 'react';
 
+interface KDIGOClassification {
+  gfr_category: string;
+  gfr_description: string;
+  albuminuria_category: string;
+  albuminuria_description: string;
+  health_state: string;
+  risk_level: string;
+  risk_color: string;
+  has_ckd: boolean;
+  ckd_stage: number | null;
+  ckd_stage_name: string;
+  requires_nephrology_referral: boolean;
+  requires_dialysis_planning: boolean;
+  recommend_ras_inhibitor: boolean;
+  recommend_sglt2i: boolean;
+  target_bp: string;
+  monitoring_frequency: string;
+}
+
 interface Patient {
   id: string;
   medical_record_number: string;
@@ -11,6 +30,8 @@ interface Patient {
   phone?: string;
   last_visit_date?: string;
   created_at: string;
+  kdigo_classification?: KDIGOClassification;
+  risk_category?: string;
 }
 
 interface Observation {
@@ -54,6 +75,12 @@ interface PatientDetail extends Patient {
   observations: Observation[];
   conditions: Condition[];
   risk_assessment?: RiskAssessment | null;
+  kdigo_classification: KDIGOClassification;
+  risk_category: string;
+  home_monitoring_device?: string | null;
+  home_monitoring_active?: boolean;
+  ckd_treatment_active?: boolean;
+  ckd_treatment_type?: string | null;
 }
 
 function App() {
@@ -192,6 +219,24 @@ function App() {
     }
   };
 
+  const getKDIGORiskColorClass = (riskColor: string): string => {
+    switch (riskColor) {
+      case 'red': return 'bg-red-100 text-red-800 border-red-300';
+      case 'orange': return 'bg-orange-100 text-orange-800 border-orange-300';
+      case 'yellow': return 'bg-yellow-100 text-yellow-800 border-yellow-300';
+      case 'green': return 'bg-green-100 text-green-800 border-green-300';
+      default: return 'bg-gray-100 text-gray-800 border-gray-300';
+    }
+  };
+
+  const getRiskCategoryBadgeColor = (category?: string): string => {
+    if (!category) return 'bg-gray-100 text-gray-700';
+    if (category.includes('Very High')) return 'bg-red-600 text-white';
+    if (category.includes('High')) return 'bg-orange-500 text-white';
+    if (category.includes('Moderate')) return 'bg-yellow-500 text-white';
+    return 'bg-green-500 text-white';
+  };
+
   // Filter patients based on search query
   const filteredPatients = patients.filter((patient) => {
     if (!searchQuery.trim()) return true;
@@ -282,6 +327,173 @@ function App() {
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
                       </svg>
                       {selectedPatient.phone}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* CKD Health State & Risk Classification */}
+              <div className="bg-white rounded-lg shadow-xl overflow-hidden">
+                <div className="bg-gradient-to-r from-purple-600 to-pink-600 px-8 py-4">
+                  <h2 className="text-2xl font-bold text-white flex items-center">
+                    <svg className="h-6 w-6 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    CKD Health State Classification
+                  </h2>
+                </div>
+
+                <div className="p-8">
+                  {/* KDIGO Health State Badge */}
+                  <div className="flex flex-wrap items-center gap-4 mb-6">
+                    <div className="flex items-center">
+                      <span className="text-sm font-semibold text-gray-600 mr-3">Health State:</span>
+                      <span className={`px-6 py-3 rounded-full text-2xl font-bold border-2 ${getKDIGORiskColorClass(selectedPatient.kdigo_classification.risk_color)}`}>
+                        {selectedPatient.kdigo_classification.health_state}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center">
+                      <span className="text-sm font-semibold text-gray-600 mr-3">Risk Category:</span>
+                      <span className={`px-4 py-2 rounded-full text-sm font-bold ${getRiskCategoryBadgeColor(selectedPatient.risk_category)}`}>
+                        {selectedPatient.risk_category}
+                      </span>
+                    </div>
+
+                    {selectedPatient.kdigo_classification.has_ckd && (
+                      <div className="flex items-center">
+                        <span className="text-sm font-semibold text-gray-600 mr-3">CKD Stage:</span>
+                        <span className="px-4 py-2 rounded-full text-sm font-bold bg-blue-100 text-blue-800 border border-blue-300">
+                          {selectedPatient.kdigo_classification.ckd_stage_name}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Classification Details */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                    <div className="border border-gray-200 rounded-lg p-4">
+                      <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">GFR Category</div>
+                      <div className="text-lg font-bold text-gray-900">{selectedPatient.kdigo_classification.gfr_category}</div>
+                      <div className="text-sm text-gray-600 mt-1">{selectedPatient.kdigo_classification.gfr_description}</div>
+                    </div>
+
+                    <div className="border border-gray-200 rounded-lg p-4">
+                      <div className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Albuminuria Category</div>
+                      <div className="text-lg font-bold text-gray-900">{selectedPatient.kdigo_classification.albuminuria_category}</div>
+                      <div className="text-sm text-gray-600 mt-1">{selectedPatient.kdigo_classification.albuminuria_description}</div>
+                    </div>
+                  </div>
+
+                  {/* Home Monitoring & Treatment */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Home Monitoring */}
+                    <div className="border border-gray-200 rounded-lg p-4">
+                      <div className="flex items-center mb-3">
+                        <svg className="h-5 w-5 mr-2 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                        </svg>
+                        <h3 className="text-sm font-bold text-gray-900">Home Monitoring</h3>
+                      </div>
+                      <div className="space-y-2">
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm text-gray-600">Device:</span>
+                          <span className="text-sm font-semibold text-gray-900">
+                            {selectedPatient.kdigo_classification.has_ckd && selectedPatient.home_monitoring_device
+                              ? selectedPatient.home_monitoring_device
+                              : selectedPatient.kdigo_classification.has_ckd
+                                ? 'Minuteful Kidney Kit (Recommended)'
+                                : 'Not Required'}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm text-gray-600">Status:</span>
+                          <span className={`text-sm font-semibold ${selectedPatient.home_monitoring_active ? 'text-green-600' : 'text-gray-600'}`}>
+                            {selectedPatient.home_monitoring_active ? 'Active' : 'Inactive'}
+                          </span>
+                        </div>
+                        {selectedPatient.kdigo_classification.has_ckd && !selectedPatient.home_monitoring_active && (
+                          <div className="mt-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded p-2">
+                            ⚠️ Home uACR monitoring recommended for CKD patients
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* CKD Treatment */}
+                    <div className="border border-gray-200 rounded-lg p-4">
+                      <div className="flex items-center mb-3">
+                        <svg className="h-5 w-5 mr-2 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                        </svg>
+                        <h3 className="text-sm font-bold text-gray-900">CKD Treatment</h3>
+                      </div>
+                      <div className="space-y-2">
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm text-gray-600">Treatment Status:</span>
+                          <span className={`text-sm font-semibold ${selectedPatient.ckd_treatment_active ? 'text-green-600' : 'text-gray-600'}`}>
+                            {selectedPatient.kdigo_classification.has_ckd
+                              ? (selectedPatient.ckd_treatment_active ? 'Active' : 'Not Started')
+                              : 'N/A - No CKD'}
+                          </span>
+                        </div>
+                        {selectedPatient.ckd_treatment_active && selectedPatient.ckd_treatment_type && (
+                          <div className="flex justify-between items-center">
+                            <span className="text-sm text-gray-600">Treatment Type:</span>
+                            <span className="text-sm font-semibold text-gray-900">{selectedPatient.ckd_treatment_type}</span>
+                          </div>
+                        )}
+                        {selectedPatient.kdigo_classification.has_ckd && !selectedPatient.ckd_treatment_active && (
+                          <div className="mt-2 text-xs text-red-700 bg-red-50 border border-red-200 rounded p-2">
+                            ⚠️ CKD treatment protocol recommended
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Clinical Recommendations */}
+                  {(selectedPatient.kdigo_classification.recommend_ras_inhibitor ||
+                    selectedPatient.kdigo_classification.recommend_sglt2i ||
+                    selectedPatient.kdigo_classification.requires_nephrology_referral) && (
+                    <div className="mt-6 border-t border-gray-200 pt-6">
+                      <h3 className="text-sm font-bold text-gray-900 mb-3">Clinical Recommendations</h3>
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        {selectedPatient.kdigo_classification.recommend_ras_inhibitor && (
+                          <div className="flex items-start space-x-2 text-sm">
+                            <svg className="h-5 w-5 text-green-600 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            <span className="text-gray-700">RAS Inhibitor (ACE-I/ARB)</span>
+                          </div>
+                        )}
+                        {selectedPatient.kdigo_classification.recommend_sglt2i && (
+                          <div className="flex items-start space-x-2 text-sm">
+                            <svg className="h-5 w-5 text-green-600 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            <span className="text-gray-700">SGLT2 Inhibitor</span>
+                          </div>
+                        )}
+                        {selectedPatient.kdigo_classification.requires_nephrology_referral && (
+                          <div className="flex items-start space-x-2 text-sm">
+                            <svg className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                            </svg>
+                            <span className="text-gray-700 font-semibold">Nephrology Referral Required</span>
+                          </div>
+                        )}
+                      </div>
+                      <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                        <div className="flex items-center space-x-2">
+                          <span className="text-gray-600">Target BP:</span>
+                          <span className="font-semibold text-gray-900">{selectedPatient.kdigo_classification.target_bp}</span>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <span className="text-gray-600">Monitoring Frequency:</span>
+                          <span className="font-semibold text-gray-900">{selectedPatient.kdigo_classification.monitoring_frequency}</span>
+                        </div>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -821,9 +1033,16 @@ function App() {
                   >
                     <div className="flex items-center justify-between">
                       <div className="flex-1">
-                        <h3 className="text-xl font-semibold text-gray-900">
-                          {patient.first_name} {patient.last_name}
-                        </h3>
+                        <div className="flex items-center gap-3">
+                          <h3 className="text-xl font-semibold text-gray-900">
+                            {patient.first_name} {patient.last_name}
+                          </h3>
+                          {patient.risk_category && (
+                            <span className={`px-3 py-1 rounded-full text-xs font-bold ${getRiskCategoryBadgeColor(patient.risk_category)}`}>
+                              {patient.risk_category}
+                            </span>
+                          )}
+                        </div>
                         <div className="mt-2 flex flex-wrap gap-4 text-sm text-gray-600">
                           <span className="flex items-center">
                             <svg className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
