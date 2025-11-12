@@ -18,6 +18,7 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [populating, setPopulating] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
@@ -90,6 +91,24 @@ function App() {
     return age;
   };
 
+  // Filter patients based on search query
+  const filteredPatients = patients.filter((patient) => {
+    if (!searchQuery.trim()) return true;
+
+    const query = searchQuery.toLowerCase();
+    const fullName = `${patient.first_name} ${patient.last_name}`.toLowerCase();
+    const mrn = patient.medical_record_number.toLowerCase();
+    const email = patient.email?.toLowerCase() || '';
+    const id = patient.id.toLowerCase();
+
+    return (
+      fullName.includes(query) ||
+      mrn.includes(query) ||
+      email.includes(query) ||
+      id.includes(query)
+    );
+  });
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
       <div className="container mx-auto px-4 py-8">
@@ -102,6 +121,46 @@ function App() {
             Patient Database
           </p>
         </header>
+
+        {/* Search Bar */}
+        {!loading && !error && patients.length > 0 && (
+          <div className="max-w-6xl mx-auto mb-6">
+            <div className="bg-white rounded-lg shadow-lg p-4">
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                  <svg className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                </div>
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search patients by name, MRN, email, or ID..."
+                  className="w-full pl-12 pr-12 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent text-gray-900 placeholder-gray-400"
+                />
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery('')}
+                    className="absolute inset-y-0 right-0 pr-4 flex items-center text-gray-400 hover:text-gray-600"
+                  >
+                    <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                )}
+              </div>
+              {searchQuery && (
+                <div className="mt-2 text-sm text-gray-600">
+                  Found <strong>{filteredPatients.length}</strong> {filteredPatients.length === 1 ? 'patient' : 'patients'}
+                  {filteredPatients.length < patients.length && (
+                    <span> out of {patients.length} total</span>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Main Content */}
         <main className="max-w-6xl mx-auto">
@@ -164,13 +223,14 @@ function App() {
               {/* Header */}
               <div className="bg-gradient-to-r from-indigo-600 to-purple-600 px-6 py-4">
                 <h2 className="text-2xl font-bold text-white">
-                  Patients ({patients.length})
+                  Patients ({filteredPatients.length}{searchQuery && patients.length !== filteredPatients.length ? ` of ${patients.length}` : ''})
                 </h2>
               </div>
 
               {/* Patient List */}
               <div className="divide-y divide-gray-200">
-                {patients.map((patient) => (
+                {filteredPatients.length > 0 ? (
+                  filteredPatients.map((patient) => (
                   <div
                     key={patient.id}
                     className="px-6 py-5 hover:bg-gray-50 transition-colors"
@@ -215,7 +275,16 @@ function App() {
                       </div>
                     </div>
                   </div>
-                ))}
+                  ))
+                ) : (
+                  <div className="px-6 py-12 text-center">
+                    <svg className="mx-auto h-12 w-12 text-gray-400 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                    <h3 className="text-lg font-semibold text-gray-900 mb-2">No patients found</h3>
+                    <p className="text-gray-600">Try adjusting your search terms</p>
+                  </div>
+                )}
               </div>
             </div>
           )}
