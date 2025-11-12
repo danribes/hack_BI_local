@@ -741,14 +741,158 @@ router.post('/populate-realistic-cohort', async (req: Request, res: Response): P
       // Calculate BMI
       const bmi = weight / ((height / 100) * (height / 100));
 
-      // Insert observations
+      // ============================================
+      // Generate comprehensive lab panel
+      // ============================================
+
+      // Blood Pressure (CRITICAL - all patients)
+      let systolic: number, diastolic: number;
+      if (category === 'nonCkdLowModerate') {
+        // Normal BP
+        systolic = 110 + Math.floor(Math.random() * 20); // 110-129
+        diastolic = 70 + Math.floor(Math.random() * 15); // 70-84
+      } else if (category === 'nonCkdHigh') {
+        // Prehypertensive/mild HTN
+        systolic = 130 + Math.floor(Math.random() * 20); // 130-149
+        diastolic = 80 + Math.floor(Math.random() * 15); // 80-94
+      } else {
+        // CKD patients - higher prevalence of HTN
+        systolic = 135 + Math.floor(Math.random() * 25); // 135-159
+        diastolic = 85 + Math.floor(Math.random() * 15); // 85-99
+        // Worse control in advanced CKD
+        if (severity === 'severe' || severity === 'kidney_failure') {
+          systolic += 10;
+          diastolic += 5;
+        }
+      }
+
+      // HbA1c (IMPORTANT - determine diabetes status)
+      const hasDiabetes = Math.random() < (
+        category === 'nonCkdLowModerate' ? 0.10 : // 10%
+        category === 'nonCkdHigh' ? 0.45 : // 45%
+        severity === 'mild' ? 0.50 : // 50%
+        severity === 'moderate' ? 0.60 : // 60%
+        severity === 'severe' ? 0.70 : // 70%
+        0.75 // 75% for kidney failure
+      );
+
+      const hba1c = hasDiabetes
+        ? 6.5 + Math.random() * 2.5 // Diabetics: 6.5-9.0%
+        : 4.5 + Math.random() * 1.0; // Non-diabetics: 4.5-5.5%
+
+      // Potassium (CRITICAL - especially for CKD patients)
+      let potassium: number;
+      if (!severity) {
+        // Non-CKD: normal range
+        potassium = 3.8 + Math.random() * 0.9; // 3.8-4.7 mEq/L
+      } else if (severity === 'mild' || severity === 'moderate') {
+        // CKD 1-3: slightly elevated risk
+        potassium = 4.0 + Math.random() * 1.2; // 4.0-5.2 mEq/L
+      } else {
+        // CKD 4-5: high risk of hyperkalemia
+        potassium = 4.5 + Math.random() * 1.5; // 4.5-6.0 mEq/L
+      }
+
+      // Hemoglobin (CRITICAL - anemia common in CKD)
+      let hemoglobin: number;
+      if (!severity) {
+        // Non-CKD: normal
+        hemoglobin = 12.5 + Math.random() * 3.5; // 12.5-16 g/dL
+      } else if (severity === 'mild') {
+        // Mild CKD: minimal anemia
+        hemoglobin = 12 + Math.random() * 3; // 12-15 g/dL
+      } else if (severity === 'moderate') {
+        // Moderate CKD: mild anemia
+        hemoglobin = 11 + Math.random() * 3; // 11-14 g/dL
+      } else if (severity === 'severe') {
+        // Severe CKD: moderate anemia
+        hemoglobin = 9.5 + Math.random() * 2.5; // 9.5-12 g/dL
+      } else {
+        // Kidney failure: severe anemia
+        hemoglobin = 8 + Math.random() * 2; // 8-10 g/dL
+      }
+
+      // LDL & HDL Cholesterol (IMPORTANT - CVD risk)
+      const ldl = 80 + Math.random() * 100; // 80-180 mg/dL
+      const hdl = 30 + Math.random() * 40; // 30-70 mg/dL
+
+      // Calcium & Phosphorus (IMPORTANT for Stage 3b+)
+      let calcium: number, phosphorus: number;
+      if (!severity || severity === 'mild') {
+        // Normal range
+        calcium = 8.8 + Math.random() * 1.2; // 8.8-10.0 mg/dL
+        phosphorus = 2.7 + Math.random() * 1.8; // 2.7-4.5 mg/dL
+      } else if (severity === 'moderate') {
+        // Mild CKD-MBD
+        calcium = 8.5 + Math.random() * 1.5; // 8.5-10.0 mg/dL (can be low)
+        phosphorus = 3.0 + Math.random() * 2.0; // 3.0-5.0 mg/dL (rising)
+      } else {
+        // Advanced CKD-MBD
+        calcium = 8.0 + Math.random() * 1.5; // 8.0-9.5 mg/dL (low)
+        phosphorus = 4.5 + Math.random() * 2.5; // 4.5-7.0 mg/dL (high)
+      }
+
+      // Serum Albumin (OPTIONAL - nutritional status)
+      let albumin: number;
+      if (!severity || severity === 'mild') {
+        albumin = 3.8 + Math.random() * 0.7; // 3.8-4.5 g/dL (normal)
+      } else if (severity === 'moderate') {
+        albumin = 3.4 + Math.random() * 0.8; // 3.4-4.2 g/dL
+      } else {
+        albumin = 2.8 + Math.random() * 0.9; // 2.8-3.7 g/dL (low in advanced CKD)
+      }
+
+      // Creatinine & BUN (already implicit in eGFR, but useful for context)
+      let creatinine: number, bun: number;
+      if (egfr >= 90) {
+        creatinine = 0.7 + Math.random() * 0.3; // 0.7-1.0 mg/dL
+        bun = 8 + Math.random() * 12; // 8-20 mg/dL
+      } else if (egfr >= 60) {
+        creatinine = 1.0 + Math.random() * 0.5; // 1.0-1.5 mg/dL
+        bun = 15 + Math.random() * 15; // 15-30 mg/dL
+      } else if (egfr >= 30) {
+        creatinine = 1.5 + Math.random() * 1.0; // 1.5-2.5 mg/dL
+        bun = 25 + Math.random() * 25; // 25-50 mg/dL
+      } else if (egfr >= 15) {
+        creatinine = 2.5 + Math.random() * 2.5; // 2.5-5.0 mg/dL
+        bun = 40 + Math.random() * 60; // 40-100 mg/dL
+      } else {
+        creatinine = 5.0 + Math.random() * 5.0; // 5.0-10.0 mg/dL
+        bun = 80 + Math.random() * 100; // 80-180 mg/dL
+      }
+
+      // Insert all observations
       await pool.query(`
         INSERT INTO observations (patient_id, observation_type, value_numeric, unit, observation_date, status)
         VALUES
-          ($1, 'eGFR', $2, 'mL/min/1.73m²', $4, 'final'),
-          ($1, 'uACR', $3, 'mg/g', $4, 'final'),
-          ($1, 'BMI', $5, 'kg/m²', $4, 'final')
-      `, [newPatientId, egfr, uacr, today, bmi]);
+          -- Kidney Function Panel
+          ($1, 'eGFR', $2, 'mL/min/1.73m²', $3, 'final'),
+          ($1, 'uACR', $4, 'mg/g', $3, 'final'),
+          ($1, 'serum_creatinine', $5, 'mg/dL', $3, 'final'),
+          ($1, 'BUN', $6, 'mg/dL', $3, 'final'),
+          ($1, 'BMI', $7, 'kg/m²', $3, 'final'),
+
+          -- Blood Pressure & Cardiovascular (CRITICAL)
+          ($1, 'blood_pressure_systolic', $8, 'mmHg', $3, 'final'),
+          ($1, 'blood_pressure_diastolic', $9, 'mmHg', $3, 'final'),
+          ($1, 'LDL_cholesterol', $10, 'mg/dL', $3, 'final'),
+          ($1, 'HDL_cholesterol', $11, 'mg/dL', $3, 'final'),
+
+          -- Metabolic (IMPORTANT)
+          ($1, 'HbA1c', $12, '%', $3, 'final'),
+
+          -- Hematology & Minerals (CRITICAL for CKD)
+          ($1, 'hemoglobin', $13, 'g/dL', $3, 'final'),
+          ($1, 'potassium', $14, 'mEq/L', $3, 'final'),
+          ($1, 'calcium', $15, 'mg/dL', $3, 'final'),
+          ($1, 'phosphorus', $16, 'mg/dL', $3, 'final'),
+          ($1, 'albumin', $17, 'g/dL', $3, 'final')
+      `, [
+        newPatientId, egfr, today, uacr, creatinine, bun, bmi,
+        systolic, diastolic, ldl, hdl,
+        hba1c,
+        hemoglobin, potassium, calcium, phosphorus, albumin
+      ]);
 
       // Calculate KDIGO for health state
       const kdigo = classifyKDIGO(egfr, uacr);

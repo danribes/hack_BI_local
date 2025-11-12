@@ -167,14 +167,31 @@ GROUP BY category;
 
 ### Clinical Data
 
-#### Lab Values (Tailored by Category)
+#### Lab Values (Comprehensive Panel - Tailored by Category)
+
+**Kidney Function Panel:**
 - eGFR (mL/min/1.73m²)
 - uACR (mg/g)
 - Serum Creatinine (mg/dL)
 - BUN (mg/dL)
+
+**Blood Pressure & Cardiovascular:**
+- Blood Pressure (systolic/diastolic mmHg)
+- LDL Cholesterol (mg/dL)
+- HDL Cholesterol (mg/dL)
+
+**Metabolic:**
 - HbA1c (%)
-- Blood Pressure (systolic/diastolic)
-- BMI
+- BMI (kg/m²)
+
+**Hematology & Minerals:**
+- Hemoglobin (g/dL) - varies by CKD severity (lower in advanced CKD)
+- Potassium (mEq/L) - higher risk in CKD Stage 4-5
+- Calcium (mg/dL) - can be low in advanced CKD
+- Phosphorus (mg/dL) - elevated in advanced CKD
+- Albumin (g/dL) - nutritional status marker
+
+All lab values are generated with **clinically realistic ranges** based on patient category and CKD severity.
 
 #### Comorbidities (Realistic Prevalence)
 - Type 2 Diabetes Mellitus
@@ -228,6 +245,96 @@ GROUP BY category;
 - Medication exposure (nephrotoxic vs protective)
 - Family history
 - AKI episodes
+
+---
+
+## 🔬 Comprehensive Laboratory Panel
+
+**Updated Feature:** The API now generates a **complete laboratory panel** for all patients, including values that were previously missing from the patient cards.
+
+### Critical Labs (Always Generated)
+
+These labs are **essential** for CKD risk assessment, treatment decisions, and monitoring:
+
+#### Blood Pressure
+- **Range**: 110-170 mmHg systolic, 70-105 mmHg diastolic
+- **Variation**: Higher and less controlled in CKD patients (especially Stage 4-5)
+- **Clinical Use**:
+  - Risk assessment (hypertension is cause AND consequence of CKD)
+  - Treatment targets differ by proteinuria (<130/80 with A2/A3, <140/90 with A1)
+  - Determines need for RAS inhibitors, CCBs, diuretics
+
+#### Potassium
+- **Range**:
+  - Non-CKD: 3.8-4.7 mEq/L (normal)
+  - Mild-Moderate CKD: 4.0-5.2 mEq/L
+  - Severe CKD/Kidney Failure: 4.5-6.0 mEq/L (hyperkalemia risk)
+- **Clinical Use**:
+  - **Safety**: Hyperkalemia >5.5 is life-threatening
+  - Prevents/limits use of RAS inhibitors, Finerenone if elevated
+  - Determines need for potassium binders
+
+#### Hemoglobin
+- **Range** (varies dramatically by CKD severity):
+  - Non-CKD: 12.5-16 g/dL
+  - Mild CKD: 12-15 g/dL
+  - Moderate CKD: 11-14 g/dL
+  - Severe CKD: 9.5-12 g/dL
+  - Kidney Failure: 8-10 g/dL
+- **Clinical Use**:
+  - Anemia is universal in advanced CKD (EPO deficiency)
+  - <10 g/dL: Consider ESA (erythropoietin therapy)
+  - Affects quality of life, accelerates CKD progression
+
+### Important Labs (Strongly Recommended)
+
+#### HbA1c
+- **Range**:
+  - Non-diabetic: 4.5-5.5%
+  - Diabetic: 6.5-9.0%
+- **Prevalence**: Varies by category (10% low-risk to 75% kidney failure)
+- **Clinical Use**: Diabetes control assessment, influences SGLT2i benefit
+
+#### LDL & HDL Cholesterol
+- **Range**: LDL 80-180 mg/dL, HDL 30-70 mg/dL
+- **Clinical Use**:
+  - CVD risk stratification (CKD = 10-20x higher CVD risk)
+  - LDL goal <70 mg/dL for all CKD patients (treat with statins)
+
+#### Calcium & Phosphorus
+- **Range** (varies by CKD severity):
+  - Normal: Ca 8.8-10.0, PO4 2.7-4.5 mg/dL
+  - Moderate CKD: Ca 8.5-10.0, PO4 3.0-5.0 mg/dL
+  - Advanced CKD: Ca 8.0-9.5 (low), PO4 4.5-7.0 (high) mg/dL
+- **Clinical Use**:
+  - CKD-MBD (Mineral Bone Disease) management
+  - Prevents secondary hyperparathyroidism, vascular calcification
+  - Determines need for phosphate binders, vitamin D analogs
+
+#### Serum Albumin
+- **Range**:
+  - Normal: 3.8-4.5 g/dL
+  - Moderate CKD: 3.4-4.2 g/dL
+  - Advanced CKD: 2.8-3.7 g/dL
+- **Clinical Use**: Nutritional status, dialysis planning
+
+### Lab Value Generation Logic
+
+The API intelligently generates lab values based on:
+1. **Patient Category** (non-CKD low/moderate/high, CKD mild/moderate/severe/failure)
+2. **CKD Severity** (labs worsen progressively with declining kidney function)
+3. **Clinical Realism** (ranges match real-world epidemiology)
+
+**Example: Hemoglobin Generation**
+```typescript
+// Non-CKD: Normal values (12.5-16 g/dL)
+// Mild CKD: Minimal anemia (12-15 g/dL)
+// Moderate CKD: Mild anemia (11-14 g/dL)
+// Severe CKD: Moderate anemia (9.5-12 g/dL)
+// Kidney Failure: Severe anemia (8-10 g/dL)
+```
+
+This ensures that patient cards display **clinically credible and complete** laboratory data.
 
 ---
 
