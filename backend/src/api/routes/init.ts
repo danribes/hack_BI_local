@@ -147,6 +147,79 @@ router.post('/migrate', async (_req: Request, res: Response): Promise<any> => {
 });
 
 /**
+ * POST /api/init/fix-trigger
+ * Fix the detect_risk_state_change trigger to handle both patients and observations tables
+ */
+router.post('/fix-trigger', async (_req: Request, res: Response): Promise<any> => {
+  try {
+    const pool = getPool();
+
+    console.log('Fixing detect_risk_state_change trigger...');
+
+    // Update the trigger function to handle both tables
+    await pool.query(`
+      CREATE OR REPLACE FUNCTION detect_risk_state_change()
+      RETURNS TRIGGER AS $$
+      DECLARE
+          v_patient_id UUID;
+          v_mrn VARCHAR(20);
+      BEGIN
+          -- Determine patient_id and MRN based on which table triggered this
+          IF TG_TABLE_NAME = 'patients' THEN
+              v_patient_id := NEW.id;
+              v_mrn := NEW.medical_record_number;
+          ELSIF TG_TABLE_NAME = 'observations' THEN
+              v_patient_id := NEW.patient_id;
+              -- Get MRN from patients table
+              SELECT medical_record_number INTO v_mrn
+              FROM patients
+              WHERE id = NEW.patient_id;
+          ELSE
+              -- Unknown table, just use patient_id if available
+              v_patient_id := NEW.patient_id;
+              v_mrn := 'UNKNOWN';
+          END IF;
+
+          -- Log that trigger was fired
+          RAISE NOTICE 'Risk state change detector triggered for patient: % (MRN: %)', v_patient_id, v_mrn;
+
+          -- Send a notification to the backend via NOTIFY
+          -- The backend will listen for this and run the risk assessment
+          PERFORM pg_notify(
+              'patient_data_updated',
+              json_build_object(
+                  'patient_id', v_patient_id,
+                  'mrn', v_mrn,
+                  'table', TG_TABLE_NAME,
+                  'timestamp', CURRENT_TIMESTAMP
+              )::text
+          );
+
+          RAISE NOTICE 'Notification sent via pg_notify for patient %', v_mrn;
+
+          RETURN NEW;
+      END;
+      $$ LANGUAGE plpgsql;
+    `);
+
+    console.log('✓ Trigger function fixed successfully');
+
+    res.json({
+      status: 'success',
+      message: 'Trigger function fixed successfully'
+    });
+
+  } catch (error) {
+    console.error('[Init API] Error fixing trigger:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to fix trigger function',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+/**
  * POST /api/init/populate-tracking-tables
  * Populate CKD and non-CKD patient tracking tables with risk factors and treatments
  */
