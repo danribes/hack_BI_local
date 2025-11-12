@@ -45,29 +45,85 @@ router.get('/', async (_req: Request, res: Response): Promise<any> => {
 
 /**
  * GET /api/patients/:id
- * Get a single patient by ID
+ * Get complete patient details including observations, conditions, and risk assessments
  */
 router.get('/:id', async (req: Request, res: Response): Promise<any> => {
   try {
     const { id } = req.params;
     const pool = getPool();
 
-    const result = await pool.query(`
+    // Get patient basic info
+    const patientResult = await pool.query(`
       SELECT *
       FROM patients
       WHERE id = $1
     `, [id]);
 
-    if (result.rows.length === 0) {
+    if (patientResult.rows.length === 0) {
       return res.status(404).json({
         status: 'error',
         message: 'Patient not found'
       });
     }
 
+    const patient = patientResult.rows[0];
+
+    // Get latest observations grouped by type
+    const observationsResult = await pool.query(`
+      SELECT DISTINCT ON (observation_type)
+        observation_type,
+        value_numeric,
+        value_text,
+        unit,
+        observation_date,
+        notes
+      FROM observations
+      WHERE patient_id = $1
+      ORDER BY observation_type, observation_date DESC
+    `, [id]);
+
+    // Get active conditions
+    const conditionsResult = await pool.query(`
+      SELECT
+        condition_code,
+        condition_name,
+        clinical_status,
+        onset_date,
+        severity,
+        notes
+      FROM conditions
+      WHERE patient_id = $1
+      ORDER BY
+        CASE clinical_status
+          WHEN 'active' THEN 1
+          WHEN 'inactive' THEN 2
+          WHEN 'resolved' THEN 3
+        END,
+        recorded_date DESC
+    `, [id]);
+
+    // Get latest risk assessment
+    const riskResult = await pool.query(`
+      SELECT
+        risk_score,
+        risk_level,
+        recommendations,
+        reasoning,
+        assessed_at
+      FROM risk_assessments
+      WHERE patient_id = $1
+      ORDER BY assessed_at DESC
+      LIMIT 1
+    `, [id]);
+
     res.json({
       status: 'success',
-      patient: result.rows[0]
+      patient: {
+        ...patient,
+        observations: observationsResult.rows,
+        conditions: conditionsResult.rows,
+        risk_assessment: riskResult.rows[0] || null
+      }
     });
 
   } catch (error) {
