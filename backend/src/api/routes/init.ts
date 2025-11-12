@@ -447,4 +447,61 @@ router.get('/status', async (_req: Request, res: Response): Promise<any> => {
   }
 });
 
+/**
+ * POST /api/init/update-patient-ages
+ * Update all patient ages to be over 65 with random variation
+ */
+router.post('/update-patient-ages', async (_req: Request, res: Response): Promise<any> => {
+  try {
+    const pool = getPool();
+
+    console.log('Updating patient ages to 65+ with random variation...');
+
+    // Get all patients
+    const patientsResult = await pool.query('SELECT id, first_name, last_name, date_of_birth FROM patients');
+
+    let updatedCount = 0;
+    const today = new Date();
+
+    for (const patient of patientsResult.rows) {
+      // Calculate random age between 66 and 90 years old
+      const randomAge = 66 + Math.floor(Math.random() * 25); // 66-90 years
+
+      // Calculate new date of birth
+      const birthYear = today.getFullYear() - randomAge;
+      const birthMonth = Math.floor(Math.random() * 12); // 0-11
+      const birthDay = Math.floor(Math.random() * 28) + 1; // 1-28 (safe for all months)
+
+      const newDateOfBirth = new Date(birthYear, birthMonth, birthDay);
+
+      // Update patient's date of birth
+      await pool.query(
+        'UPDATE patients SET date_of_birth = $1 WHERE id = $2',
+        [newDateOfBirth, patient.id]
+      );
+
+      updatedCount++;
+
+      console.log(`✓ Updated ${patient.first_name} ${patient.last_name}: Age ${randomAge}`);
+    }
+
+    console.log(`✓ Updated ${updatedCount} patients to ages 65+`);
+
+    res.json({
+      status: 'success',
+      message: 'All patient ages updated to 65+ with random variation',
+      patients_updated: updatedCount,
+      age_range: '66-90 years'
+    });
+
+  } catch (error) {
+    console.error('[Init API] Error updating patient ages:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to update patient ages',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
 export default router;
