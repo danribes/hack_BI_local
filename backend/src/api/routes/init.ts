@@ -575,12 +575,18 @@ router.post('/populate-realistic-cohort', async (req: Request, res: Response): P
           throw new Error('Invalid category');
       }
 
-      // Insert patient
+      // Insert patient with all required fields to avoid trigger issues
+      const weight = 60 + Math.random() * 50; // 60-110 kg
+      const height = gender === 'male' ? 170 + Math.floor(Math.random() * 20) : 160 + Math.floor(Math.random() * 20);
+      const smokingStatus = Math.random() < 0.7 ? 'Never' : (Math.random() < 0.7 ? 'Former' : 'Current');
+
       const patientResult = await pool.query(`
         INSERT INTO patients (
           medical_record_number, first_name, last_name, date_of_birth, gender,
-          email, phone, last_visit_date
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+          email, phone, last_visit_date,
+          weight, height, smoking_status, cvd_history, family_history_esrd,
+          on_ras_inhibitor, on_sglt2i, nephrotoxic_meds, nephrologist_referral
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
         RETURNING id
       `, [
         `MRN${String(startingMrnNumber + patientsCreated).padStart(6, '0')}`,
@@ -590,18 +596,31 @@ router.post('/populate-realistic-cohort', async (req: Request, res: Response): P
         gender,
         `${firstName.toLowerCase()}.${lastName.toLowerCase()}@email.com`,
         `+1-555-${String(Math.floor(Math.random() * 10000)).padStart(4, '0')}`,
-        new Date(Date.now() - Math.floor(Math.random() * 90) * 24 * 60 * 60 * 1000)
+        new Date(Date.now() - Math.floor(Math.random() * 90) * 24 * 60 * 60 * 1000),
+        weight,
+        height,
+        smokingStatus,
+        Math.random() < 0.2, // 20% CVD history
+        Math.random() < 0.1, // 10% family history
+        severity !== null, // On RAS inhibitor if CKD
+        false, // on_sglt2i
+        false, // nephrotoxic_meds
+        severity === 'severe' || severity === 'kidney_failure' // Nephrology referral for severe cases
       ]);
 
       const newPatientId = patientResult.rows[0].id;
+
+      // Calculate BMI
+      const bmi = weight / ((height / 100) * (height / 100));
 
       // Insert observations
       await pool.query(`
         INSERT INTO observations (patient_id, observation_type, value_numeric, unit, observation_date, status)
         VALUES
-          ($1, 'eGFR', $2, 'mL/min/1.73m²', $3, 'final'),
-          ($1, 'uACR', $4, 'mg/g', $3, 'final')
-      `, [newPatientId, egfr, today, uacr]);
+          ($1, 'eGFR', $2, 'mL/min/1.73m²', $4, 'final'),
+          ($1, 'uACR', $3, 'mg/g', $4, 'final'),
+          ($1, 'BMI', $5, 'kg/m²', $4, 'final')
+      `, [newPatientId, egfr, uacr, today, bmi]);
 
       // Calculate KDIGO for health state
       const kdigo = classifyKDIGO(egfr, uacr);
