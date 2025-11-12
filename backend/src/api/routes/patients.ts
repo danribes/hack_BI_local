@@ -25,6 +25,10 @@ router.get('/', async (_req: Request, res: Response): Promise<any> => {
         p.phone,
         p.last_visit_date,
         p.created_at,
+        p.home_monitoring_device,
+        p.home_monitoring_active,
+        p.ckd_treatment_active,
+        p.ckd_treatment_type,
         (SELECT value_numeric FROM observations
          WHERE patient_id = p.id AND observation_type = 'eGFR'
          ORDER BY observation_date DESC LIMIT 1) as latest_egfr,
