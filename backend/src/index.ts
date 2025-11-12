@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import { testConnection } from './config/database';
 import patientsRouter from './api/routes/patients';
+import initRouter from './api/routes/init';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -29,6 +30,7 @@ app.get('/health', (_req, res) => {
 
 // API Routes
 app.use('/api/patients', patientsRouter);
+app.use('/api/init', initRouter);
 
 // 404 handler
 app.use((_req, res) => {
