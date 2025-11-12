@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { getPool } from '../../config/database';
+import { classifyKDIGO } from '../../utils/kdigo';
 
 const router = Router();
 
@@ -96,6 +97,90 @@ router.post('/populate', async (_req: Request, res: Response): Promise<any> => {
  * GET /api/init/status
  * Check database status
  */
+/**
+ * POST /api/init/assign-monitoring-treatment
+ * Assign monitoring and treatment based on risk classification
+ */
+router.post('/assign-monitoring-treatment', async (_req: Request, res: Response): Promise<any> => {
+  try {
+    const pool = getPool();
+
+    // Get all patients with their latest observations
+    const patientsResult = await pool.query(`
+      SELECT
+        p.id,
+        (SELECT value_numeric FROM observations
+         WHERE patient_id = p.id AND observation_type = 'eGFR'
+         ORDER BY observation_date DESC LIMIT 1) as latest_egfr,
+        (SELECT value_numeric FROM observations
+         WHERE patient_id = p.id AND observation_type = 'uACR'
+         ORDER BY observation_date DESC LIMIT 1) as latest_uacr
+      FROM patients p
+    `);
+
+    const treatments = [
+      'Jardiance (Empagliflozin)',
+      'Farxiga (Dapagliflozin)',
+      'Invokana (Canagliflozin)',
+      'Kerendia (Finerenone)',
+      'Vicadrostat (Investigational)'
+    ];
+
+    let monitoringAssigned = 0;
+    let treatmentAssigned = 0;
+
+    for (const patient of patientsResult.rows) {
+      const egfr = patient.latest_egfr || 90;
+      const uacr = patient.latest_uacr || 15;
+
+      const kdigo = classifyKDIGO(egfr, uacr);
+
+      // Assign Minuteful Kidney Kit to all high-risk patients (CKD or non-CKD)
+      if (kdigo.risk_level === 'high' || kdigo.risk_level === 'very_high') {
+        await pool.query(`
+          UPDATE patients
+          SET home_monitoring_device = $1,
+              home_monitoring_active = $2
+          WHERE id = $3
+        `, ['Minuteful Kidney Kit', true, patient.id]);
+        monitoringAssigned++;
+      }
+
+      // Assign treatment to all CKD patients
+      if (kdigo.has_ckd) {
+        // Randomly assign one of the treatments
+        const randomTreatment = treatments[Math.floor(Math.random() * treatments.length)];
+
+        await pool.query(`
+          UPDATE patients
+          SET ckd_treatment_active = $1,
+              ckd_treatment_type = $2
+          WHERE id = $3
+        `, [true, randomTreatment, patient.id]);
+        treatmentAssigned++;
+      }
+    }
+
+    console.log(`✓ Assigned monitoring to ${monitoringAssigned} high-risk patients`);
+    console.log(`✓ Assigned treatment to ${treatmentAssigned} CKD patients`);
+
+    res.json({
+      status: 'success',
+      message: 'Monitoring and treatment assigned successfully',
+      monitoring_assigned: monitoringAssigned,
+      treatment_assigned: treatmentAssigned
+    });
+
+  } catch (error) {
+    console.error('[Init API] Error assigning monitoring/treatment:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to assign monitoring and treatment',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
 router.get('/status', async (_req: Request, res: Response): Promise<any> => {
   try {
     const pool = getPool();

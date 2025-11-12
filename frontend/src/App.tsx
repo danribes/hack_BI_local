@@ -32,6 +32,10 @@ interface Patient {
   created_at: string;
   kdigo_classification?: KDIGOClassification;
   risk_category?: string;
+  home_monitoring_device?: string | null;
+  home_monitoring_active?: boolean;
+  ckd_treatment_active?: boolean;
+  ckd_treatment_type?: string | null;
 }
 
 interface Observation {
@@ -1060,6 +1064,25 @@ function App() {
                           {patient.risk_category && (
                             <span className={`px-3 py-1 rounded-full text-xs font-bold ${getRiskCategoryBadgeColor(patient.risk_category)}`}>
                               {patient.risk_category}
+                            </span>
+                          )}
+                          {/* Monitoring/Treatment Status Badge */}
+                          {patient.kdigo_classification && !patient.kdigo_classification.has_ckd && (
+                            <span className={`px-2 py-1 rounded text-xs font-semibold ${
+                              patient.home_monitoring_active
+                                ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                                : 'bg-gray-100 text-gray-600 border border-gray-300'
+                            }`}>
+                              {patient.home_monitoring_active ? '✓ Monitored' : 'Not Monitored'}
+                            </span>
+                          )}
+                          {patient.kdigo_classification && patient.kdigo_classification.has_ckd && (
+                            <span className={`px-2 py-1 rounded text-xs font-semibold ${
+                              patient.ckd_treatment_active
+                                ? 'bg-teal-100 text-teal-800 border border-teal-300'
+                                : 'bg-gray-100 text-gray-600 border border-gray-300'
+                            }`}>
+                              {patient.ckd_treatment_active ? '✓ Under Treatment' : 'Not Treated'}
                             </span>
                           )}
                         </div>
