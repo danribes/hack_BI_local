@@ -46,6 +46,32 @@ By the end of the hackathon, you'll have a working application that:
 4. 🏥 **Realistic Mock Data**: 5 patients with clinical observations and conditions
 5. 🐳 **Production-Ready**: Containerized, health checks, proper error handling
 
+## 🤖 NEW: Doctor Assistant Agent
+
+**AI-Powered Clinical Decision Support for Primary Care Doctors**
+
+We've added an intelligent chat interface that helps doctors manage their patients:
+
+### Key Features
+- **💬 AI Chat Interface**: Ask questions about patients, clinical guidelines, or treatment recommendations
+- **🔔 Real-Time Alerts**: Automatic notifications when patient status changes significantly
+- **🎯 Context-Aware**: The AI has access to complete patient history, lab results, and risk assessments
+- **⚡ Proactive Monitoring**: Continuous monitoring of all patients with AI-powered analysis of changes
+
+### What It Does
+1. **Answer Clinical Questions**: "What are the KDIGO guidelines for this patient?" or "Should I start an SGLT2 inhibitor?"
+2. **Smart Notifications**: Get alerted about critical lab values, eGFR decline, or treatment gaps
+3. **Patient-Specific Insights**: Click on a patient, then ask the AI for analysis and recommendations
+4. **Priority-Based Alerts**: Notifications are categorized as CRITICAL, HIGH, or MODERATE
+
+### How to Use
+1. Click the blue chat button in the bottom-right corner
+2. Select a patient to provide context, or ask general questions
+3. Check the notification bell for important alerts
+4. Click alerts to get AI-powered explanations and recommendations
+
+📖 **Full Documentation**: See [DOCTOR_ASSISTANT_AGENT.md](./DOCTOR_ASSISTANT_AGENT.md) for complete setup and usage guide.
+
 ## Project Structure
 
 ```

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import PatientFilters from './components/PatientFilters';
+import { DoctorChatBar } from './components/DoctorChatBar';
 
 interface KDIGOClassification {
   gfr_category: string;
@@ -1285,6 +1286,12 @@ function App() {
           <p>Healthcare AI Clinical Data Analyzer</p>
         </footer>
       </div>
+
+      {/* Doctor Assistant Chat Bar */}
+      <DoctorChatBar
+        currentPatientId={selectedPatient?.id}
+        apiBaseUrl={import.meta.env.VITE_API_URL || 'http://localhost:3000'}
+      />
     </div>
   );
 }

@@ -1,10 +1,14 @@
 import express from 'express';
 import cors from 'cors';
-import { testConnection } from './config/database';
+import { testConnection, getPool } from './config/database';
 import patientsRouter from './api/routes/patients';
 import initRouter from './api/routes/init';
 import jardianceRouter from './api/routes/jardiance';
 import riskRouter from './api/routes/risk';
+import { createAgentRouter } from './api/routes/agent';
+import { createNotificationsRouter } from './api/routes/notifications';
+import { DoctorAgentService } from './services/doctorAgent';
+import { PatientMonitorService } from './services/patientMonitor';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -30,11 +34,20 @@ app.get('/health', (_req, res) => {
   });
 });
 
+// Initialize services (will be started in startServer)
+let patientMonitor: PatientMonitorService | null = null;
+
 // API Routes
 app.use('/api/patients', patientsRouter);
 app.use('/api/init', initRouter);
 app.use('/api/jardiance', jardianceRouter);
 app.use('/api/risk', riskRouter);
+
+// Agent and Notifications routes (initialized with pool)
+const pool = getPool();
+const agentRouter = createAgentRouter(pool);
+// Note: patientMonitor will be created in startServer
+app.use('/api/agent', agentRouter);
 
 // 404 handler
 app.use((_req, res) => {
@@ -66,11 +79,31 @@ const startServer = async () => {
       process.exit(1);
     }
 
+    // Initialize Doctor Agent and Patient Monitor services
+    console.log('Initializing AI services...');
+    const agentService = new DoctorAgentService(pool);
+    patientMonitor = new PatientMonitorService(pool, agentService);
+
+    // Mount notifications router (depends on patientMonitor)
+    const notificationsRouter = createNotificationsRouter(pool, patientMonitor);
+    app.use('/api/notifications', notificationsRouter);
+
+    // Start patient monitoring service
+    try {
+      await patientMonitor.startMonitoring();
+      console.log('✓ Patient monitoring service started');
+    } catch (error) {
+      console.error('⚠️  Warning: Patient monitoring service failed to start:', error);
+      console.log('   Continuing without real-time monitoring...');
+    }
+
     // Start listening
     app.listen(PORT, () => {
       console.log(`✓ Server running on port ${PORT}`);
       console.log(`✓ Health check: http://localhost:${PORT}/health`);
       console.log(`✓ Patients API: http://localhost:${PORT}/api/patients`);
+      console.log(`✓ Doctor Agent API: http://localhost:${PORT}/api/agent`);
+      console.log(`✓ Notifications API: http://localhost:${PORT}/api/notifications`);
       console.log('✓ Ready to accept requests');
     });
 
@@ -81,13 +114,21 @@ const startServer = async () => {
 };
 
 // Handle shutdown gracefully
-process.on('SIGTERM', () => {
+process.on('SIGTERM', async () => {
   console.log('SIGTERM received, shutting down gracefully...');
+  if (patientMonitor) {
+    await patientMonitor.stopMonitoring();
+  }
+  await pool.end();
   process.exit(0);
 });
 
-process.on('SIGINT', () => {
+process.on('SIGINT', async () => {
   console.log('SIGINT received, shutting down gracefully...');
+  if (patientMonitor) {
+    await patientMonitor.stopMonitoring();
+  }
+  await pool.end();
   process.exit(0);
 });
 
