@@ -1289,7 +1289,7 @@ function App() {
 
       {/* Doctor Assistant Chat Bar */}
       <DoctorChatBar
-        currentPatientId={selectedPatient?.id}
+        currentPatientId={(selectedPatient as PatientDetail | null)?.id}
         apiBaseUrl={import.meta.env.VITE_API_URL || 'http://localhost:3000'}
       />
     </div>
