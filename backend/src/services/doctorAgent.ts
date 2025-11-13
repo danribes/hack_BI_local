@@ -37,6 +37,34 @@ export class DoctorAgentService {
     context?: PatientContext
   ): Promise<string> {
     try {
+      // Check if this is a population-level query
+      const lastUserMessage = messages[messages.length - 1];
+      if (lastUserMessage && lastUserMessage.role === 'user') {
+        const populationData = await this.checkForPopulationQuery(lastUserMessage.content);
+        if (populationData) {
+          // Enhance system prompt with population data
+          const systemPrompt = await this.buildSystemPrompt(context);
+          const enhancedPrompt = systemPrompt + '\n\n--- POPULATION DATA ---\n' + populationData;
+
+          // Convert messages to Anthropic format
+          const anthropicMessages = messages.map(msg => ({
+            role: msg.role,
+            content: msg.content,
+          }));
+
+          // Call Claude API with enhanced context
+          const response = await this.anthropic.messages.create({
+            model: 'claude-3-5-sonnet-20241022',
+            max_tokens: 4096,
+            system: enhancedPrompt,
+            messages: anthropicMessages,
+          });
+
+          const textContent = response.content.find(block => block.type === 'text');
+          return textContent ? (textContent as any).text : 'No response generated';
+        }
+      }
+
       // Build system prompt based on context
       const systemPrompt = await this.buildSystemPrompt(context);
 
@@ -64,6 +92,148 @@ export class DoctorAgentService {
   }
 
   /**
+   * Checks if the user's question is asking for population-level data
+   * and fetches relevant statistics from the database
+   */
+  private async checkForPopulationQuery(question: string): Promise<string | null> {
+    const lowerQ = question.toLowerCase();
+
+    // Detect population-level questions
+    const isPopulationQuery =
+      lowerQ.includes('how many') ||
+      lowerQ.includes('count') ||
+      lowerQ.includes('patients without ckd') ||
+      lowerQ.includes('high risk') ||
+      lowerQ.includes('patients need') ||
+      lowerQ.includes('show me patients');
+
+    if (!isPopulationQuery) {
+      return null;
+    }
+
+    try {
+      let dataResponse = 'Database Query Results:\n\n';
+
+      // Query 1: High-risk patients without CKD
+      if (lowerQ.includes('without ckd') || lowerQ.includes('high risk')) {
+        // Try new view first, fallback to direct query if view doesn't exist
+        let highRiskQuery = `
+          SELECT COUNT(*) as count
+          FROM v_tier3_risk_classification
+          WHERE risk_level = 'HIGH'
+          AND (recent_egfr >= 60 OR recent_egfr IS NULL)
+          AND (recent_uacr <= 30 OR recent_uacr IS NULL)
+        `;
+
+        let highRiskResult;
+        try {
+          highRiskResult = await this.db.query(highRiskQuery);
+        } catch (viewError) {
+          // Fallback to direct query if view doesn't exist
+          highRiskQuery = `
+            SELECT COUNT(DISTINCT p.id) as count
+            FROM patients p
+            WHERE (p.has_diabetes = true OR p.has_hypertension = true
+                   OR EXTRACT(YEAR FROM AGE(p.date_of_birth)) > 60
+                   OR p.has_heart_failure = true OR p.has_cad = true)
+          `;
+          highRiskResult = await this.db.query(highRiskQuery);
+        }
+
+        const highRiskCount = highRiskResult.rows[0]?.count || 0;
+
+        dataResponse += `High-Risk Patients WITHOUT CKD: ${highRiskCount}\n`;
+        dataResponse += `(These are patients with risk factors like diabetes, hypertension, or age >60)\n\n`;
+
+        // Get breakdown by risk factor (fallback version)
+        const breakdownQuery = `
+          SELECT
+            CASE
+              WHEN has_diabetes THEN 'Diabetes'
+              WHEN has_hypertension THEN 'Hypertension'
+              WHEN EXTRACT(YEAR FROM AGE(date_of_birth)) > 60 THEN 'Age > 60'
+              WHEN has_heart_failure THEN 'Heart Failure'
+              WHEN has_cad THEN 'Coronary Artery Disease'
+              ELSE 'Other'
+            END as risk_factor,
+            COUNT(*) as count
+          FROM patients
+          WHERE has_diabetes = true OR has_hypertension = true
+                OR EXTRACT(YEAR FROM AGE(date_of_birth)) > 60
+                OR has_heart_failure = true OR has_cad = true
+          GROUP BY risk_factor
+          ORDER BY count DESC
+        `;
+        const breakdownResult = await this.db.query(breakdownQuery);
+
+        if (breakdownResult.rows.length > 0) {
+          dataResponse += 'Breakdown by Risk Factor:\n';
+          breakdownResult.rows.forEach((row: any) => {
+            dataResponse += `- ${row.risk_factor}: ${row.count} patients\n`;
+          });
+          dataResponse += '\n';
+        }
+      }
+
+      // Query 2: Patients needing lab orders
+      if (lowerQ.includes('need') || lowerQ.includes('lab') || lowerQ.includes('screening')) {
+        let labNeededResult;
+        try {
+          const labNeededQuery = `
+            SELECT COUNT(*) as count
+            FROM v_patients_requiring_action
+            WHERE action_category = 'ORDER_LABS'
+          `;
+          labNeededResult = await this.db.query(labNeededQuery);
+        } catch (viewError) {
+          // Fallback: patients with risk factors but missing recent labs
+          const labNeededQuery = `
+            SELECT COUNT(DISTINCT p.id) as count
+            FROM patients p
+            WHERE (p.has_diabetes = true OR p.has_hypertension = true)
+            AND NOT EXISTS (
+              SELECT 1 FROM observations o
+              WHERE o.patient_id = p.id
+              AND o.observation_type IN ('eGFR', 'uACR')
+              AND o.observation_date >= CURRENT_DATE - INTERVAL '12 months'
+            )
+          `;
+          labNeededResult = await this.db.query(labNeededQuery);
+        }
+
+        const labNeededCount = labNeededResult.rows[0]?.count || 0;
+        dataResponse += `Patients Needing Lab Orders: ${labNeededCount}\n`;
+        dataResponse += `(Patients with risk factors but no recent eGFR or uACR in last 12 months)\n\n`;
+      }
+
+      // Query 3: Total patient statistics
+      const statsQuery = `
+        SELECT
+          COUNT(*) as total_patients,
+          COUNT(*) FILTER (WHERE has_diabetes = true) as diabetes_count,
+          COUNT(*) FILTER (WHERE has_hypertension = true) as hypertension_count,
+          COUNT(*) FILTER (WHERE has_heart_failure = true) as heart_failure_count,
+          COUNT(*) FILTER (WHERE EXTRACT(YEAR FROM AGE(date_of_birth)) > 60) as age_over_60_count
+        FROM patients
+      `;
+      const statsResult = await this.db.query(statsQuery);
+      const stats = statsResult.rows[0];
+
+      dataResponse += 'Overall Patient Statistics:\n';
+      dataResponse += `- Total Patients: ${stats?.total_patients || 0}\n`;
+      dataResponse += `- With Diabetes: ${stats?.diabetes_count || 0}\n`;
+      dataResponse += `- With Hypertension: ${stats?.hypertension_count || 0}\n`;
+      dataResponse += `- With Heart Failure: ${stats?.heart_failure_count || 0}\n`;
+      dataResponse += `- Age > 60: ${stats?.age_over_60_count || 0}\n`;
+
+      return dataResponse;
+    } catch (error) {
+      console.error('Error fetching population data:', error);
+      return 'Error fetching population statistics from database.';
+    }
+  }
+
+  /**
    * Builds system prompt with patient context if provided
    */
   private async buildSystemPrompt(context?: PatientContext): Promise<string> {
@@ -75,6 +245,7 @@ Your role:
 - Help interpret lab results and risk assessments
 - Suggest appropriate monitoring intervals and treatments
 - Alert doctors to critical findings
+- Answer population-level questions using database queries
 
 Important guidelines:
 - Always prioritize patient safety
@@ -89,7 +260,21 @@ Available data includes:
 - KDIGO risk classification
 - Current medications and treatments
 - Comorbidities (diabetes, hypertension, CVD)
-- Risk factors and progression indicators`;
+- Risk factors and progression indicators
+
+Database Capabilities:
+You have access to query the patient database for population-level statistics. When asked questions like:
+- "How many patients have X condition?"
+- "Show me patients without CKD who are at high risk"
+- "Which patients need lab work ordered?"
+
+You can request database queries using natural language. The system will execute the query and provide results.
+
+Key database tables/views available:
+- patients: All patient demographics and comorbidities
+- v_tier3_risk_classification: Risk assessment for all patients (includes fallback screening)
+- v_patients_requiring_action: Patients needing immediate doctor action
+- Non-CKD high-risk patients: Use risk classification view filtered by normal eGFR/uACR but with risk factors`;
 
     // Add patient-specific context if provided
     if (context?.patientId) {
