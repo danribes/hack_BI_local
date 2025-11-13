@@ -84,6 +84,9 @@ export const DoctorChatBar: React.FC<DoctorChatBarProps> = ({
     setIsLoading(true);
 
     try {
+      console.log('Sending request to:', `${apiBaseUrl}/api/agent/chat`);
+      console.log('Message count:', messages.length + 1);
+
       const response = await fetch(`${apiBaseUrl}/api/agent/chat`, {
         method: 'POST',
         headers: {
@@ -100,11 +103,16 @@ export const DoctorChatBar: React.FC<DoctorChatBarProps> = ({
         }),
       });
 
+      console.log('Response status:', response.status);
+
       if (!response.ok) {
-        throw new Error('Failed to get response from agent');
+        const errorText = await response.text();
+        console.error('Response error:', errorText);
+        throw new Error(`API error: ${response.status} - ${errorText}`);
       }
 
       const data = await response.json();
+      console.log('Got response from AI');
 
       const assistantMessage: Message = {
         role: 'assistant',
@@ -115,10 +123,12 @@ export const DoctorChatBar: React.FC<DoctorChatBarProps> = ({
       setMessages((prev) => [...prev, assistantMessage]);
     } catch (error) {
       console.error('Error sending message:', error);
+      console.error('Error details:', error instanceof Error ? error.message : 'Unknown error');
+      console.error('API Base URL:', apiBaseUrl);
 
       const errorMessage: Message = {
         role: 'assistant',
-        content: 'Sorry, I encountered an error processing your request. Please try again.',
+        content: `Error: ${error instanceof Error ? error.message : 'Sorry, I encountered an error processing your request. Please try again.'}`,
         timestamp: new Date(),
       };
 
