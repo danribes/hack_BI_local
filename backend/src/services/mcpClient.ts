@@ -1,10 +1,6 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import path from 'path';
-import { fileURLToPath } from 'url';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 /**
  * MCP Client wrapper for Healthcare MCP Server
@@ -39,10 +35,9 @@ export class MCPClient {
         args: [mcpServerPath],
         env: {
           ...process.env,
-          // Ensure DATABASE_URL is passed to MCP server
-          DATABASE_URL: process.env.DATABASE_URL,
+          // Ensure NODE_ENV is set
           NODE_ENV: process.env.NODE_ENV || 'development',
-        },
+        } as Record<string, string>,
       });
 
       // Create MCP client
