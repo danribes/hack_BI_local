@@ -1,12 +1,30 @@
-# Healthcare MCP Server
+# Healthcare MCP Server v2.0
 
-Model Context Protocol (MCP) server for the CKD Risk Screening System. Provides structured access to patient data, clinical calculations, and medical guidelines for AI-powered clinical decision support.
+Model Context Protocol (MCP) server for **Unified CKD Management System**. Provides phase-based clinical decision support covering the complete patient journey from pre-diagnosis through adherence monitoring.
 
-## Features
+**Based on**: Unified CKD Complete Specification Enhanced v3.0
+**Coverage**: Pre-Diagnosis → Diagnosis → Treatment → Adherence Monitoring
 
-- **Patient Data Retrieval**: Comprehensive patient information including demographics, medical history, and current status
-- **Lab Results Query**: Retrieve and interpret laboratory values with clinical context
-- **Risk Assessment**: Calculate KDIGO CKD risk classification with recommendations
+## Architecture Philosophy
+
+This MCP server implements a **phase-based approach** aligned with the clinical workflow:
+
+1. **Phase 1**: Pre-Diagnosis Risk Assessment (when labs unavailable)
+2. **Phase 2**: CKD Diagnosis & KDIGO Classification
+3. **Phase 3**: Treatment Initiation Decision Support
+4. **Phase 4**: Adherence Monitoring & Outcome Correlation
+
+## Core Features
+
+### Phase-Based Tools (NEW in v2.0)
+- **3-Tier Risk Stratification**: HIGH/MODERATE/LOW risk when eGFR/uACR unavailable
+- **KDIGO Classification Matrix**: G1-G5 × A1-A3 with trajectory analysis
+- **Evidence-Based Treatment Decisions**: Jardiance & RAS inhibitor eligibility (EMPA-KIDNEY, KDIGO 2024)
+- **MPR-Based Adherence Monitoring**: Smart alerts linking adherence to clinical outcomes
+
+### Legacy Tools (Maintained for Compatibility)
+- **Patient Data Retrieval**: Comprehensive patient information
+- **Lab Results Query**: Laboratory values with clinical context
 - **Population Statistics**: Aggregate data across patient populations
 - **Clinical Guidelines**: Search KDIGO 2024 practice guidelines
 
@@ -38,8 +56,199 @@ npm run inspect
 
 ## Available Tools
 
-### 1. get_patient_data
-Retrieve comprehensive patient information.
+### Phase-Based Tools (Primary Workflow)
+
+#### Phase 1: `assess_pre_diagnosis_risk`
+**When to use**: Patient lacks recent eGFR/uACR labs but may have CKD risk factors.
+
+Implements 3-tier risk stratification using multi-source data:
+- Comorbidities (diabetes, hypertension, heart failure)
+- Blood pressure (SBP/DBP)
+- Medication proxies (SGLT2i, RAS inhibitors indicate existing CKD)
+- Vitals (BMI, age)
+- Lab values if partially available
+
+**Input:**
+```json
+{
+  "patient_id": "uuid-string"
+}
+```
+
+**Output:**
+```json
+{
+  "riskTier": "TIER_1_HIGH" | "TIER_2_MODERATE" | "TIER_3_LOW",
+  "riskScore": 65,
+  "riskFactors": [
+    {"factor": "Type 2 Diabetes + Age >40", "points": 30, "category": "Comorbidity"}
+  ],
+  "priority": "URGENT" | "ROUTINE" | "STANDARD",
+  "testingTimeline": "Order tests immediately (this week)",
+  "expectedYield": "40-60% will have abnormal results",
+  "recommendations": ["Order eGFR and uACR testing", ...],
+  "renalGuardRecommendation": "Consider home monitoring device"
+}
+```
+
+---
+
+#### Phase 2: `classify_kdigo`
+**When to use**: Patient has eGFR and uACR results for KDIGO classification.
+
+Implements KDIGO risk matrix (GFR × Albuminuria) with trajectory analysis to detect rapid progressors.
+
+**Input:**
+```json
+{
+  "patient_id": "uuid-string"
+}
+```
+
+**Output:**
+```json
+{
+  "gfrCategory": "G3a",
+  "egfr": 52,
+  "albuminuriaCategory": "A2",
+  "uacr": 45,
+  "riskLevel": "ORANGE",
+  "riskDescription": "High risk - Increased monitoring needed",
+  "trajectory": {
+    "progressionRisk": "RAPID" | "MODERATE" | "STABLE",
+    "egfrDeclineRate": -6.2,
+    "alert": "CRITICAL: Rapid decline >5 mL/min/year",
+    "recommendation": "Immediate nephrology referral + intensify therapy"
+  },
+  "monitoringFrequency": "Every 3 months",
+  "clinicalRecommendations": [
+    "KDIGO 2024: Initiate RAS inhibitor if not already on",
+    "Consider SGLT2 inhibitor (strong indication)",
+    ...
+  ]
+}
+```
+
+---
+
+#### Phase 3: `assess_treatment_options`
+**When to use**: Patient diagnosed with CKD, need treatment eligibility assessment.
+
+Evaluates eligibility for:
+- **Jardiance (SGLT2 inhibitor)**: Based on EMPA-KIDNEY trial (28% risk reduction)
+- **RAS Inhibitors**: ACE inhibitors or ARBs for proteinuria
+- **RenalGuard**: Home monitoring device recommendations
+
+**Input:**
+```json
+{
+  "patient_id": "uuid-string"
+}
+```
+
+**Output:**
+```json
+{
+  "jardiance": {
+    "medication": "Jardiance (Empagliflozin)",
+    "indication": "STRONG" | "MODERATE" | "NOT_INDICATED" | "CONTRAINDICATED",
+    "evidence": "KDIGO Grade 1A - EMPA-KIDNEY: 28% reduction in progression",
+    "reasoning": [
+      "Type 2 Diabetes + eGFR ≥20 + significant albuminuria (uACR ≥200)",
+      "28% relative risk reduction for kidney disease progression or CV death"
+    ],
+    "safetyMonitoring": ["Monitor for genital infections", "Check eGFR at 2-4 weeks"],
+    "contraindications": []
+  },
+  "rasInhibitor": {
+    "medication": "RAS Inhibitor (ACEi or ARB)",
+    "indication": "STRONG",
+    "evidence": "KDIGO Grade 1A - First-line for albuminuria (30-40% proteinuria reduction)",
+    "reasoning": ["Albuminuria present (uACR 45 mg/g)", "Should be initiated BEFORE SGLT2i"],
+    "safetyMonitoring": ["Check K+ and creatinine 1-2 weeks after initiation"],
+    "contraindications": []
+  },
+  "renalGuard": {
+    "recommended": true,
+    "frequency": "Bi-weekly",
+    "rationale": "Moderate CKD on SGLT2 inhibitor - monitor treatment response",
+    "costEffectiveness": "Moderate-High - Helps optimize therapy"
+  },
+  "overallPlan": [
+    "FIRST PRIORITY: Initiate RAS inhibitor",
+    "SECOND PRIORITY: Add Jardiance after RAS inhibitor established",
+    "RenalGuard Home Monitoring: Bi-weekly"
+  ]
+}
+```
+
+---
+
+#### Phase 4: `monitor_adherence`
+**When to use**: Patient on CKD medications, need adherence assessment.
+
+Calculates Medication Possession Ratio (MPR) from prescription fill records and correlates adherence with clinical outcomes.
+
+**Input:**
+```json
+{
+  "patient_id": "uuid-string",
+  "medication_type": "SGLT2i" | "RAS_inhibitor" | "ALL",
+  "measurement_period_days": 90
+}
+```
+
+**Output:**
+```json
+{
+  "medications": [
+    {
+      "medicationName": "Jardiance (Empagliflozin) 10mg",
+      "mpr": 76.5,
+      "adherenceStatus": "SUBOPTIMAL",
+      "refillCount": 2,
+      "daysCovered": 69,
+      "measurementPeriod": 90,
+      "barriers": [
+        {
+          "type": "GAP_IN_COVERAGE",
+          "severity": "MODERATE",
+          "details": "21-day gap between refills",
+          "recommendation": "Assess financial or access barriers"
+        }
+      ]
+    }
+  ],
+  "overallAdherence": 76.5,
+  "clinicalCorrelation": {
+    "egfrTrend": "STABLE" | "IMPROVING" | "WORSENING",
+    "uacrTrend": "STABLE" | "IMPROVING" | "WORSENING",
+    "interpretation": "Suboptimal adherence with stable kidney function"
+  },
+  "alerts": [
+    {
+      "priority": "HIGH",
+      "message": "Suboptimal adherence (MPR 76.5%) detected",
+      "action": "Patient outreach recommended - assess barriers",
+      "reasoning": ["MPR <80% associated with worse outcomes"]
+    }
+  ],
+  "recommendations": [
+    "Schedule medication review with patient",
+    "Assess cost/access barriers (possible gap in coverage)",
+    "Consider adherence aids (pill organizers, reminders)"
+  ]
+}
+```
+
+---
+
+### Legacy Tools (Backwards Compatibility)
+
+#### `get_patient_data`
+Retrieve comprehensive patient information including demographics, vitals, comorbidities, medications.
+
+**Note**: Use phase-specific tools for clinical decisions.
 
 **Input:**
 ```json
@@ -50,75 +259,42 @@ Retrieve comprehensive patient information.
 }
 ```
 
-**Output:**
-- Patient demographics
-- Vitals (weight, height, BMI)
-- Comorbidities
-- Medications
-- Recent lab results (if requested)
-- Risk assessment (if requested)
+---
 
-### 2. query_lab_results
-Query laboratory results with filtering.
+#### `query_lab_results`
+Query laboratory results with optional filtering by observation type and date range.
 
 **Input:**
 ```json
 {
   "patient_id": "uuid-string",
-  "observation_type": "eGFR",
-  "date_range": {
-    "start": "2024-01-01",
-    "end": "2024-12-31"
-  },
+  "observation_type": "eGFR" | "uACR" | "Creatinine" | "HbA1c" | "All",
+  "date_range": {"start": "2024-01-01", "end": "2024-12-31"},
   "limit": 20
 }
 ```
 
-**Output:**
-- Lab results with interpretations
-- Trend analysis
-- Clinical significance
+---
 
-### 3. calculate_ckd_risk
-Calculate KDIGO risk classification.
-
-**Input:**
-```json
-{
-  "patient_id": "uuid-string"
-}
-```
-
-**Output:**
-- KDIGO category
-- CKD stage
-- Risk level (LOW/MODERATE/HIGH/CRITICAL)
-- Recommendations
-- Monitoring plan
-
-### 4. get_population_stats
-Get population-level statistics.
+#### `get_population_stats`
+Get aggregated statistics across the patient population with optional filtering and grouping.
 
 **Input:**
 ```json
 {
   "filters": {
     "has_diabetes": true,
-    "on_sglt2i": false
+    "on_sglt2i": false,
+    "risk_level": "HIGH"
   },
-  "group_by": "risk_level"
+  "group_by": "risk_level" | "ckd_stage" | "medication"
 }
 ```
 
-**Output:**
-- Total and filtered patient counts
-- Demographics
-- Comorbidity statistics
-- Treatment statistics
-- Risk distribution
+---
 
-### 5. search_guidelines
-Search KDIGO 2024 guidelines.
+#### `search_guidelines`
+Search KDIGO 2024 clinical practice guidelines for specific topics.
 
 **Input:**
 ```json
@@ -127,11 +303,6 @@ Search KDIGO 2024 guidelines.
   "ckd_stage": "G3a"
 }
 ```
-
-**Output:**
-- Relevant guidelines
-- Recommendations with evidence levels
-- Stage-specific notes
 
 ## Integration with Claude
 
@@ -193,25 +364,71 @@ echo '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"get_patien
 
 ## Architecture
 
+### Phase-Based Clinical Workflow
+
 ```
-┌─────────────────┐
-│  Doctor Chat    │
-└────────┬────────┘
-         │
-         │ MCP Protocol
-         │
-┌────────▼────────┐
-│   MCP Server    │
-│                 │
-│  ┌───────────┐  │
-│  │  Tools    │  │
-│  └─────┬─────┘  │
-│        │        │
-│  ┌─────▼─────┐  │
-│  │  Database │  │
-│  │  Layer    │  │
-│  └───────────┘  │
-└─────────────────┘
+                    ┌─────────────────────────────────┐
+                    │      Doctor Chat (Claude)       │
+                    └────────────┬────────────────────┘
+                                 │
+                    ┌────────────▼────────────────────┐
+                    │     MCP Server v2.0             │
+                    │  (Phase-Based Tool Orchestrator)│
+                    └─┬──────┬──────┬──────┬──────────┘
+                      │      │      │      │
+           ┌──────────┘      │      │      └──────────┐
+           │                 │      │                 │
+    ┌──────▼──────┐  ┌──────▼──────┐  ┌──────▼──────┐  ┌──────▼──────┐
+    │   Phase 1   │  │   Phase 2   │  │   Phase 3   │  │   Phase 4   │
+    │  Pre-Dx     │  │   KDIGO     │  │  Treatment  │  │  Adherence  │
+    │   Risk      │  │ Classifier  │  │  Decision   │  │  Monitor    │
+    └──────┬──────┘  └──────┬──────┘  └──────┬──────┘  └──────┬──────┘
+           │                 │                 │                 │
+           └─────────────────┴─────────────────┴─────────────────┘
+                                     │
+                          ┌──────────▼───────────┐
+                          │   PostgreSQL         │
+                          │   (Patient Data)     │
+                          └──────────────────────┘
+
+Clinical Decision Flow:
+1. Pre-Diagnosis: Risk stratification → Order tests
+2. Diagnosis: KDIGO classification → Stage CKD
+3. Treatment: Eligibility assessment → Prescribe therapy
+4. Adherence: MPR monitoring → Intervene on barriers
+```
+
+### System Architecture
+
+```
+┌─────────────────────────────────────────────────────────┐
+│                   Frontend (React)                      │
+│              Doctor Chat Interface                      │
+└───────────────────────┬─────────────────────────────────┘
+                        │ HTTP/WebSocket
+┌───────────────────────▼─────────────────────────────────┐
+│                Backend (Express + Claude SDK)           │
+│  - Doctor Agent Service                                 │
+│  - Chat message handling                                │
+│  - Session management                                   │
+└───────────────────────┬─────────────────────────────────┘
+                        │ MCP Protocol (stdio)
+┌───────────────────────▼─────────────────────────────────┐
+│              MCP Server (This Service)                  │
+│                                                          │
+│  Phase 1: assess_pre_diagnosis_risk                    │
+│  Phase 2: classify_kdigo                               │
+│  Phase 3: assess_treatment_options                     │
+│  Phase 4: monitor_adherence                            │
+│                                                          │
+│  Legacy: get_patient_data, query_lab_results, etc.    │
+└───────────────────────┬─────────────────────────────────┘
+                        │ pg (node-postgres)
+┌───────────────────────▼─────────────────────────────────┐
+│                   PostgreSQL Database                   │
+│  Tables: patients, observations, prescriptions,         │
+│          refills, medications                           │
+└─────────────────────────────────────────────────────────┘
 ```
 
 ## Environment Variables
