@@ -70,8 +70,9 @@ export const DoctorChatBar: React.FC<DoctorChatBarProps> = ({
     }
   };
 
-  const handleSendMessage = async (messageContent?: string) => {
-    const content = messageContent || inputValue;
+  const handleSendMessage = async (messageContentOrEvent?: string | React.MouseEvent) => {
+    // If it's a string, use it; otherwise use inputValue
+    const content = typeof messageContentOrEvent === 'string' ? messageContentOrEvent : inputValue;
     if (!content.trim()) return;
 
     const userMessage: Message = {
