@@ -285,6 +285,29 @@ function App() {
       }
 
       const data = await response.json();
+
+      // Log the response for debugging
+      console.log('Patient detail response:', data);
+
+      // Ensure required fields are present
+      if (!data.patient) {
+        throw new Error('No patient data received from server');
+      }
+
+      if (!data.patient.kdigo_classification) {
+        console.warn('Missing kdigo_classification in patient data');
+      }
+
+      if (!data.patient.observations) {
+        console.warn('Missing observations in patient data');
+        data.patient.observations = [];
+      }
+
+      if (!data.patient.conditions) {
+        console.warn('Missing conditions in patient data');
+        data.patient.conditions = [];
+      }
+
       setSelectedPatient(data.patient);
 
     } catch (err) {
@@ -430,6 +453,9 @@ function App() {
     const bmi = calculateBMI(selectedPatient.weight, selectedPatient.height);
     const age = calculateAge(selectedPatient.date_of_birth);
 
+    // Check if required data is loaded
+    const hasRequiredData = selectedPatient.kdigo_classification && selectedPatient.risk_category;
+
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
         <div className="container mx-auto px-4 py-8">
@@ -450,6 +476,25 @@ function App() {
             <div className="flex flex-col items-center justify-center py-16">
               <div className="animate-spin rounded-full h-16 w-16 border-b-4 border-indigo-600 mb-4"></div>
               <p className="text-gray-600 text-lg">Loading patient details...</p>
+            </div>
+          ) : !hasRequiredData ? (
+            <div className="flex flex-col items-center justify-center py-16">
+              <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 max-w-lg">
+                <div className="flex">
+                  <div className="flex-shrink-0">
+                    <svg className="h-5 w-5 text-yellow-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                  </div>
+                  <div className="ml-3">
+                    <h3 className="text-sm font-medium text-yellow-800">Patient Data Incomplete</h3>
+                    <div className="mt-2 text-sm text-yellow-700">
+                      <p>The patient data is missing required information (classification or risk category).</p>
+                      <p className="mt-1">Please check the browser console for details.</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           ) : (
             <div className="max-w-6xl mx-auto space-y-6">
