@@ -54,7 +54,7 @@ export class DoctorAgentService {
 
           // Call Claude API with enhanced context
           const response = await this.anthropic.messages.create({
-            model: 'claude-3-5-sonnet-20240620',
+            model: 'claude-sonnet-4-5-20250929',
             max_tokens: 4096,
             system: enhancedPrompt,
             messages: anthropicMessages,
@@ -76,7 +76,7 @@ export class DoctorAgentService {
 
       // Call Claude API
       const response = await this.anthropic.messages.create({
-        model: 'claude-3-5-sonnet-20240620',
+        model: 'claude-sonnet-4-5-20250929',
         max_tokens: 4096,
         system: systemPrompt,
         messages: anthropicMessages,
@@ -451,7 +451,7 @@ If no critical findings, respond with:
 NO ALERT`;
 
       const response = await this.anthropic.messages.create({
-        model: 'claude-3-5-sonnet-20240620',
+        model: 'claude-sonnet-4-5-20250929',
         max_tokens: 1024,
         messages: [{
           role: 'user',
@@ -504,7 +504,7 @@ ${JSON.stringify(changes, null, 2)}
 Provide a concise clinical summary suitable for a notification.`;
 
       const response = await this.anthropic.messages.create({
-        model: 'claude-3-5-sonnet-20240620',
+        model: 'claude-sonnet-4-5-20250929',
         max_tokens: 512,
         messages: [{
           role: 'user',
