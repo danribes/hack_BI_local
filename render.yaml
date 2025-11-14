@@ -45,8 +45,6 @@ services:
           property: connectionString
       - key: DB_POOL_MAX
         value: 10
-      - key: CLAUDE_MODEL
-        value: claude-3-5-sonnet-20241022
       - key: ANTHROPIC_API_KEY
         sync: false  # Must be set manually in Render dashboard (secret)
       - key: CORS_ORIGIN

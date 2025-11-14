@@ -1,0 +1,409 @@
+#!/usr/bin/env node
+
+import { Server } from '@modelcontextprotocol/sdk/server/index.js';
+import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import {
+  CallToolRequestSchema,
+  ListToolsRequestSchema,
+  Tool,
+} from '@modelcontextprotocol/sdk/types.js';
+import { testConnection } from './database.js';
+
+// Import Phase-based Tools (Aligned with Unified CKD Specification v3.0)
+import { assessPreDiagnosisRisk } from './tools/phase1PreDiagnosisRisk.js';
+import { classifyKDIGO } from './tools/phase2KDIGOClassification.js';
+import { assessTreatmentOptions } from './tools/phase3TreatmentDecision.js';
+import { monitorAdherence } from './tools/phase4AdherenceMonitoring.js';
+
+// Import Legacy Tools (kept for backwards compatibility)
+import { getPatientData } from './tools/patientData.js';
+import { queryLabResults } from './tools/labResults.js';
+import { calculateCKDRisk } from './tools/riskAssessment.js';
+import { getPopulationStats } from './tools/populationStats.js';
+import { searchGuidelines } from './tools/guidelines.js';
+
+/**
+ * Healthcare MCP Server - Unified CKD Management System
+ *
+ * Based on: "Unified CKD Complete Specification Enhanced v3 Adherence Risk"
+ * Document Version: 3.0
+ * Coverage: Pre-Diagnosis → Diagnosis → Treatment → Adherence
+ *
+ * PHASE-BASED TOOLS:
+ * - Phase 1: Pre-Diagnosis Risk Assessment (3-tier stratification)
+ * - Phase 2: CKD Diagnosis & KDIGO Classification (with trajectory analysis)
+ * - Phase 3: Treatment Initiation Decision Support (Jardiance, RAS inhibitors, RenalGuard)
+ * - Phase 4: Adherence Monitoring (MPR calculation, barrier detection, smart alerts)
+ */
+
+// Define available tools
+const TOOLS: Tool[] = [
+  // ==================== PHASE 1: PRE-DIAGNOSIS RISK ASSESSMENT ====================
+  {
+    name: 'assess_pre_diagnosis_risk',
+    description:
+      'PHASE 1: Assess CKD risk when eGFR/uACR unavailable. Uses 3-tier stratification (HIGH/MODERATE/LOW) based on comorbidities, medications, vitals, and clinical indicators. Returns testing urgency, expected yield, and RenalGuard recommendations.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        patient_id: {
+          type: 'string',
+          description: 'Patient identifier (UUID)',
+        },
+      },
+      required: ['patient_id'],
+    },
+  },
+
+  // ==================== PHASE 2: CKD DIAGNOSIS & STAGING ====================
+  {
+    name: 'classify_kdigo',
+    description:
+      'PHASE 2: Perform KDIGO classification using eGFR and uACR values. Returns GFR category (G1-G5), albuminuria category (A1-A3), risk level (GREEN/YELLOW/ORANGE/RED), trajectory analysis for rapid progressors, and monitoring frequency recommendations.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        patient_id: {
+          type: 'string',
+          description: 'Patient identifier',
+        },
+      },
+      required: ['patient_id'],
+    },
+  },
+
+  // ==================== PHASE 3: TREATMENT DECISION SUPPORT ====================
+  {
+    name: 'assess_treatment_options',
+    description:
+      'PHASE 3: Evaluate eligibility for Jardiance (SGLT2i) and RAS inhibitors based on KDIGO 2024 guidelines. Returns indication strength (STRONG/MODERATE/CONTRAINDICATED), EMPA-KIDNEY evidence, contraindications, safety monitoring requirements, and RenalGuard recommendations.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        patient_id: {
+          type: 'string',
+          description: 'Patient identifier',
+        },
+      },
+      required: ['patient_id'],
+    },
+  },
+
+  // ==================== PHASE 4: ADHERENCE MONITORING ====================
+  {
+    name: 'monitor_adherence',
+    description:
+      'PHASE 4: Calculate Medication Possession Ratio (MPR) from prescription fill records. Detects adherence barriers (gaps, discontinuation, declining frequency), generates smart alerts (CRITICAL/HIGH/MEDIUM), correlates adherence with clinical outcomes (eGFR/uACR trends), and provides barrier-specific recommendations.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        patient_id: {
+          type: 'string',
+          description: 'Patient identifier',
+        },
+        medication_type: {
+          type: 'string',
+          enum: ['SGLT2i', 'RAS_inhibitor', 'ALL'],
+          description: 'Type of medication to assess (default: ALL)',
+        },
+        measurement_period_days: {
+          type: 'number',
+          description: 'Period for MPR calculation in days (default: 90)',
+        },
+      },
+      required: ['patient_id'],
+    },
+  },
+
+  // ==================== LEGACY TOOLS (Backwards Compatibility) ====================
+  {
+    name: 'get_patient_data',
+    description:
+      'LEGACY: Retrieve comprehensive patient information including demographics, vitals, comorbidities, medications. Use phase-specific tools for clinical decisions.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        patient_id: {
+          type: 'string',
+          description: 'Patient identifier (UUID)',
+        },
+        include_labs: {
+          type: 'boolean',
+          description: 'Include recent lab results (default: true)',
+        },
+        include_risk: {
+          type: 'boolean',
+          description: 'Include risk assessment (default: true)',
+        },
+      },
+      required: ['patient_id'],
+    },
+  },
+
+  {
+    name: 'query_lab_results',
+    description:
+      'Query laboratory results for a patient with optional filtering by observation type and date range.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        patient_id: {
+          type: 'string',
+          description: 'Patient identifier',
+        },
+        observation_type: {
+          type: 'string',
+          description: 'Type of lab test',
+          enum: ['eGFR', 'uACR', 'Creatinine', 'HbA1c', 'Albumin', 'All'],
+        },
+        date_range: {
+          type: 'object',
+          properties: {
+            start: { type: 'string', format: 'date' },
+            end: { type: 'string', format: 'date' },
+          },
+        },
+        limit: {
+          type: 'number',
+          description: 'Maximum results to return (default: 20)',
+        },
+      },
+      required: ['patient_id'],
+    },
+  },
+
+  {
+    name: 'get_population_stats',
+    description:
+      'Get aggregated statistics across the patient population with optional filtering and grouping.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        filters: {
+          type: 'object',
+          properties: {
+            has_diabetes: { type: 'boolean' },
+            has_hypertension: { type: 'boolean' },
+            on_sglt2i: { type: 'boolean' },
+            on_ras_inhibitor: { type: 'boolean' },
+            risk_level: {
+              type: 'string',
+              enum: ['LOW', 'MODERATE', 'HIGH', 'CRITICAL'],
+            },
+            age_min: { type: 'number' },
+            age_max: { type: 'number' },
+          },
+        },
+        group_by: {
+          type: 'string',
+          enum: ['risk_level', 'ckd_stage', 'medication', 'comorbidity'],
+        },
+      },
+    },
+  },
+
+  {
+    name: 'search_guidelines',
+    description: 'Search KDIGO 2024 clinical practice guidelines for specific topics.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        topic: {
+          type: 'string',
+          description: 'Topic to search (e.g., "blood pressure", "diabetes", "referral")',
+        },
+        ckd_stage: {
+          type: 'string',
+          description: 'CKD stage for stage-specific recommendations',
+        },
+      },
+      required: ['topic'],
+    },
+  },
+];
+
+// Create MCP server
+const server = new Server(
+  {
+    name: 'healthcare-mcp-server',
+    version: '2.0.0',
+  },
+  {
+    capabilities: {
+      tools: {},
+    },
+  }
+);
+
+// Handler for listing available tools
+server.setRequestHandler(ListToolsRequestSchema, async () => {
+  return { tools: TOOLS };
+});
+
+// Handler for tool execution
+server.setRequestHandler(CallToolRequestSchema, async (request) => {
+  const { name, arguments: args } = request.params;
+
+  try {
+    switch (name) {
+      // ========== PHASE-BASED TOOLS ==========
+      case 'assess_pre_diagnosis_risk': {
+        const result = await assessPreDiagnosisRisk(args as any);
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify(result, null, 2),
+            },
+          ],
+        };
+      }
+
+      case 'classify_kdigo': {
+        const result = await classifyKDIGO(args as any);
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify(result, null, 2),
+            },
+          ],
+        };
+      }
+
+      case 'assess_treatment_options': {
+        const result = await assessTreatmentOptions(args as any);
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify(result, null, 2),
+            },
+          ],
+        };
+      }
+
+      case 'monitor_adherence': {
+        const result = await monitorAdherence(args as any);
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify(result, null, 2),
+            },
+          ],
+        };
+      }
+
+      // ========== LEGACY TOOLS ==========
+      case 'get_patient_data': {
+        const result = await getPatientData(args as any);
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify(result, null, 2),
+            },
+          ],
+        };
+      }
+
+      case 'query_lab_results': {
+        const result = await queryLabResults(args as any);
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify(result, null, 2),
+            },
+          ],
+        };
+      }
+
+      case 'calculate_ckd_risk': {
+        const result = await calculateCKDRisk(args as any);
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify(result, null, 2),
+            },
+          ],
+        };
+      }
+
+      case 'get_population_stats': {
+        const result = await getPopulationStats(args as any);
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify(result, null, 2),
+            },
+          ],
+        };
+      }
+
+      case 'search_guidelines': {
+        const result = await searchGuidelines(args as any);
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify(result, null, 2),
+            },
+          ],
+        };
+      }
+
+      default:
+        throw new Error(`Unknown tool: ${name}`);
+    }
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    return {
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify({ error: errorMessage }, null, 2),
+        },
+      ],
+      isError: true,
+    };
+  }
+});
+
+// Start the server
+async function main() {
+  console.error('========================================');
+  console.error('Healthcare MCP Server v2.0');
+  console.error('Unified CKD Management System');
+  console.error('========================================');
+
+  // Test database connection
+  const dbConnected = await testConnection();
+  if (!dbConnected) {
+    console.error('✗ Failed to connect to database');
+    process.exit(1);
+  }
+
+  // Create stdio transport
+  const transport = new StdioServerTransport();
+
+  // Connect server to transport
+  await server.connect(transport);
+
+  console.error('\n✓ MCP Server running');
+  console.error('\n📋 Available Tools:');
+  console.error('  PHASE 1: assess_pre_diagnosis_risk');
+  console.error('  PHASE 2: classify_kdigo');
+  console.error('  PHASE 3: assess_treatment_options');
+  console.error('  PHASE 4: monitor_adherence');
+  console.error('  LEGACY: get_patient_data, query_lab_results, get_population_stats, search_guidelines');
+  console.error('\n========================================\n');
+}
+
+main().catch((error) => {
+  console.error('Fatal error:', error);
+  process.exit(1);
+});
