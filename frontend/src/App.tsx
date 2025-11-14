@@ -92,6 +92,50 @@ interface PatientDetail extends Patient {
   home_monitoring_active?: boolean;
   ckd_treatment_active?: boolean;
   ckd_treatment_type?: string | null;
+  // Comprehensive variables
+  systolic_bp?: number;
+  diastolic_bp?: number;
+  bp_control_status?: string;
+  heart_rate?: number;
+  oxygen_saturation?: number;
+  bmi?: number;
+  // Comorbidities
+  has_diabetes?: boolean;
+  has_type1_diabetes?: boolean;
+  has_type2_diabetes?: boolean;
+  has_hypertension?: boolean;
+  has_essential_hypertension?: boolean;
+  has_renovascular_hypertension?: boolean;
+  has_hypertensive_ckd?: boolean;
+  has_heart_failure?: boolean;
+  has_cad?: boolean;
+  has_mi?: boolean;
+  has_atrial_fibrillation?: boolean;
+  has_stroke?: boolean;
+  has_peripheral_vascular_disease?: boolean;
+  has_aki_history?: boolean;
+  has_lupus?: boolean;
+  has_ra?: boolean;
+  has_obesity?: boolean;
+  has_metabolic_syndrome?: boolean;
+  has_hyperlipidemia?: boolean;
+  has_uti?: boolean;
+  has_kidney_stones?: boolean;
+  has_gout?: boolean;
+  has_polycystic_kidney_disease?: boolean;
+  resistant_hypertension?: boolean;
+  antihypertensive_count?: number;
+  // Clinical symptoms
+  appetite?: string;
+  pedal_edema?: boolean;
+  anemia?: boolean;
+  chronic_nsaid_use_months?: number;
+  chronic_ppi_use_months?: number;
+  diabetes_duration_years?: number;
+  previous_aki_episodes?: number;
+  // Monitoring
+  monitoring_status?: string;
+  current_risk_score?: number;
 }
 
 function App() {
@@ -740,6 +784,309 @@ function App() {
                   </div>
                 </div>
               </div>
+
+              {/* Vital Signs Card */}
+              {(selectedPatient.systolic_bp || selectedPatient.heart_rate || selectedPatient.oxygen_saturation) && (
+                <div className="bg-white rounded-lg shadow-lg p-6">
+                  <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center">
+                    <svg className="h-5 w-5 mr-2 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                    </svg>
+                    Vital Signs
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                    {(selectedPatient.systolic_bp || selectedPatient.diastolic_bp) && (
+                      <div className="border border-gray-200 rounded-lg p-4">
+                        <div className="text-xs text-gray-600 uppercase">Blood Pressure</div>
+                        <div className="text-2xl font-bold text-gray-900 mt-1">
+                          {selectedPatient.systolic_bp || '--'}/{selectedPatient.diastolic_bp || '--'} <span className="text-sm font-normal text-gray-600">mmHg</span>
+                        </div>
+                        {selectedPatient.bp_control_status && (
+                          <span className={`inline-block mt-2 px-2 py-1 rounded text-xs font-semibold ${
+                            selectedPatient.bp_control_status === 'Controlled' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                          }`}>
+                            {selectedPatient.bp_control_status}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                    {selectedPatient.heart_rate && (
+                      <div className="border border-gray-200 rounded-lg p-4">
+                        <div className="text-xs text-gray-600 uppercase">Heart Rate</div>
+                        <div className="text-2xl font-bold text-gray-900 mt-1">
+                          {selectedPatient.heart_rate} <span className="text-sm font-normal text-gray-600">bpm</span>
+                        </div>
+                      </div>
+                    )}
+                    {selectedPatient.oxygen_saturation && (
+                      <div className="border border-gray-200 rounded-lg p-4">
+                        <div className="text-xs text-gray-600 uppercase">O₂ Saturation</div>
+                        <div className="text-2xl font-bold text-gray-900 mt-1">
+                          {selectedPatient.oxygen_saturation.toFixed(1)} <span className="text-sm font-normal text-gray-600">%</span>
+                        </div>
+                      </div>
+                    )}
+                    {selectedPatient.bmi && (
+                      <div className="border border-gray-200 rounded-lg p-4">
+                        <div className="text-xs text-gray-600 uppercase">BMI</div>
+                        <div className="text-2xl font-bold text-gray-900 mt-1">
+                          {selectedPatient.bmi.toFixed(1)} <span className="text-sm font-normal text-gray-600">kg/m²</span>
+                        </div>
+                        <div className="text-xs mt-1 text-gray-600">
+                          {selectedPatient.bmi < 18.5 ? 'Underweight' : selectedPatient.bmi < 25 ? 'Normal' : selectedPatient.bmi < 30 ? 'Overweight' : 'Obese'}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Comorbidities Card */}
+              <div className="bg-white rounded-lg shadow-lg p-6">
+                <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center">
+                  <svg className="h-5 w-5 mr-2 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                  </svg>
+                  Comorbidities
+                </h3>
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                  {/* Cardiovascular */}
+                  {selectedPatient.has_hypertension && (
+                    <div className="flex items-center space-x-2 text-sm p-2 bg-red-50 rounded border border-red-200">
+                      <svg className="h-4 w-4 text-red-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
+                      </svg>
+                      <span className="font-medium text-gray-800">Hypertension</span>
+                    </div>
+                  )}
+                  {selectedPatient.has_diabetes && (
+                    <div className="flex items-center space-x-2 text-sm p-2 bg-orange-50 rounded border border-orange-200">
+                      <svg className="h-4 w-4 text-orange-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
+                      </svg>
+                      <span className="font-medium text-gray-800">Diabetes{selectedPatient.has_type2_diabetes ? ' (Type 2)' : selectedPatient.has_type1_diabetes ? ' (Type 1)' : ''}</span>
+                    </div>
+                  )}
+                  {selectedPatient.has_heart_failure && (
+                    <div className="flex items-center space-x-2 text-sm p-2 bg-red-50 rounded border border-red-200">
+                      <svg className="h-4 w-4 text-red-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
+                      </svg>
+                      <span className="font-medium text-gray-800">Heart Failure</span>
+                    </div>
+                  )}
+                  {selectedPatient.has_cad && (
+                    <div className="flex items-center space-x-2 text-sm p-2 bg-red-50 rounded border border-red-200">
+                      <svg className="h-4 w-4 text-red-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
+                      </svg>
+                      <span className="font-medium text-gray-800">CAD</span>
+                    </div>
+                  )}
+                  {selectedPatient.has_mi && (
+                    <div className="flex items-center space-x-2 text-sm p-2 bg-red-50 rounded border border-red-200">
+                      <svg className="h-4 w-4 text-red-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
+                      </svg>
+                      <span className="font-medium text-gray-800">MI History</span>
+                    </div>
+                  )}
+                  {selectedPatient.has_atrial_fibrillation && (
+                    <div className="flex items-center space-x-2 text-sm p-2 bg-orange-50 rounded border border-orange-200">
+                      <svg className="h-4 w-4 text-orange-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
+                      </svg>
+                      <span className="font-medium text-gray-800">Atrial Fib</span>
+                    </div>
+                  )}
+                  {selectedPatient.has_stroke && (
+                    <div className="flex items-center space-x-2 text-sm p-2 bg-red-50 rounded border border-red-200">
+                      <svg className="h-4 w-4 text-red-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
+                      </svg>
+                      <span className="font-medium text-gray-800">Stroke</span>
+                    </div>
+                  )}
+                  {selectedPatient.has_peripheral_vascular_disease && (
+                    <div className="flex items-center space-x-2 text-sm p-2 bg-orange-50 rounded border border-orange-200">
+                      <svg className="h-4 w-4 text-orange-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
+                      </svg>
+                      <span className="font-medium text-gray-800">PVD</span>
+                    </div>
+                  )}
+                  {/* Metabolic */}
+                  {selectedPatient.has_obesity && (
+                    <div className="flex items-center space-x-2 text-sm p-2 bg-yellow-50 rounded border border-yellow-200">
+                      <svg className="h-4 w-4 text-yellow-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
+                      </svg>
+                      <span className="font-medium text-gray-800">Obesity</span>
+                    </div>
+                  )}
+                  {selectedPatient.has_metabolic_syndrome && (
+                    <div className="flex items-center space-x-2 text-sm p-2 bg-yellow-50 rounded border border-yellow-200">
+                      <svg className="h-4 w-4 text-yellow-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
+                      </svg>
+                      <span className="font-medium text-gray-800">Metabolic Syndrome</span>
+                    </div>
+                  )}
+                  {selectedPatient.has_hyperlipidemia && (
+                    <div className="flex items-center space-x-2 text-sm p-2 bg-yellow-50 rounded border border-yellow-200">
+                      <svg className="h-4 w-4 text-yellow-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
+                      </svg>
+                      <span className="font-medium text-gray-800">Hyperlipidemia</span>
+                    </div>
+                  )}
+                  {/* Renal/Urological */}
+                  {selectedPatient.has_aki_history && (
+                    <div className="flex items-center space-x-2 text-sm p-2 bg-purple-50 rounded border border-purple-200">
+                      <svg className="h-4 w-4 text-purple-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
+                      </svg>
+                      <span className="font-medium text-gray-800">AKI History</span>
+                    </div>
+                  )}
+                  {selectedPatient.has_kidney_stones && (
+                    <div className="flex items-center space-x-2 text-sm p-2 bg-purple-50 rounded border border-purple-200">
+                      <svg className="h-4 w-4 text-purple-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
+                      </svg>
+                      <span className="font-medium text-gray-800">Kidney Stones</span>
+                    </div>
+                  )}
+                  {selectedPatient.has_polycystic_kidney_disease && (
+                    <div className="flex items-center space-x-2 text-sm p-2 bg-purple-50 rounded border border-purple-200">
+                      <svg className="h-4 w-4 text-purple-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
+                      </svg>
+                      <span className="font-medium text-gray-800">PKD</span>
+                    </div>
+                  )}
+                  {selectedPatient.has_uti && (
+                    <div className="flex items-center space-x-2 text-sm p-2 bg-purple-50 rounded border border-purple-200">
+                      <svg className="h-4 w-4 text-purple-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
+                      </svg>
+                      <span className="font-medium text-gray-800">UTI</span>
+                    </div>
+                  )}
+                  {selectedPatient.has_gout && (
+                    <div className="flex items-center space-x-2 text-sm p-2 bg-yellow-50 rounded border border-yellow-200">
+                      <svg className="h-4 w-4 text-yellow-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
+                      </svg>
+                      <span className="font-medium text-gray-800">Gout</span>
+                    </div>
+                  )}
+                  {/* Autoimmune */}
+                  {selectedPatient.has_lupus && (
+                    <div className="flex items-center space-x-2 text-sm p-2 bg-pink-50 rounded border border-pink-200">
+                      <svg className="h-4 w-4 text-pink-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
+                      </svg>
+                      <span className="font-medium text-gray-800">Lupus</span>
+                    </div>
+                  )}
+                  {selectedPatient.has_ra && (
+                    <div className="flex items-center space-x-2 text-sm p-2 bg-pink-50 rounded border border-pink-200">
+                      <svg className="h-4 w-4 text-pink-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
+                      </svg>
+                      <span className="font-medium text-gray-800">Rheumatoid Arthritis</span>
+                    </div>
+                  )}
+                  {selectedPatient.resistant_hypertension && (
+                    <div className="flex items-center space-x-2 text-sm p-2 bg-red-50 rounded border border-red-200">
+                      <svg className="h-4 w-4 text-red-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/>
+                      </svg>
+                      <span className="font-medium text-gray-800">Resistant HTN</span>
+                    </div>
+                  )}
+                </div>
+                {selectedPatient.antihypertensive_count && selectedPatient.antihypertensive_count > 0 && (
+                  <div className="mt-4 text-sm text-gray-700">
+                    <span className="font-semibold">Antihypertensive Medications:</span> {selectedPatient.antihypertensive_count}
+                  </div>
+                )}
+              </div>
+
+              {/* Clinical Symptoms Card */}
+              {(selectedPatient.appetite || selectedPatient.pedal_edema || selectedPatient.anemia ||
+                (selectedPatient.chronic_nsaid_use_months && selectedPatient.chronic_nsaid_use_months > 0) ||
+                (selectedPatient.chronic_ppi_use_months && selectedPatient.chronic_ppi_use_months > 0) ||
+                (selectedPatient.diabetes_duration_years && selectedPatient.diabetes_duration_years > 0) ||
+                (selectedPatient.previous_aki_episodes && selectedPatient.previous_aki_episodes > 0)) && (
+                <div className="bg-white rounded-lg shadow-lg p-6">
+                  <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center">
+                    <svg className="h-5 w-5 mr-2 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    Clinical Symptoms & History
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {selectedPatient.appetite && (
+                      <div className="flex justify-between items-center p-3 border border-gray-200 rounded-lg">
+                        <span className="text-sm text-gray-600">Appetite</span>
+                        <span className={`text-sm font-semibold ${selectedPatient.appetite === 'Good' ? 'text-green-600' : 'text-red-600'}`}>
+                          {selectedPatient.appetite}
+                        </span>
+                      </div>
+                    )}
+                    {selectedPatient.pedal_edema !== undefined && (
+                      <div className="flex justify-between items-center p-3 border border-gray-200 rounded-lg">
+                        <span className="text-sm text-gray-600">Pedal Edema</span>
+                        <span className={`text-sm font-semibold ${selectedPatient.pedal_edema ? 'text-red-600' : 'text-green-600'}`}>
+                          {selectedPatient.pedal_edema ? 'Yes' : 'No'}
+                        </span>
+                      </div>
+                    )}
+                    {selectedPatient.anemia !== undefined && (
+                      <div className="flex justify-between items-center p-3 border border-gray-200 rounded-lg">
+                        <span className="text-sm text-gray-600">Anemia</span>
+                        <span className={`text-sm font-semibold ${selectedPatient.anemia ? 'text-red-600' : 'text-green-600'}`}>
+                          {selectedPatient.anemia ? 'Yes' : 'No'}
+                        </span>
+                      </div>
+                    )}
+                    {selectedPatient.chronic_nsaid_use_months && selectedPatient.chronic_nsaid_use_months > 0 && (
+                      <div className="flex justify-between items-center p-3 border border-gray-200 rounded-lg">
+                        <span className="text-sm text-gray-600">Chronic NSAID Use</span>
+                        <span className="text-sm font-semibold text-orange-600">
+                          {selectedPatient.chronic_nsaid_use_months} months
+                        </span>
+                      </div>
+                    )}
+                    {selectedPatient.chronic_ppi_use_months && selectedPatient.chronic_ppi_use_months > 0 && (
+                      <div className="flex justify-between items-center p-3 border border-gray-200 rounded-lg">
+                        <span className="text-sm text-gray-600">Chronic PPI Use</span>
+                        <span className="text-sm font-semibold text-orange-600">
+                          {selectedPatient.chronic_ppi_use_months} months
+                        </span>
+                      </div>
+                    )}
+                    {selectedPatient.diabetes_duration_years && selectedPatient.diabetes_duration_years > 0 && (
+                      <div className="flex justify-between items-center p-3 border border-gray-200 rounded-lg">
+                        <span className="text-sm text-gray-600">Diabetes Duration</span>
+                        <span className="text-sm font-semibold text-gray-900">
+                          {selectedPatient.diabetes_duration_years} years
+                        </span>
+                      </div>
+                    )}
+                    {selectedPatient.previous_aki_episodes && selectedPatient.previous_aki_episodes > 0 && (
+                      <div className="flex justify-between items-center p-3 border border-gray-200 rounded-lg">
+                        <span className="text-sm text-gray-600">Previous AKI Episodes</span>
+                        <span className="text-sm font-semibold text-red-600">
+                          {selectedPatient.previous_aki_episodes}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
 
               {/* Visit Information */}
               <div className="bg-white rounded-lg shadow-lg p-6">

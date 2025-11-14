@@ -118,15 +118,27 @@ psql "$DATABASE_URL" -f update_existing_patients.sql
 
 You'll see "UPDATE" messages for existing patient records.
 
-#### Script 4: Populate 500 Patients - MOST IMPORTANT (5-10 minutes)
+#### Script 4: Populate Patients - MOST IMPORTANT (5-15 minutes)
 
-**This script ensures unique names and gender-appropriate assignments!**
+**Choose one of these options:**
 
+**Option A: 500 Patients (Faster - Recommended for testing)**
 ```bash
 psql "$DATABASE_URL" -f populate_500_patients_fixed.sql
 ```
+**Wait 5-10 minutes** - generates 500 patients with 12 months of data.
 
-**Wait 5-10 minutes** - this generates 500 patients with 12 months of data. You'll see progress messages.
+**Option B: 1001 Patients (Comprehensive with verification)**
+```bash
+psql "$DATABASE_URL" -f populate_1001_patients_verified.sql
+```
+**Wait 10-15 minutes** - generates 1001 patients with:
+- Unique name combinations (no duplicates)
+- Gender-appropriate names with automatic verification
+- Comprehensive duplicate detection report
+- Gender-name concordance check
+
+**Both scripts ensure unique names and proper gender assignments. Choose Option B for production data.**
 
 #### Script 5: Populate Comprehensive Variables (2-3 minutes)
 
