@@ -18,7 +18,7 @@ You'll populate your database with:
 
 ## Method 1: Using GitHub Codespaces (EASIEST - Recommended!)
 
-Since your code is on GitHub, you can use **GitHub Codespaces** - a free browser-based development environment with terminal access and `psql` pre-installed!
+Since your code is on GitHub, you can use **GitHub Codespaces** - a free browser-based development environment with terminal access!
 
 ### Step 1: Open GitHub Codespaces
 
@@ -42,9 +42,21 @@ Since your code is on GitHub, you can use **GitHub Codespaces** - a free browser
 
 1. In your Codespace, look at the bottom panel
 2. Click on the **"TERMINAL"** tab (or press `` Ctrl+` ``)
-3. You now have a full Linux terminal with `psql` available!
+3. You now have a full Linux terminal!
 
-### Step 4: Test Database Connection
+### Step 4: Install PostgreSQL Client
+
+GitHub Codespaces doesn't have `psql` pre-installed, so we need to install it first.
+
+In the terminal, run this command:
+
+```bash
+sudo apt-get update && sudo apt-get install -y postgresql-client
+```
+
+**Wait 1-2 minutes** for the installation to complete. You'll see messages about packages being installed.
+
+### Step 5: Test Database Connection
 
 In the Codespace terminal, paste this command (replace with your actual URL):
 
@@ -59,7 +71,7 @@ database=>
 
 Type `\q` and press Enter to exit (we'll reconnect in the next step).
 
-### Step 5: Navigate to Scripts Directory
+### Step 6: Navigate to Scripts Directory
 
 In the Codespace terminal:
 
@@ -70,7 +82,7 @@ ls -la
 
 You should see all your SQL scripts!
 
-### Step 6: Run Each Script in Order (Using psql -f command)
+### Step 7: Run Each Script in Order (Using psql -f command)
 
 Now you'll run each script directly using `psql -f`. Replace `YOUR_DATABASE_URL` with the connection string you copied from Render.
 
@@ -124,7 +136,7 @@ psql "$DATABASE_URL" -f populate_comprehensive_variables.sql
 
 You'll see "UPDATE" and "INSERT" messages for urine analysis and hematology data.
 
-### Step 7: Verify the Setup
+### Step 8: Verify the Setup
 
 After running all scripts, verify your data using `psql` in your Codespace terminal:
 
@@ -232,13 +244,16 @@ ORDER BY table_name;
 1. Go to https://replit.com/
 2. Sign up for free (or sign in with GitHub)
 3. Create a new Repl → choose "Bash"
-4. You'll get a terminal with `psql` available
+4. Install PostgreSQL client:
+   ```bash
+   sudo apt-get update && sudo apt-get install -y postgresql-client
+   ```
 5. Clone your repository:
    ```bash
    git clone https://github.com/danribes/hack_BI.git
    cd hack_BI/scripts
    ```
-6. Follow the same steps as Method 1 (Step 6 onwards)
+6. Follow the same steps as Method 1 (Step 7 onwards)
 
 ### Option B: Use Any Computer with Terminal
 
@@ -250,7 +265,7 @@ If you have access to ANY computer with a terminal (friend's laptop, library com
    - **Windows**: Download from https://www.postgresql.org/download/windows/
 
 2. Clone your repository or download the scripts
-3. Follow the same steps as Method 1 (Step 6 onwards)
+3. Follow the same steps as Method 1 (Step 7 onwards)
 
 ---
 
