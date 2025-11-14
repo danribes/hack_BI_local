@@ -105,7 +105,13 @@ export class DoctorAgentService {
       lowerQ.includes('patients without ckd') ||
       lowerQ.includes('high risk') ||
       lowerQ.includes('patients need') ||
-      lowerQ.includes('show me patients');
+      lowerQ.includes('show me patients') ||
+      lowerQ.includes('on treatment') ||
+      lowerQ.includes('medication') ||
+      lowerQ.includes('on sglt2') ||
+      lowerQ.includes('on acei') ||
+      lowerQ.includes('on arb') ||
+      lowerQ.includes('taking');
 
     if (!isPopulationQuery) {
       return null;
@@ -206,14 +212,18 @@ export class DoctorAgentService {
         dataResponse += `(Patients with risk factors but no recent eGFR or uACR in last 12 months)\n\n`;
       }
 
-      // Query 3: Total patient statistics
+      // Query 3: Total patient statistics including treatments
       const statsQuery = `
         SELECT
           COUNT(*) as total_patients,
           COUNT(*) FILTER (WHERE has_diabetes = true) as diabetes_count,
           COUNT(*) FILTER (WHERE has_hypertension = true) as hypertension_count,
           COUNT(*) FILTER (WHERE has_heart_failure = true) as heart_failure_count,
-          COUNT(*) FILTER (WHERE EXTRACT(YEAR FROM AGE(date_of_birth)) > 60) as age_over_60_count
+          COUNT(*) FILTER (WHERE EXTRACT(YEAR FROM AGE(date_of_birth)) > 60) as age_over_60_count,
+          COUNT(*) FILTER (WHERE on_ras_inhibitor = true) as on_ras_inhibitor,
+          COUNT(*) FILTER (WHERE on_sglt2i = true) as on_sglt2i,
+          COUNT(*) FILTER (WHERE on_ras_inhibitor = true OR on_sglt2i = true) as on_any_treatment,
+          COUNT(*) FILTER (WHERE on_ras_inhibitor = true AND on_sglt2i = true) as on_combo_therapy
         FROM patients
       `;
       const statsResult = await this.db.query(statsQuery);
@@ -224,7 +234,12 @@ export class DoctorAgentService {
       dataResponse += `- With Diabetes: ${stats?.diabetes_count || 0}\n`;
       dataResponse += `- With Hypertension: ${stats?.hypertension_count || 0}\n`;
       dataResponse += `- With Heart Failure: ${stats?.heart_failure_count || 0}\n`;
-      dataResponse += `- Age > 60: ${stats?.age_over_60_count || 0}\n`;
+      dataResponse += `- Age > 60: ${stats?.age_over_60_count || 0}\n\n`;
+      dataResponse += 'Treatment Statistics:\n';
+      dataResponse += `- On RAS Inhibitor (ACEi/ARB): ${stats?.on_ras_inhibitor || 0}\n`;
+      dataResponse += `- On SGLT2 Inhibitor: ${stats?.on_sglt2i || 0}\n`;
+      dataResponse += `- On Any CKD Treatment: ${stats?.on_any_treatment || 0}\n`;
+      dataResponse += `- On Combination Therapy (RAS + SGLT2i): ${stats?.on_combo_therapy || 0}\n`;
 
       return dataResponse;
     } catch (error) {
@@ -262,19 +277,19 @@ Available data includes:
 - Comorbidities (diabetes, hypertension, CVD)
 - Risk factors and progression indicators
 
-Database Capabilities:
-You have access to query the patient database for population-level statistics. When asked questions like:
-- "How many patients have X condition?"
-- "Show me patients without CKD who are at high risk"
-- "Which patients need lab work ordered?"
+IMPORTANT - Population-Level Questions:
+When doctors ask population-level questions (e.g., "How many patients...", "Which patients need...", "Show me patients..."),
+the system automatically fetches relevant database statistics and provides them in a section marked "--- POPULATION DATA ---" below.
 
-You can request database queries using natural language. The system will execute the query and provide results.
+When you see POPULATION DATA in your context:
+- Use that data directly to answer the question
+- Present the numbers clearly and professionally
+- Do NOT output SQL queries or placeholders like "[Awaiting results]"
+- Do NOT say you will "query" the database - the data is already provided
+- Summarize the key findings and provide clinical insights
 
-Key database tables/views available:
-- patients: All patient demographics and comorbidities
-- v_tier3_risk_classification: Risk assessment for all patients (includes fallback screening)
-- v_patients_requiring_action: Patients needing immediate doctor action
-- Non-CKD high-risk patients: Use risk classification view filtered by normal eGFR/uACR but with risk factors`;
+If no population data is provided, explain that you can answer questions about individual patients, clinical guidelines,
+or treatment recommendations, and suggest the doctor rephrase their question if needed.
 
     // Add patient-specific context if provided
     if (context?.patientId) {
