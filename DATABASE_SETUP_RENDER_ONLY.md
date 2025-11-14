@@ -16,88 +16,125 @@ You'll populate your database with:
 
 ---
 
-## Method 1: Using Render's Shell (Recommended)
+## Method 1: Using GitHub Codespaces (EASIEST - Recommended!)
 
-This method uses Render's built-in database shell that runs directly in your browser.
+Since your code is on GitHub, you can use **GitHub Codespaces** - a free browser-based development environment with terminal access and `psql` pre-installed!
 
-### Step 1: Access Your Database Shell
+### Step 1: Open GitHub Codespaces
 
-1. Log in to [Render Dashboard](https://dashboard.render.com/)
+1. Go to your repository: https://github.com/danribes/hack_BI
+2. Click the green **"Code"** button (top right)
+3. Click the **"Codespaces"** tab
+4. Click **"Create codespace on main"** (or use an existing one)
+5. Wait for the codespace to load (30-60 seconds)
+6. You'll get a VS Code-like interface in your browser!
+
+### Step 2: Get Your Database Connection URL
+
+1. In another tab, go to [Render Dashboard](https://dashboard.render.com/)
 2. Navigate to your PostgreSQL database service
-3. Click on the **"Shell"** tab in the top menu
-4. Wait for the shell to connect (you'll see a PostgreSQL prompt)
+3. Click on the **"Info"** tab
+4. Find **"External Database URL"**
+5. Click **"Copy"** to copy the full connection string
+   - It looks like: `postgresql://user:password@host.render.com:5432/database`
 
-### Step 2: Get the SQL Scripts from GitHub
+### Step 3: Open Terminal in Codespaces
 
-You need to copy the SQL scripts from your GitHub repository. Here are the direct links:
+1. In your Codespace, look at the bottom panel
+2. Click on the **"TERMINAL"** tab (or press `` Ctrl+` ``)
+3. You now have a full Linux terminal with `psql` available!
 
-1. **enhance_database_schema.sql**
-   - URL: https://raw.githubusercontent.com/danribes/hack_BI/main/scripts/enhance_database_schema.sql
+### Step 4: Test Database Connection
 
-2. **add_comprehensive_variables.sql**
-   - URL: https://raw.githubusercontent.com/danribes/hack_BI/main/scripts/add_comprehensive_variables.sql
+In the Codespace terminal, paste this command (replace with your actual URL):
 
-3. **update_existing_patients.sql**
-   - URL: https://raw.githubusercontent.com/danribes/hack_BI/main/scripts/update_existing_patients.sql
+```bash
+psql "postgresql://user:password@host.render.com:5432/database"
+```
 
-4. **populate_500_patients_fixed.sql**
-   - URL: https://raw.githubusercontent.com/danribes/hack_BI/main/scripts/populate_500_patients_fixed.sql
+You should see a PostgreSQL prompt like:
+```
+database=>
+```
 
-5. **populate_comprehensive_variables.sql**
-   - URL: https://raw.githubusercontent.com/danribes/hack_BI/main/scripts/populate_comprehensive_variables.sql
+Type `\q` and press Enter to exit (we'll reconnect in the next step).
 
-### Step 3: Run Each Script in Order
+### Step 5: Navigate to Scripts Directory
 
-For each script, follow these steps:
+In the Codespace terminal:
 
-#### Script 1: Enhance Database Schema
+```bash
+cd scripts
+ls -la
+```
 
-1. Open https://raw.githubusercontent.com/danribes/hack_BI/main/scripts/enhance_database_schema.sql in a new browser tab
-2. Press `Ctrl+A` (Windows/Linux) or `Cmd+A` (Mac) to select all
-3. Press `Ctrl+C` (Windows/Linux) or `Cmd+C` (Mac) to copy
-4. Go back to the Render Shell tab
-5. Click in the shell and paste the SQL code (`Ctrl+V` or `Cmd+V`)
-6. Press `Enter` to execute
-7. Wait for completion (you'll see "ALTER TABLE" messages)
+You should see all your SQL scripts!
 
-#### Script 2: Add Comprehensive Variables
+### Step 6: Run Each Script in Order (Using psql -f command)
 
-1. Open https://raw.githubusercontent.com/danribes/hack_BI/main/scripts/add_comprehensive_variables.sql
-2. Select all and copy (`Ctrl+A`, then `Ctrl+C`)
-3. Paste into Render Shell
-4. Press `Enter` to execute
-5. Wait for completion (you'll see "ALTER TABLE" and "CREATE TABLE" messages)
+Now you'll run each script directly using `psql -f`. Replace `YOUR_DATABASE_URL` with the connection string you copied from Render.
 
-#### Script 3: Update Existing Patients
+**Pro tip**: Save your database URL as an environment variable first:
 
-1. Open https://raw.githubusercontent.com/danribes/hack_BI/main/scripts/update_existing_patients.sql
-2. Select all and copy
-3. Paste into Render Shell
-4. Press `Enter` to execute
-5. Wait for completion (you'll see "UPDATE" messages)
+```bash
+export DATABASE_URL="postgresql://user:password@host.render.com:5432/database"
+```
 
-#### Script 4: Populate 500 Patients (MOST IMPORTANT)
+Now run the scripts in this exact order:
+
+#### Script 1: Enhance Database Schema (1-2 minutes)
+
+```bash
+psql "$DATABASE_URL" -f enhance_database_schema.sql
+```
+
+You'll see "ALTER TABLE" and "CREATE TABLE" messages. Wait for completion.
+
+#### Script 2: Add Comprehensive Variables (1-2 minutes)
+
+```bash
+psql "$DATABASE_URL" -f add_comprehensive_variables.sql
+```
+
+You'll see messages about new columns and tables being created.
+
+#### Script 3: Update Existing Patients (< 1 minute)
+
+```bash
+psql "$DATABASE_URL" -f update_existing_patients.sql
+```
+
+You'll see "UPDATE" messages for existing patient records.
+
+#### Script 4: Populate 500 Patients - MOST IMPORTANT (5-10 minutes)
 
 **This script ensures unique names and gender-appropriate assignments!**
 
-1. Open https://raw.githubusercontent.com/danribes/hack_BI/main/scripts/populate_500_patients_fixed.sql
-2. Select all and copy
-3. Paste into Render Shell
-4. Press `Enter` to execute
-5. **Wait 5-10 minutes** - this is the longest script (generates 500 patients with 12 months of data)
-6. You'll see progress messages like "Inserted patient X of 500"
+```bash
+psql "$DATABASE_URL" -f populate_500_patients_fixed.sql
+```
 
-#### Script 5: Populate Comprehensive Variables
+**Wait 5-10 minutes** - this generates 500 patients with 12 months of data. You'll see progress messages.
 
-1. Open https://raw.githubusercontent.com/danribes/hack_BI/main/scripts/populate_comprehensive_variables.sql
-2. Select all and copy
-3. Paste into Render Shell
-4. Press `Enter` to execute
-5. Wait for completion (you'll see "UPDATE" and "INSERT" messages)
+#### Script 5: Populate Comprehensive Variables (2-3 minutes)
 
-### Step 4: Verify the Setup
+```bash
+psql "$DATABASE_URL" -f populate_comprehensive_variables.sql
+```
 
-After running all scripts, verify your data in the Render Shell:
+You'll see "UPDATE" and "INSERT" messages for urine analysis and hematology data.
+
+### Step 7: Verify the Setup
+
+After running all scripts, verify your data using `psql` in your Codespace terminal:
+
+First, connect to your database:
+
+```bash
+psql "$DATABASE_URL"
+```
+
+Now you'll have an interactive PostgreSQL prompt. Run these verification queries:
 
 #### Check Total Patient Count
 
@@ -184,35 +221,36 @@ ORDER BY table_name;
 - Urine Analysis: 750+
 - Hematology: 750+
 
+**When done verifying, type `\q` and press Enter to exit psql.**
+
 ---
 
-## Method 2: Using Render's External Connection (If Shell Doesn't Work)
+## Method 2: Alternative Options (If Codespaces Doesn't Work)
 
-If the Shell tab is not available or times out, you can connect externally:
+### Option A: Use Replit (Free Online IDE with Terminal)
 
-### Option A: Use an Online PostgreSQL Client
-
-1. Go to https://sqlpad.io/tutorial/ or https://extendsclass.com/postgresql-online.html
-2. Get your database connection details from Render:
-   - Go to your database in Render
-   - Click "Info" tab
-   - Copy: External Database URL
-
-3. In the online tool, connect using your External Database URL
-4. Copy and paste each SQL script as described in Method 1
-
-### Option B: Use Render's PSQL Connect Command
-
-1. In your Render database page, go to "Info" tab
-2. Find the "PSQL Command" section
-3. Copy the command (looks like: `PSQL_COMMAND="psql -h ......"`)
-4. If you have access to ANY terminal (could be on a friend's computer, library, etc.):
+1. Go to https://replit.com/
+2. Sign up for free (or sign in with GitHub)
+3. Create a new Repl → choose "Bash"
+4. You'll get a terminal with `psql` available
+5. Clone your repository:
    ```bash
-   # Paste the PSQL command from Render
-   psql -h xyz.render.com -U user database_name
-
-   # Then paste each SQL script
+   git clone https://github.com/danribes/hack_BI.git
+   cd hack_BI/scripts
    ```
+6. Follow the same steps as Method 1 (Step 6 onwards)
+
+### Option B: Use Any Computer with Terminal
+
+If you have access to ANY computer with a terminal (friend's laptop, library computer, etc.):
+
+1. Install `psql` (it's included with PostgreSQL client)
+   - **Mac**: `brew install postgresql`
+   - **Linux**: `sudo apt-get install postgresql-client`
+   - **Windows**: Download from https://www.postgresql.org/download/windows/
+
+2. Clone your repository or download the scripts
+3. Follow the same steps as Method 1 (Step 6 onwards)
 
 ---
 
