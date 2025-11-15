@@ -1389,4 +1389,80 @@ router.post('/update-patient-ages', async (_req: Request, res: Response): Promis
   }
 });
 
+/**
+ * POST /api/init/migrate-month-tracking
+ * Add month_number column to observations table for 12-month history tracking
+ * This migration enables the lab value simulation feature
+ */
+router.post('/migrate-month-tracking', async (_req: Request, res: Response): Promise<any> => {
+  try {
+    const pool = getPool();
+
+    console.log('Running month tracking migration...');
+
+    // Step 1: Add month_number column with default value
+    await pool.query(`
+      ALTER TABLE observations
+      ADD COLUMN IF NOT EXISTS month_number INTEGER DEFAULT 1 CHECK (month_number >= 1 AND month_number <= 12);
+    `);
+    console.log('✓ Added month_number column');
+
+    // Step 2: Create index for efficient month-based queries
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_observations_month ON observations(patient_id, month_number, observation_type);
+    `);
+    console.log('✓ Created index on month_number');
+
+    // Step 3: Add comment explaining the column
+    await pool.query(`
+      COMMENT ON COLUMN observations.month_number IS 'Month number (1-12) for tracking historical lab values. Month 12 represents the most recent values.';
+    `);
+    console.log('✓ Added column comment');
+
+    // Step 4: Update existing observations to be in month 1 (baseline)
+    const updateResult = await pool.query(`
+      UPDATE observations
+      SET month_number = 1
+      WHERE month_number IS NULL;
+    `);
+    const rowsUpdated = updateResult.rowCount || 0;
+    console.log(`✓ Updated ${rowsUpdated} existing observations to month 1`);
+
+    // Step 5: Make the column NOT NULL now that all existing rows have a value
+    await pool.query(`
+      ALTER TABLE observations
+      ALTER COLUMN month_number SET NOT NULL;
+    `);
+    console.log('✓ Set month_number as NOT NULL');
+
+    // Verify the migration
+    const verifyResult = await pool.query(`
+      SELECT column_name, data_type, is_nullable
+      FROM information_schema.columns
+      WHERE table_name = 'observations' AND column_name = 'month_number';
+    `);
+
+    console.log('✓ Month tracking migration completed successfully');
+
+    res.json({
+      status: 'success',
+      message: 'Month tracking migration completed successfully',
+      details: {
+        column_added: true,
+        index_created: true,
+        rows_updated: rowsUpdated,
+        column_info: verifyResult.rows[0] || null
+      }
+    });
+
+  } catch (error) {
+    console.error('[Init API] Error running month tracking migration:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to run month tracking migration',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
 export default router;
