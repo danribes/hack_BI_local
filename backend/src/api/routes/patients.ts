@@ -516,4 +516,290 @@ router.get('/:id', async (req: Request, res: Response): Promise<any> => {
   }
 });
 
+/**
+ * POST /api/patients/:id/simulate-new-labs
+ * Simulate new random lab values for a single patient
+ * This triggers AI assessment of the patient with the new values
+ */
+router.post('/:id/simulate-new-labs', async (req: Request, res: Response): Promise<any> => {
+  try {
+    const { id: patientId } = req.params;
+    const pool = getPool();
+
+    // Get patient info to determine current state
+    const patientResult = await pool.query(`
+      SELECT p.*, cpd.ckd_stage, cpd.ckd_severity
+      FROM patients p
+      LEFT JOIN ckd_patient_data cpd ON p.id = cpd.patient_id
+      WHERE p.id = $1
+    `, [patientId]);
+
+    if (patientResult.rows.length === 0) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Patient not found'
+      });
+    }
+
+    const patient = patientResult.rows[0];
+
+    // Determine current max month number for this patient
+    const monthResult = await pool.query(`
+      SELECT COALESCE(MAX(month_number), 0) as current_month
+      FROM observations
+      WHERE patient_id = $1
+    `, [patientId]);
+
+    const currentMonth = monthResult.rows[0].current_month;
+    const newMonth = currentMonth >= 12 ? 12 : currentMonth + 1;
+
+    // If we're at month 12 and advancing, we need to handle the rollover
+    if (currentMonth === 12) {
+      // Copy month 12 to month 1 and delete months 2-12
+      await pool.query(`
+        DELETE FROM observations
+        WHERE patient_id = $1 AND month_number BETWEEN 2 AND 12
+      `, [patientId]);
+
+      await pool.query(`
+        UPDATE observations
+        SET month_number = 1
+        WHERE patient_id = $1 AND month_number = 12
+      `, [patientId]);
+    }
+
+    // Generate realistic lab values based on patient state
+    const ckdStage = patient.ckd_stage || 2;
+    const hasDiabetes = patient.on_sglt2i || Math.random() > 0.5;
+
+    // eGFR based on CKD stage with some variation
+    let baseEGFR;
+    switch (ckdStage) {
+      case 5: baseEGFR = 10 + Math.random() * 5; break;
+      case 4: baseEGFR = 15 + Math.random() * 15; break;
+      case 3: baseEGFR = 30 + Math.random() * 30; break;
+      case 2: baseEGFR = 60 + Math.random() * 29; break;
+      default: baseEGFR = 90 + Math.random() * 30; break;
+    }
+    const eGFR = Number(baseEGFR.toFixed(1));
+
+    // Creatinine inversely related to eGFR
+    const creatinine = Number((175 / (eGFR + 50) + 0.3).toFixed(2));
+
+    // BUN
+    const bun = Number((7 + Math.random() * 25).toFixed(1));
+
+    // uACR - higher in later stages
+    const baseUACR = ckdStage >= 3 ? 30 + Math.random() * 300 : Math.random() * 50;
+    const uacr = Number(baseUACR.toFixed(1));
+
+    // Blood pressure
+    const systolic = Math.floor(110 + Math.random() * 50);
+    const diastolic = Math.floor(65 + Math.random() * 30);
+
+    // Metabolic panel
+    const hemoglobin = Number((11 + Math.random() * 6).toFixed(1));
+    const potassium = Number((3.5 + Math.random() * 2).toFixed(1));
+    const calcium = Number((8.5 + Math.random() * 2).toFixed(1));
+    const phosphorus = Number((2.5 + Math.random() * 3).toFixed(1));
+    const albumin = Number((3.0 + Math.random() * 2).toFixed(1));
+
+    // Lipid panel
+    const ldl = Number((70 + Math.random() * 120).toFixed(0));
+    const hdl = Number((30 + Math.random() * 50).toFixed(0));
+    const totalCholesterol = Number((ldl + hdl + Math.random() * 50).toFixed(0));
+    const triglycerides = Number((50 + Math.random() * 200).toFixed(0));
+
+    // Diabetes markers (if applicable)
+    const hba1c = hasDiabetes ? Number((5.7 + Math.random() * 5).toFixed(1)) : Number((4.5 + Math.random() * 1).toFixed(1));
+    const glucose = hasDiabetes ? Number((100 + Math.random() * 150).toFixed(0)) : Number((70 + Math.random() * 40).toFixed(0));
+
+    // Insert new observations
+    const observationDate = new Date();
+    const observations = [
+      { type: 'eGFR', value: eGFR, unit: 'mL/min/1.73m²' },
+      { type: 'creatinine', value: creatinine, unit: 'mg/dL' },
+      { type: 'BUN', value: bun, unit: 'mg/dL' },
+      { type: 'uACR', value: uacr, unit: 'mg/g' },
+      { type: 'BP_Systolic', value: systolic, unit: 'mmHg' },
+      { type: 'BP_Diastolic', value: diastolic, unit: 'mmHg' },
+      { type: 'hemoglobin', value: hemoglobin, unit: 'g/dL' },
+      { type: 'potassium', value: potassium, unit: 'mEq/L' },
+      { type: 'calcium', value: calcium, unit: 'mg/dL' },
+      { type: 'phosphorus', value: phosphorus, unit: 'mg/dL' },
+      { type: 'albumin', value: albumin, unit: 'g/dL' },
+      { type: 'LDL', value: ldl, unit: 'mg/dL' },
+      { type: 'HDL', value: hdl, unit: 'mg/dL' },
+      { type: 'total_cholesterol', value: totalCholesterol, unit: 'mg/dL' },
+      { type: 'triglycerides', value: triglycerides, unit: 'mg/dL' },
+      { type: 'HbA1c', value: hba1c, unit: '%' },
+      { type: 'glucose', value: glucose, unit: 'mg/dL' }
+    ];
+
+    for (const obs of observations) {
+      await pool.query(`
+        INSERT INTO observations (patient_id, observation_type, value_numeric, unit, observation_date, month_number, status)
+        VALUES ($1, $2, $3, $4, $5, $6, 'final')
+      `, [patientId, obs.type, obs.value, obs.unit, observationDate, newMonth]);
+    }
+
+    res.json({
+      status: 'success',
+      message: `New lab values simulated for month ${newMonth}`,
+      data: {
+        month: newMonth,
+        patient_id: patientId,
+        observation_count: observations.length,
+        key_values: {
+          eGFR,
+          creatinine,
+          uacr,
+          hba1c
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error('[Patients API] Error simulating lab values:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to simulate lab values',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+/**
+ * POST /api/patients/advance-cycle
+ * Advance all patients to the next cycle/month
+ * - Generates new lab values for all patients
+ * - If at month 12, copies month 12 to month 1 and clears months 2-12
+ * - Otherwise, increments the cycle counter
+ */
+router.post('/advance-cycle', async (_req: Request, res: Response): Promise<any> => {
+  try {
+    const pool = getPool();
+
+    // Get all patients
+    const patientsResult = await pool.query(`
+      SELECT p.id, p.first_name, p.last_name, cpd.ckd_stage, cpd.ckd_severity
+      FROM patients p
+      LEFT JOIN ckd_patient_data cpd ON p.id = cpd.patient_id
+    `);
+
+    const patients = patientsResult.rows;
+    let patientsProcessed = 0;
+
+    for (const patient of patients) {
+      // Determine current max month number for this patient
+      const monthResult = await pool.query(`
+        SELECT COALESCE(MAX(month_number), 0) as current_month
+        FROM observations
+        WHERE patient_id = $1
+      `, [patient.id]);
+
+      const currentMonth = monthResult.rows[0].current_month;
+      const newMonth = currentMonth >= 12 ? 12 : currentMonth + 1;
+
+      // If we're at month 12, handle the rollover
+      if (currentMonth === 12) {
+        // Delete months 2-12
+        await pool.query(`
+          DELETE FROM observations
+          WHERE patient_id = $1 AND month_number BETWEEN 2 AND 12
+        `, [patient.id]);
+
+        // Copy month 12 to month 1
+        await pool.query(`
+          UPDATE observations
+          SET month_number = 1
+          WHERE patient_id = $1 AND month_number = 12
+        `, [patient.id]);
+
+        // Now generate new values for month 12
+        // (The new month is still 12 since we're at the max)
+      }
+
+      // Generate realistic lab values
+      const ckdStage = patient.ckd_stage || 2;
+      const hasDiabetes = Math.random() > 0.5;
+
+      let baseEGFR;
+      switch (ckdStage) {
+        case 5: baseEGFR = 10 + Math.random() * 5; break;
+        case 4: baseEGFR = 15 + Math.random() * 15; break;
+        case 3: baseEGFR = 30 + Math.random() * 30; break;
+        case 2: baseEGFR = 60 + Math.random() * 29; break;
+        default: baseEGFR = 90 + Math.random() * 30; break;
+      }
+      const eGFR = Number(baseEGFR.toFixed(1));
+      const creatinine = Number((175 / (eGFR + 50) + 0.3).toFixed(2));
+      const bun = Number((7 + Math.random() * 25).toFixed(1));
+      const baseUACR = ckdStage >= 3 ? 30 + Math.random() * 300 : Math.random() * 50;
+      const uacr = Number(baseUACR.toFixed(1));
+      const systolic = Math.floor(110 + Math.random() * 50);
+      const diastolic = Math.floor(65 + Math.random() * 30);
+      const hemoglobin = Number((11 + Math.random() * 6).toFixed(1));
+      const potassium = Number((3.5 + Math.random() * 2).toFixed(1));
+      const calcium = Number((8.5 + Math.random() * 2).toFixed(1));
+      const phosphorus = Number((2.5 + Math.random() * 3).toFixed(1));
+      const albumin = Number((3.0 + Math.random() * 2).toFixed(1));
+      const ldl = Number((70 + Math.random() * 120).toFixed(0));
+      const hdl = Number((30 + Math.random() * 50).toFixed(0));
+      const totalCholesterol = Number((ldl + hdl + Math.random() * 50).toFixed(0));
+      const triglycerides = Number((50 + Math.random() * 200).toFixed(0));
+      const hba1c = hasDiabetes ? Number((5.7 + Math.random() * 5).toFixed(1)) : Number((4.5 + Math.random() * 1).toFixed(1));
+      const glucose = hasDiabetes ? Number((100 + Math.random() * 150).toFixed(0)) : Number((70 + Math.random() * 40).toFixed(0));
+
+      // Insert new observations
+      const observationDate = new Date();
+      const observations = [
+        { type: 'eGFR', value: eGFR, unit: 'mL/min/1.73m²' },
+        { type: 'creatinine', value: creatinine, unit: 'mg/dL' },
+        { type: 'BUN', value: bun, unit: 'mg/dL' },
+        { type: 'uACR', value: uacr, unit: 'mg/g' },
+        { type: 'BP_Systolic', value: systolic, unit: 'mmHg' },
+        { type: 'BP_Diastolic', value: diastolic, unit: 'mmHg' },
+        { type: 'hemoglobin', value: hemoglobin, unit: 'g/dL' },
+        { type: 'potassium', value: potassium, unit: 'mEq/L' },
+        { type: 'calcium', value: calcium, unit: 'mg/dL' },
+        { type: 'phosphorus', value: phosphorus, unit: 'mg/dL' },
+        { type: 'albumin', value: albumin, unit: 'g/dL' },
+        { type: 'LDL', value: ldl, unit: 'mg/dL' },
+        { type: 'HDL', value: hdl, unit: 'mg/dL' },
+        { type: 'total_cholesterol', value: totalCholesterol, unit: 'mg/dL' },
+        { type: 'triglycerides', value: triglycerides, unit: 'mg/dL' },
+        { type: 'HbA1c', value: hba1c, unit: '%' },
+        { type: 'glucose', value: glucose, unit: 'mg/dL' }
+      ];
+
+      for (const obs of observations) {
+        await pool.query(`
+          INSERT INTO observations (patient_id, observation_type, value_numeric, unit, observation_date, month_number, status)
+          VALUES ($1, $2, $3, $4, $5, $6, 'final')
+        `, [patient.id, obs.type, obs.value, obs.unit, observationDate, newMonth]);
+      }
+
+      patientsProcessed++;
+    }
+
+    res.json({
+      status: 'success',
+      message: `Cycle advanced for ${patientsProcessed} patients`,
+      data: {
+        patients_processed: patientsProcessed,
+        total_patients: patients.length
+      }
+    });
+
+  } catch (error) {
+    console.error('[Patients API] Error advancing cycle:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to advance cycle',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
 export default router;

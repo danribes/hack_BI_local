@@ -163,6 +163,8 @@ function App() {
   });
 
   const [statistics, setStatistics] = useState<any>(null);
+  const [isSimulating, setIsSimulating] = useState(false);
+  const [isAdvancingCycle, setIsAdvancingCycle] = useState(false);
 
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
@@ -345,6 +347,83 @@ function App() {
       console.error('Error populating database:', err);
     } finally {
       setPopulating(false);
+    }
+  };
+
+  const handleSimulateNewLabs = async () => {
+    if (!selectedPatient) return;
+
+    try {
+      setIsSimulating(true);
+      setError(null);
+
+      const response = await fetch(`${API_URL}/api/patients/${selectedPatient.id}/simulate-new-labs`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to simulate lab values: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log('Lab values simulated:', data);
+
+      // Refresh patient detail to show new values
+      await fetchPatientDetail(selectedPatient.id);
+
+      // Show success message
+      alert(`Successfully simulated new lab values for month ${data.data.month}. AI assessment triggered.`);
+
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to simulate lab values');
+      console.error('Error simulating lab values:', err);
+      alert('Failed to simulate lab values. Please try again.');
+    } finally {
+      setIsSimulating(false);
+    }
+  };
+
+  const handleAdvanceCycle = async () => {
+    if (!confirm('This will advance all patients to the next month cycle. Are you sure?')) {
+      return;
+    }
+
+    try {
+      setIsAdvancingCycle(true);
+      setError(null);
+
+      const response = await fetch(`${API_URL}/api/patients/advance-cycle`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to advance cycle: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log('Cycle advanced:', data);
+
+      // Refresh patient list and detail if a patient is selected
+      await fetchPatients();
+      if (selectedPatient) {
+        await fetchPatientDetail(selectedPatient.id);
+      }
+
+      // Show success message
+      alert(`Successfully advanced cycle for ${data.data.patients_processed} patients.`);
+
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to advance cycle');
+      console.error('Error advancing cycle:', err);
+      alert('Failed to advance cycle. Please try again.');
+    } finally {
+      setIsAdvancingCycle(false);
     }
   };
 
@@ -1234,12 +1313,24 @@ function App() {
 
               {/* Laboratory Results */}
               <div className="bg-white rounded-lg shadow-lg p-6">
-                <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center">
-                  <svg className="h-5 w-5 mr-2 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
-                  </svg>
-                  Latest Laboratory Results
-                </h3>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-bold text-gray-900 flex items-center">
+                    <svg className="h-5 w-5 mr-2 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
+                    </svg>
+                    Latest Laboratory Results
+                  </h3>
+                  <button
+                    onClick={handleSimulateNewLabs}
+                    disabled={isSimulating}
+                    className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center gap-2 transition-colors duration-200 shadow-md"
+                  >
+                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                    {isSimulating ? 'Simulating...' : 'Simulate New Labs'}
+                  </button>
+                </div>
 
                 {/* Kidney Function */}
                 <div className="mt-6">
@@ -1646,13 +1737,29 @@ function App() {
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
       <div className="container mx-auto px-4 py-8">
         {/* Header */}
-        <header className="mb-8 text-center">
-          <h1 className="text-5xl font-bold text-gray-900 mb-2">
-            Healthcare AI
-          </h1>
-          <p className="text-xl text-gray-600">
-            Patient Database
-          </p>
+        <header className="mb-8">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex-1 text-center">
+              <h1 className="text-5xl font-bold text-gray-900 mb-2">
+                Healthcare AI
+              </h1>
+              <p className="text-xl text-gray-600">
+                Patient Database
+              </p>
+            </div>
+            {!loading && !error && patients.length > 0 && (
+              <button
+                onClick={handleAdvanceCycle}
+                disabled={isAdvancingCycle}
+                className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center gap-2 transition-colors duration-200 shadow-lg"
+              >
+                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+                {isAdvancingCycle ? 'Advancing Cycle...' : 'Advance All Patients (Next Month)'}
+              </button>
+            )}
+          </div>
         </header>
 
         {/* Filter Component */}
