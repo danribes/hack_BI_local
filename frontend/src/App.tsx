@@ -863,7 +863,7 @@ function App() {
                         </div>
                       </div>
                     )}
-                    {selectedPatient.oxygen_saturation && (
+                    {selectedPatient.oxygen_saturation && typeof selectedPatient.oxygen_saturation === 'number' && (
                       <div className="border border-gray-200 rounded-lg p-4">
                         <div className="text-xs text-gray-600 uppercase">O₂ Saturation</div>
                         <div className="text-2xl font-bold text-gray-900 mt-1">
@@ -871,7 +871,7 @@ function App() {
                         </div>
                       </div>
                     )}
-                    {selectedPatient.bmi && (
+                    {selectedPatient.bmi && typeof selectedPatient.bmi === 'number' && (
                       <div className="border border-gray-200 rounded-lg p-4">
                         <div className="text-xs text-gray-600 uppercase">BMI</div>
                         <div className="text-2xl font-bold text-gray-900 mt-1">
@@ -1401,7 +1401,11 @@ function App() {
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div className="border border-gray-200 rounded-lg p-4">
                       <div className="text-sm text-gray-600">Risk Score</div>
-                      <div className="text-3xl font-bold text-gray-900 mt-1">{selectedPatient.risk_assessment.risk_score.toFixed(2)}</div>
+                      <div className="text-3xl font-bold text-gray-900 mt-1">
+                        {typeof selectedPatient.risk_assessment.risk_score === 'number'
+                          ? selectedPatient.risk_assessment.risk_score.toFixed(2)
+                          : 'N/A'}
+                      </div>
                     </div>
                     <div className="border border-gray-200 rounded-lg p-4">
                       <div className="text-sm text-gray-600">Risk Level</div>
