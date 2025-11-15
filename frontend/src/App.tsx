@@ -395,6 +395,81 @@ function App() {
     }
   };
 
+  // Helper function to get color coding for lab values based on clinical ranges
+  const getLabValueColor = (type: string, value: number): string => {
+    switch (type) {
+      case 'eGFR':
+        if (value < 30) return 'text-red-600'; // Stage 4-5 CKD
+        if (value < 60) return 'text-orange-600'; // Stage 3 CKD
+        if (value < 90) return 'text-yellow-600'; // Stage 2 CKD or mildly decreased
+        return 'text-green-600'; // Normal
+      case 'serum_creatinine':
+        if (value > 2.0) return 'text-red-600'; // Severely elevated
+        if (value > 1.3) return 'text-orange-600'; // Elevated
+        if (value > 1.0) return 'text-yellow-600'; // Mildly elevated
+        return 'text-green-600'; // Normal
+      case 'uACR':
+        if (value >= 300) return 'text-red-600'; // A3 - Severely increased
+        if (value >= 30) return 'text-orange-600'; // A2 - Moderately increased
+        return 'text-green-600'; // A1 - Normal
+      case 'BUN':
+        if (value > 40) return 'text-red-600'; // Elevated
+        if (value > 20) return 'text-yellow-600'; // High normal
+        return 'text-green-600'; // Normal
+      case 'potassium':
+        if (value > 5.5 || value < 3.5) return 'text-red-600'; // Dangerous
+        if (value > 5.0 || value < 3.8) return 'text-yellow-600'; // Borderline
+        return 'text-green-600'; // Normal
+      case 'HbA1c':
+        if (value >= 9.0) return 'text-red-600'; // Poor control
+        if (value >= 7.0) return 'text-orange-600'; // Suboptimal
+        if (value >= 6.5) return 'text-yellow-600'; // Target for most diabetics
+        return 'text-green-600'; // Normal/Good control
+      case 'hemoglobin':
+        if (value < 10) return 'text-red-600'; // Anemia
+        if (value < 12) return 'text-yellow-600'; // Low
+        return 'text-green-600'; // Normal
+      case 'blood_pressure_systolic':
+        if (value >= 140) return 'text-red-600'; // Stage 2 HTN
+        if (value >= 130) return 'text-orange-600'; // Stage 1 HTN
+        if (value >= 120) return 'text-yellow-600'; // Elevated
+        return 'text-green-600'; // Normal
+      default:
+        return 'text-gray-900'; // Default
+    }
+  };
+
+  // Helper function to get trend icon
+  const getTrendIcon = (trend?: string) => {
+    if (!trend) return null;
+
+    switch (trend.toLowerCase()) {
+      case 'up':
+      case 'increasing':
+        return (
+          <svg className="h-4 w-4 text-red-600 inline ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
+          </svg>
+        );
+      case 'down':
+      case 'decreasing':
+      case 'declining':
+        return (
+          <svg className="h-4 w-4 text-red-600 inline ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+          </svg>
+        );
+      case 'stable':
+        return (
+          <svg className="h-4 w-4 text-green-600 inline ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 12h14" />
+          </svg>
+        );
+      default:
+        return null;
+    }
+  };
+
   const getKDIGORiskColorClass = (riskColor: string): string => {
     switch (riskColor) {
       case 'red': return 'bg-red-100 text-red-800 border-red-300';
@@ -1172,12 +1247,23 @@ function App() {
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                     {(() => {
                       const egfr = getObservationValue(selectedPatient.observations, 'eGFR');
+                      const egfrTrend = getObservationValue(selectedPatient.observations, 'eGFR_trend');
+                      const egfrChange = getObservationValue(selectedPatient.observations, 'eGFR_change_percent');
+
                       return egfr && (
                         <div className="border border-gray-200 rounded-lg p-4">
-                          <div className="text-xs text-gray-600 uppercase">eGFR</div>
-                          <div className="text-2xl font-bold text-gray-900 mt-1">
+                          <div className="text-xs text-gray-600 uppercase flex items-center">
+                            eGFR
+                            {egfrTrend && getTrendIcon(egfrTrend.value_text)}
+                          </div>
+                          <div className={`text-2xl font-bold mt-1 ${getLabValueColor('eGFR', egfr.value_numeric || 0)}`}>
                             {egfr.value_numeric} <span className="text-sm font-normal text-gray-600">{egfr.unit}</span>
                           </div>
+                          {egfrChange && (
+                            <div className="text-xs text-red-600 mt-1 font-semibold">
+                              {egfrChange.value_numeric && egfrChange.value_numeric > 0 ? '+' : ''}{egfrChange.value_numeric}% change
+                            </div>
+                          )}
                           {egfr.notes && <div className="text-xs text-gray-600 mt-1">{egfr.notes}</div>}
                         </div>
                       );
@@ -1187,7 +1273,7 @@ function App() {
                       return creatinine && (
                         <div className="border border-gray-200 rounded-lg p-4">
                           <div className="text-xs text-gray-600 uppercase">Creatinine</div>
-                          <div className="text-2xl font-bold text-gray-900 mt-1">
+                          <div className={`text-2xl font-bold mt-1 ${getLabValueColor('serum_creatinine', creatinine.value_numeric || 0)}`}>
                             {creatinine.value_numeric} <span className="text-sm font-normal text-gray-600">{creatinine.unit}</span>
                           </div>
                           {creatinine.notes && <div className="text-xs text-gray-600 mt-1">{creatinine.notes}</div>}
@@ -1199,7 +1285,7 @@ function App() {
                       return bun && (
                         <div className="border border-gray-200 rounded-lg p-4">
                           <div className="text-xs text-gray-600 uppercase">BUN</div>
-                          <div className="text-2xl font-bold text-gray-900 mt-1">
+                          <div className={`text-2xl font-bold mt-1 ${getLabValueColor('BUN', bun.value_numeric || 0)}`}>
                             {bun.value_numeric} <span className="text-sm font-normal text-gray-600">{bun.unit}</span>
                           </div>
                         </div>
@@ -1207,12 +1293,19 @@ function App() {
                     })()}
                     {(() => {
                       const uacr = getObservationValue(selectedPatient.observations, 'uACR');
+                      const proteinuriaCategory = getObservationValue(selectedPatient.observations, 'proteinuria_category');
+
                       return uacr && (
                         <div className="border border-gray-200 rounded-lg p-4">
                           <div className="text-xs text-gray-600 uppercase">uACR</div>
-                          <div className="text-2xl font-bold text-gray-900 mt-1">
+                          <div className={`text-2xl font-bold mt-1 ${getLabValueColor('uACR', uacr.value_numeric || 0)}`}>
                             {uacr.value_numeric} <span className="text-sm font-normal text-gray-600">{uacr.unit}</span>
                           </div>
+                          {proteinuriaCategory && (
+                            <div className="text-xs font-semibold text-indigo-600 mt-1">
+                              KDIGO {proteinuriaCategory.value_text}
+                            </div>
+                          )}
                           {uacr.notes && <div className="text-xs text-gray-600 mt-1">{uacr.notes}</div>}
                         </div>
                       );
@@ -1230,7 +1323,7 @@ function App() {
                       return (systolic || diastolic) && (
                         <div className="border border-gray-200 rounded-lg p-4">
                           <div className="text-xs text-gray-600 uppercase">Blood Pressure</div>
-                          <div className="text-2xl font-bold text-gray-900 mt-1">
+                          <div className={`text-2xl font-bold mt-1 ${getLabValueColor('blood_pressure_systolic', systolic?.value_numeric || 0)}`}>
                             {systolic?.value_numeric || '--'}/{diastolic?.value_numeric || '--'} <span className="text-sm font-normal text-gray-600">mmHg</span>
                           </div>
                         </div>
@@ -1270,7 +1363,7 @@ function App() {
                       return hba1c && (
                         <div className="border border-gray-200 rounded-lg p-4">
                           <div className="text-xs text-gray-600 uppercase">HbA1c</div>
-                          <div className="text-2xl font-bold text-gray-900 mt-1">
+                          <div className={`text-2xl font-bold mt-1 ${getLabValueColor('HbA1c', hba1c.value_numeric || 0)}`}>
                             {hba1c.value_numeric} <span className="text-sm font-normal text-gray-600">{hba1c.unit}</span>
                           </div>
                           {hba1c.notes && <div className="text-xs text-gray-600 mt-1">{hba1c.notes}</div>}
@@ -1289,7 +1382,7 @@ function App() {
                       return hemoglobin && (
                         <div className="border border-gray-200 rounded-lg p-4">
                           <div className="text-xs text-gray-600 uppercase">Hemoglobin</div>
-                          <div className="text-2xl font-bold text-gray-900 mt-1">
+                          <div className={`text-2xl font-bold mt-1 ${getLabValueColor('hemoglobin', hemoglobin.value_numeric || 0)}`}>
                             {hemoglobin.value_numeric} <span className="text-sm font-normal text-gray-600">{hemoglobin.unit}</span>
                           </div>
                           {hemoglobin.notes && <div className="text-xs text-gray-600 mt-1">{hemoglobin.notes}</div>}
@@ -1301,7 +1394,7 @@ function App() {
                       return potassium && (
                         <div className="border border-gray-200 rounded-lg p-4">
                           <div className="text-xs text-gray-600 uppercase">Potassium</div>
-                          <div className="text-2xl font-bold text-gray-900 mt-1">
+                          <div className={`text-2xl font-bold mt-1 ${getLabValueColor('potassium', potassium.value_numeric || 0)}`}>
                             {potassium.value_numeric} <span className="text-sm font-normal text-gray-600">{potassium.unit}</span>
                           </div>
                           {potassium.notes && <div className="text-xs text-gray-600 mt-1">{potassium.notes}</div>}
