@@ -478,6 +478,7 @@ DECLARE
   v_first_name text;
   v_last_name text;
   v_risk_level integer;
+  v_random decimal;
 
   -- Name arrays for random generation
   first_names_male text[] := ARRAY['James', 'John', 'Robert', 'Michael', 'William', 'David', 'Richard', 'Joseph', 'Thomas', 'Charles', 'Daniel', 'Matthew', 'Anthony', 'Donald', 'Mark', 'Paul', 'Steven', 'Andrew', 'Kenneth', 'Joshua', 'Kevin', 'Brian', 'George', 'Edward', 'Ronald', 'Timothy', 'Jason', 'Jeffrey', 'Ryan', 'Jacob', 'Gary', 'Nicholas', 'Eric', 'Jonathan', 'Stephen', 'Larry', 'Justin', 'Scott', 'Brandon', 'Benjamin', 'Samuel', 'Raymond', 'Gregory', 'Alexander', 'Frank', 'Patrick', 'Raymond', 'Jack', 'Dennis', 'Jerry'];
@@ -491,7 +492,7 @@ BEGIN
 
     -- Random demographics
     v_gender := CASE WHEN random() < 0.5 THEN 'male' ELSE 'female' END;
-    v_age := 40 + floor(random() * 46)::integer; -- Ages 40-85
+    v_age := 65 + floor(random() * 26)::integer; -- Ages 65-90 (all patients 65+)
     v_height := CASE
       WHEN v_gender = 'male' THEN 165 + floor(random() * 25)::integer
       ELSE 155 + floor(random() * 25)::integer
@@ -518,49 +519,87 @@ BEGIN
       ELSE 'Current'
     END;
 
-    -- Determine risk level and adjust labs accordingly
-    -- Tier 1: ~40% - Low risk (normal labs, no/few risk factors)
-    -- Tier 2: ~35% - Moderate risk (one risk factor, borderline labs)
-    -- Tier 3: ~25% - High risk (multiple risk factors or abnormal labs)
+    -- Determine patient category based on required distribution
+    -- Distribution:
+    --   64.5% - Not diagnosed with CKD
+    --     24.5% - Low or Moderate risk, no CKD diagnosis
+    --     40.0% - High risk, no CKD diagnosis
+    --   35.5% - Diagnosed with CKD
+    --     8.0% - Mild CKD (Stage 1-2)
+    --    25.0% - Moderate CKD (Stage 3a-3b)
+    --     2.0% - Severe CKD (Stage 4)
+    --     0.5% - Kidney failure (Stage 5)
+    -- Total: 100%
 
-    IF random() < 0.40 THEN
-      -- Tier 1: Low risk
-      v_risk_level := 1;
-      v_egfr := 75 + (random() * 30); -- eGFR 75-105
-      v_uacr := random() * 25; -- uACR 0-25
-      v_creatinine := 0.8 + (random() * 0.4); -- Creatinine 0.8-1.2
-      v_ckd_stage := 0; -- No CKD or Stage 1
-    ELSIF random() < 0.75 THEN
-      -- Tier 2: Moderate risk
-      v_risk_level := 2;
-      v_egfr := 50 + (random() * 35); -- eGFR 50-85
-      v_uacr := 25 + (random() * 75); -- uACR 25-100
-      v_creatinine := 1.0 + (random() * 0.8); -- Creatinine 1.0-1.8
-      v_ckd_stage := CASE
-        WHEN v_egfr >= 60 THEN 2
-        WHEN v_egfr >= 45 THEN 3
-        ELSE 3
-      END;
-    ELSE
-      -- Tier 3: High risk
+    v_random := random();
+
+    IF v_random < 0.245 THEN
+      -- 24.5% - Low or Moderate risk, no CKD diagnosis
+      v_risk_level := CASE WHEN random() < 0.5 THEN 1 ELSE 2 END;
+      v_egfr := 75 + (random() * 30); -- eGFR 75-105 (normal)
+      v_uacr := random() * 25; -- uACR 0-25 (normal)
+      v_creatinine := 0.8 + (random() * 0.4); -- Creatinine 0.8-1.2 (normal)
+      v_ckd_stage := 0; -- No CKD diagnosis
+
+    ELSIF v_random < 0.645 THEN
+      -- 40% - High risk, no CKD diagnosis (0.245 + 0.40 = 0.645)
       v_risk_level := 3;
-      v_egfr := 15 + (random() * 45); -- eGFR 15-60
-      v_uacr := 100 + (random() * 400); -- uACR 100-500
-      v_creatinine := 1.5 + (random() * 2.5); -- Creatinine 1.5-4.0
-      v_ckd_stage := CASE
-        WHEN v_egfr >= 45 THEN 3
-        WHEN v_egfr >= 30 THEN 3
-        WHEN v_egfr >= 15 THEN 4
-        ELSE 5
-      END;
+      v_egfr := 60 + (random() * 30); -- eGFR 60-90 (not low enough for diagnosis)
+      v_uacr := 15 + (random() * 20); -- uACR 15-35 (borderline but not diagnostic)
+      v_creatinine := 0.9 + (random() * 0.5); -- Creatinine 0.9-1.4 (borderline)
+      v_ckd_stage := 0; -- No CKD diagnosis yet, but high risk
       -- High risk patients more likely to have risk factors
       v_has_diabetes := v_has_diabetes OR random() < 0.5;
       v_has_hypertension := v_has_hypertension OR random() < 0.6;
+
+    ELSIF v_random < 0.725 THEN
+      -- 8% - Mild CKD (Stage 1-2) (0.645 + 0.08 = 0.725)
+      v_risk_level := 2;
+      v_ckd_stage := CASE WHEN random() < 0.5 THEN 1 ELSE 2 END;
+      v_egfr := CASE
+        WHEN v_ckd_stage = 1 THEN 90 + (random() * 20) -- Stage 1: eGFR >= 90
+        ELSE 60 + (random() * 30) -- Stage 2: eGFR 60-89
+      END;
+      v_uacr := 30 + (random() * 100); -- uACR 30-130 (albuminuria present for diagnosis)
+      v_creatinine := 0.9 + (random() * 0.5); -- Creatinine 0.9-1.4
+      v_has_diabetes := v_has_diabetes OR random() < 0.3;
+      v_has_hypertension := v_has_hypertension OR random() < 0.4;
+
+    ELSIF v_random < 0.975 THEN
+      -- 25% - Moderate CKD (Stage 3a-3b) (0.725 + 0.25 = 0.975)
+      v_risk_level := 2;
+      v_ckd_stage := 3;
+      v_egfr := 30 + (random() * 30); -- eGFR 30-60 (Stage 3a-3b)
+      v_uacr := 50 + (random() * 200); -- uACR 50-250
+      v_creatinine := 1.3 + (random() * 1.0); -- Creatinine 1.3-2.3
+      v_has_diabetes := v_has_diabetes OR random() < 0.4;
+      v_has_hypertension := v_has_hypertension OR random() < 0.5;
+
+    ELSIF v_random < 0.995 THEN
+      -- 2% - Severe CKD (Stage 4) (0.975 + 0.02 = 0.995)
+      v_risk_level := 3;
+      v_ckd_stage := 4;
+      v_egfr := 15 + (random() * 15); -- eGFR 15-30 (Stage 4)
+      v_uacr := 100 + (random() * 400); -- uACR 100-500
+      v_creatinine := 2.0 + (random() * 2.0); -- Creatinine 2.0-4.0
+      v_has_diabetes := v_has_diabetes OR random() < 0.5;
+      v_has_hypertension := v_has_hypertension OR random() < 0.6;
+
+    ELSE
+      -- 0.5% - Kidney failure (Stage 5) (0.995 to 1.0 = 0.005 or 0.5%)
+      v_risk_level := 3;
+      v_ckd_stage := 5;
+      v_egfr := 5 + (random() * 10); -- eGFR 5-15 (Stage 5 - kidney failure)
+      v_uacr := 300 + (random() * 700); -- uACR 300-1000
+      v_creatinine := 4.0 + (random() * 4.0); -- Creatinine 4.0-8.0
+      v_has_diabetes := v_has_diabetes OR random() < 0.6;
+      v_has_hypertension := v_has_hypertension OR random() < 0.7;
     END IF;
 
     v_diagnosis_years := CASE
-      WHEN v_ckd_stage >= 3 THEN floor(random() * 8)::integer
-      WHEN v_ckd_stage = 2 THEN floor(random() * 5)::integer
+      WHEN v_ckd_stage >= 4 THEN floor(random() * 10)::integer
+      WHEN v_ckd_stage = 3 THEN floor(random() * 8)::integer
+      WHEN v_ckd_stage >= 1 THEN floor(random() * 5)::integer
       ELSE 0
     END;
 
@@ -633,7 +672,7 @@ BEGIN
         CASE WHEN v_uacr >= 300 THEN 'A3' WHEN v_uacr >= 30 THEN 'A2' ELSE 'A1' END,
         NULL, CURRENT_TIMESTAMP - interval '1 day', 'final', NULL);
 
-    -- Hematology & Minerals
+    -- Hematology & Electrolytes
     INSERT INTO observations (patient_id, observation_type, value_numeric, unit, observation_date, status, notes) VALUES
       (v_patient_id, 'hemoglobin',
         CASE
@@ -643,6 +682,9 @@ BEGIN
         END,
         'g/dL', CURRENT_TIMESTAMP - interval '1 day', 'final',
         CASE WHEN v_ckd_stage >= 4 THEN 'CKD-related anemia' ELSE NULL END),
+      (v_patient_id, 'WBC', 5.0 + random() * 6.0, 'K/uL', CURRENT_TIMESTAMP - interval '1 day', 'final', NULL),
+      (v_patient_id, 'platelets', 150 + random() * 200, 'K/uL', CURRENT_TIMESTAMP - interval '1 day', 'final', NULL),
+      (v_patient_id, 'sodium', 135 + random() * 10, 'mEq/L', CURRENT_TIMESTAMP - interval '1 day', 'final', NULL),
       (v_patient_id, 'potassium',
         CASE
           WHEN v_ckd_stage >= 4 THEN 4.5 + random() * 1.5 -- Stage 4+: 4.5-6.0 (hyperkalemia risk)
@@ -650,6 +692,13 @@ BEGIN
         END,
         'mEq/L', CURRENT_TIMESTAMP - interval '1 day', 'final',
         CASE WHEN v_ckd_stage >= 4 AND random() < 0.4 THEN 'Hyperkalemia risk' ELSE NULL END),
+      (v_patient_id, 'chloride', 98 + random() * 10, 'mEq/L', CURRENT_TIMESTAMP - interval '1 day', 'final', NULL),
+      (v_patient_id, 'bicarbonate',
+        CASE
+          WHEN v_ckd_stage >= 4 THEN 18 + random() * 6 -- Stage 4+: 18-24 (acidosis common)
+          ELSE 22 + random() * 6 -- Normal: 22-28
+        END,
+        'mEq/L', CURRENT_TIMESTAMP - interval '1 day', 'final', NULL),
       (v_patient_id, 'calcium', 8.5 + random() * 1.5, 'mg/dL', CURRENT_TIMESTAMP - interval '1 day', 'final', NULL),
       (v_patient_id, 'phosphorus',
         CASE
@@ -657,10 +706,13 @@ BEGIN
           ELSE 2.5 + random() * 2
         END,
         'mg/dL', CURRENT_TIMESTAMP - interval '1 day', 'final', NULL),
+      (v_patient_id, 'magnesium', 1.7 + random() * 0.8, 'mg/dL', CURRENT_TIMESTAMP - interval '1 day', 'final', NULL),
       (v_patient_id, 'albumin', 3.0 + random() * 1.5, 'g/dL', CURRENT_TIMESTAMP - interval '1 day', 'final', NULL);
 
-    -- Metabolic & Cardiovascular Panel
+    -- Vital Signs, Metabolic & Cardiovascular Panel
     INSERT INTO observations (patient_id, observation_type, value_numeric, unit, observation_date, status, notes) VALUES
+      (v_patient_id, 'heart_rate', 60 + random() * 40, 'bpm', CURRENT_TIMESTAMP - interval '1 day', 'final', NULL),
+      (v_patient_id, 'oxygen_saturation', 92 + random() * 8, '%', CURRENT_TIMESTAMP - interval '1 day', 'final', NULL),
       (v_patient_id, 'HbA1c',
         CASE
           WHEN v_has_diabetes THEN 6.5 + random() * 2.5 -- Diabetics: 6.5-9.0%
@@ -668,6 +720,12 @@ BEGIN
         END,
         '%', CURRENT_TIMESTAMP - interval '30 days', 'final',
         CASE WHEN v_has_diabetes AND random() < 0.3 THEN 'Suboptimal control' ELSE NULL END),
+      (v_patient_id, 'glucose',
+        CASE
+          WHEN v_has_diabetes THEN 120 + random() * 100 -- Diabetics: 120-220 mg/dL
+          ELSE 80 + random() * 40 -- Non-diabetics: 80-120 mg/dL
+        END,
+        'mg/dL', CURRENT_TIMESTAMP - interval '1 day', 'final', NULL),
       (v_patient_id, 'blood_pressure_systolic',
         CASE
           WHEN v_has_hypertension THEN 130 + random() * 30 -- HTN: 130-160
@@ -680,8 +738,10 @@ BEGIN
           ELSE 70 + random() * 15 -- Normal: 70-85
         END,
         'mmHg', CURRENT_TIMESTAMP - interval '1 day', 'final', NULL),
+      (v_patient_id, 'total_cholesterol', 150 + random() * 100, 'mg/dL', CURRENT_TIMESTAMP - interval '60 days', 'final', NULL),
       (v_patient_id, 'LDL_cholesterol', 80 + random() * 100, 'mg/dL', CURRENT_TIMESTAMP - interval '60 days', 'final', NULL),
       (v_patient_id, 'HDL_cholesterol', 30 + random() * 40, 'mg/dL', CURRENT_TIMESTAMP - interval '60 days', 'final', NULL),
+      (v_patient_id, 'triglycerides', 80 + random() * 200, 'mg/dL', CURRENT_TIMESTAMP - interval '60 days', 'final', NULL),
       (v_patient_id, 'BMI', v_bmi, 'kg/m²', CURRENT_TIMESTAMP - interval '1 day', 'final',
         CASE
           WHEN v_bmi >= 30 THEN 'Obese'
@@ -710,7 +770,7 @@ BEGIN
         (CURRENT_DATE - (floor(random() * 2920) + 730))::date, CURRENT_TIMESTAMP, 'moderate');
     END IF;
 
-    IF v_ckd_stage >= 2 THEN
+    IF v_ckd_stage >= 1 THEN
       INSERT INTO conditions (patient_id, condition_code, condition_name, clinical_status, onset_date, recorded_date, severity)
       VALUES (v_patient_id, 'N18.' || v_ckd_stage::text,
         'Chronic Kidney Disease, Stage ' || v_ckd_stage::text,
