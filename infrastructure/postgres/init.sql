@@ -103,14 +103,18 @@ INSERT INTO patients (
     id, medical_record_number, first_name, last_name, date_of_birth, gender, email, phone,
     weight, height, smoking_status, cvd_history, family_history_esrd,
     on_ras_inhibitor, on_sglt2i, nephrotoxic_meds, nephrologist_referral,
-    diagnosis_date, last_visit_date, next_visit_date
+    diagnosis_date, last_visit_date, next_visit_date,
+    home_monitoring_device, home_monitoring_active,
+    ckd_treatment_active, ckd_treatment_type
 )
 VALUES (
     '11111111-1111-1111-1111-111111111111', 'MRN001', 'John', 'Anderson', '1958-03-15', 'male',
     'john.anderson@email.com', '+1-555-0101',
     92.5, 172, 'Former', true, false,
     true, false, true, false,
-    '2022-05-20', '2025-10-15', '2025-11-28'
+    '2022-05-20', '2025-10-15', '2025-11-28',
+    'Minuteful Kidney', true,
+    true, 'Nephrology care + medications'
 );
 
 -- Patient 2: Medium Risk - Hypertension with declining kidney function (Stage 3a)
@@ -118,14 +122,18 @@ INSERT INTO patients (
     id, medical_record_number, first_name, last_name, date_of_birth, gender, email, phone,
     weight, height, smoking_status, cvd_history, family_history_esrd,
     on_ras_inhibitor, on_sglt2i, nephrotoxic_meds, nephrologist_referral,
-    diagnosis_date, last_visit_date, next_visit_date
+    diagnosis_date, last_visit_date, next_visit_date,
+    home_monitoring_device, home_monitoring_active,
+    ckd_treatment_active, ckd_treatment_type
 )
 VALUES (
     '22222222-2222-2222-2222-222222222222', 'MRN002', 'Maria', 'Rodriguez', '1965-07-22', 'female',
     'maria.rodriguez@email.com', '+1-555-0102',
     82.0, 162, 'Never', false, false,
     true, false, false, false,
-    '2023-08-10', '2025-10-28', '2026-04-28'
+    '2023-08-10', '2025-10-28', '2026-04-28',
+    'Minuteful Kidney', true,
+    true, 'ACE inhibitors + diet management'
 );
 
 -- Patient 3: Low Risk - Normal kidney function (No CKD)
@@ -133,14 +141,18 @@ INSERT INTO patients (
     id, medical_record_number, first_name, last_name, date_of_birth, gender, email, phone,
     weight, height, smoking_status, cvd_history, family_history_esrd,
     on_ras_inhibitor, on_sglt2i, nephrotoxic_meds, nephrologist_referral,
-    diagnosis_date, last_visit_date, next_visit_date
+    diagnosis_date, last_visit_date, next_visit_date,
+    home_monitoring_device, home_monitoring_active,
+    ckd_treatment_active, ckd_treatment_type
 )
 VALUES (
     '33333333-3333-3333-3333-333333333333', 'MRN003', 'David', 'Chen', '1980-11-08', 'male',
     'david.chen@email.com', '+1-555-0103',
     75.0, 178, 'Never', false, false,
     false, false, false, false,
-    NULL, '2025-11-03', '2026-05-03'
+    NULL, '2025-11-03', '2026-05-03',
+    'Minuteful Kidney', true,
+    false, NULL
 );
 
 -- Patient 4: High Risk - Multiple comorbidities (Stage 3b)
@@ -148,14 +160,18 @@ INSERT INTO patients (
     id, medical_record_number, first_name, last_name, date_of_birth, gender, email, phone,
     weight, height, smoking_status, cvd_history, family_history_esrd,
     on_ras_inhibitor, on_sglt2i, nephrotoxic_meds, nephrologist_referral,
-    diagnosis_date, last_visit_date, next_visit_date
+    diagnosis_date, last_visit_date, next_visit_date,
+    home_monitoring_device, home_monitoring_active,
+    ckd_treatment_active, ckd_treatment_type
 )
 VALUES (
     '44444444-4444-4444-4444-444444444444', 'MRN004', 'Sarah', 'Johnson', '1952-05-30', 'female',
     'sarah.johnson@email.com', '+1-555-0104',
     78.5, 160, 'Current', true, true,
     true, true, false, true,
-    '2021-03-15', '2025-10-30', '2025-12-15'
+    '2021-03-15', '2025-10-30', '2025-12-15',
+    'Minuteful Kidney', true,
+    true, 'ACE inhibitors + diet management'
 );
 
 -- Patient 5: Medium Risk - Early CKD indicators (Stage 2)
@@ -163,14 +179,18 @@ INSERT INTO patients (
     id, medical_record_number, first_name, last_name, date_of_birth, gender, email, phone,
     weight, height, smoking_status, cvd_history, family_history_esrd,
     on_ras_inhibitor, on_sglt2i, nephrotoxic_meds, nephrologist_referral,
-    diagnosis_date, last_visit_date, next_visit_date
+    diagnosis_date, last_visit_date, next_visit_date,
+    home_monitoring_device, home_monitoring_active,
+    ckd_treatment_active, ckd_treatment_type
 )
 VALUES (
     '55555555-5555-5555-5555-555555555555', 'MRN005', 'Michael', 'Thompson', '1970-09-12', 'male',
     'michael.thompson@email.com', '+1-555-0105',
     95.0, 180, 'Former', false, false,
     true, false, false, false,
-    '2024-01-20', '2025-10-25', '2026-01-25'
+    '2024-01-20', '2025-10-25', '2026-01-25',
+    'Minuteful Kidney', true,
+    true, 'Lifestyle modifications + monitoring'
 );
 
 -- ============================================
@@ -609,7 +629,9 @@ BEGIN
       date_of_birth, gender, email, phone,
       weight, height, smoking_status, cvd_history, family_history_esrd,
       on_ras_inhibitor, on_sglt2i, nephrotoxic_meds, nephrologist_referral,
-      diagnosis_date, last_visit_date, next_visit_date
+      diagnosis_date, last_visit_date, next_visit_date,
+      home_monitoring_device, home_monitoring_active,
+      ckd_treatment_active, ckd_treatment_type
     ) VALUES (
       v_patient_id,
       'MRN' || lpad((i + 100)::text, 5, '0'),
@@ -630,7 +652,29 @@ BEGIN
       v_ckd_stage >= 4 AND random() < 0.70, -- 70% of stage 4+ have nephro referral
       CASE WHEN v_diagnosis_years > 0 THEN (CURRENT_DATE - (v_diagnosis_years * 365))::date ELSE NULL END,
       (CURRENT_DATE - floor(random() * 90)::integer)::date, -- Last visit 0-90 days ago
-      (CURRENT_DATE + (30 + floor(random() * 120)::integer))::date -- Next visit 30-150 days from now
+      (CURRENT_DATE + (30 + floor(random() * 120)::integer))::date, -- Next visit 30-150 days from now
+      -- Home monitoring: 80% of non-CKD, 100% of CKD patients
+      CASE
+        WHEN v_ckd_stage >= 1 THEN 'Minuteful Kidney'
+        WHEN v_ckd_stage = 0 AND random() < 0.80 THEN 'Minuteful Kidney'
+        ELSE NULL
+      END,
+      CASE
+        WHEN v_ckd_stage >= 1 THEN true
+        WHEN v_ckd_stage = 0 AND random() < 0.80 THEN true
+        ELSE false
+      END,
+      -- CKD treatment: 80% of CKD patients
+      v_ckd_stage >= 1 AND random() < 0.80,
+      CASE
+        WHEN v_ckd_stage >= 1 AND random() < 0.80 THEN
+          CASE
+            WHEN v_ckd_stage >= 4 THEN 'Nephrology care + medications'
+            WHEN v_ckd_stage = 3 THEN 'ACE inhibitors + diet management'
+            ELSE 'Lifestyle modifications + monitoring'
+          END
+        ELSE NULL
+      END
     );
 
     -- Insert comprehensive observations
