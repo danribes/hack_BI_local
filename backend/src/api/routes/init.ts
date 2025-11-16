@@ -1466,87 +1466,94 @@ router.post('/migrate-month-tracking', async (_req: Request, res: Response): Pro
 });
 
 /**
- * Migration endpoint for WhatsApp tables
- * POST /api/init/migrate-whatsapp-tables
+ * Migration endpoint for Email notification tables
+ * POST /api/init/migrate-email-tables
  */
-router.post('/migrate-whatsapp-tables', async (_req: Request, res: Response): Promise<any> => {
+router.post('/migrate-email-tables', async (_req: Request, res: Response): Promise<any> => {
   try {
     const pool = getPool();
-    console.log('Running WhatsApp tables migration...');
+    console.log('Running email tables migration...');
 
-    // Step 1: Create whatsapp_config table
+    // Step 1: Create email_config table
     await pool.query(`
-      CREATE TABLE IF NOT EXISTS whatsapp_config (
+      CREATE TABLE IF NOT EXISTS email_config (
         id INTEGER PRIMARY KEY DEFAULT 1,
-        phone_number VARCHAR(20) NOT NULL,
+        doctor_email VARCHAR(255) NOT NULL,
         enabled BOOLEAN DEFAULT false,
-        twilio_account_sid VARCHAR(255),
-        twilio_auth_token VARCHAR(255),
-        twilio_whatsapp_number VARCHAR(20),
+        smtp_host VARCHAR(255),
+        smtp_port INTEGER,
+        smtp_user VARCHAR(255),
+        smtp_password VARCHAR(255),
+        from_email VARCHAR(255),
+        from_name VARCHAR(255) DEFAULT 'CKD Analyzer System',
         created_at TIMESTAMP DEFAULT NOW(),
         updated_at TIMESTAMP DEFAULT NOW(),
         CONSTRAINT single_config CHECK (id = 1)
       );
     `);
-    console.log('✓ Created whatsapp_config table');
+    console.log('✓ Created email_config table');
 
-    // Step 2: Create whatsapp_messages table
+    // Step 2: Create email_messages table
     await pool.query(`
-      CREATE TABLE IF NOT EXISTS whatsapp_messages (
+      CREATE TABLE IF NOT EXISTS email_messages (
         id SERIAL PRIMARY KEY,
-        phone_number VARCHAR(20) NOT NULL,
+        to_email VARCHAR(255) NOT NULL,
+        subject VARCHAR(500) NOT NULL,
         message TEXT NOT NULL,
         status VARCHAR(20) NOT NULL CHECK (status IN ('sent', 'failed', 'pending')),
-        twilio_sid VARCHAR(100),
+        email_message_id VARCHAR(255),
         error_message TEXT,
         sent_at TIMESTAMP DEFAULT NOW(),
         created_at TIMESTAMP DEFAULT NOW()
       );
     `);
-    console.log('✓ Created whatsapp_messages table');
+    console.log('✓ Created email_messages table');
 
     // Step 3: Create indexes
     await pool.query(`
-      CREATE INDEX IF NOT EXISTS idx_whatsapp_messages_phone ON whatsapp_messages(phone_number, sent_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_email_messages_to ON email_messages(to_email, sent_at DESC);
     `);
     await pool.query(`
-      CREATE INDEX IF NOT EXISTS idx_whatsapp_messages_status ON whatsapp_messages(status, sent_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_email_messages_status ON email_messages(status, sent_at DESC);
     `);
-    console.log('✓ Created indexes on whatsapp_messages');
+    console.log('✓ Created indexes on email_messages');
 
     // Step 4: Add comments
     await pool.query(`
-      COMMENT ON TABLE whatsapp_config IS 'WhatsApp notification configuration using Twilio API';
+      COMMENT ON TABLE email_config IS 'Email notification configuration';
     `);
     await pool.query(`
-      COMMENT ON TABLE whatsapp_messages IS 'Log of WhatsApp messages sent via Twilio';
+      COMMENT ON TABLE email_messages IS 'Log of email messages sent to doctors';
     `);
     await pool.query(`
-      COMMENT ON COLUMN whatsapp_config.phone_number IS 'Phone number to receive notifications (E.164 format, e.g., +1234567890)';
+      COMMENT ON COLUMN email_config.doctor_email IS 'Email address to receive notifications';
     `);
     await pool.query(`
-      COMMENT ON COLUMN whatsapp_config.enabled IS 'Whether WhatsApp notifications are enabled';
+      COMMENT ON COLUMN email_config.enabled IS 'Whether email notifications are enabled';
     `);
     await pool.query(`
-      COMMENT ON COLUMN whatsapp_messages.twilio_sid IS 'Twilio message SID for tracking';
+      COMMENT ON COLUMN email_config.smtp_host IS 'SMTP server hostname (optional, uses test account if not set)';
+    `);
+    await pool.query(`
+      COMMENT ON COLUMN email_messages.email_message_id IS 'Email message ID from SMTP server for tracking';
     `);
     console.log('✓ Added table comments');
 
     // Step 5: Verify tables exist
     const configTableCheck = await pool.query(`
       SELECT table_name FROM information_schema.tables
-      WHERE table_schema = 'public' AND table_name = 'whatsapp_config';
+      WHERE table_schema = 'public' AND table_name = 'email_config';
     `);
     const messagesTableCheck = await pool.query(`
       SELECT table_name FROM information_schema.tables
-      WHERE table_schema = 'public' AND table_name = 'whatsapp_messages';
+      WHERE table_schema = 'public' AND table_name = 'email_messages';
     `);
 
-    console.log('✓ WhatsApp tables migration completed successfully');
+    console.log('✓ Email tables migration completed successfully');
 
     res.json({
       status: 'success',
-      message: 'WhatsApp tables migration completed successfully',
+      message: 'Email tables migration completed successfully',
       details: {
         config_table_created: configTableCheck.rows.length > 0,
         messages_table_created: messagesTableCheck.rows.length > 0,
@@ -1554,10 +1561,10 @@ router.post('/migrate-whatsapp-tables', async (_req: Request, res: Response): Pr
       }
     });
   } catch (error) {
-    console.error('Failed to run WhatsApp tables migration:', error);
+    console.error('Failed to run email tables migration:', error);
     res.status(500).json({
       status: 'error',
-      message: 'Failed to run WhatsApp tables migration',
+      message: 'Failed to run email tables migration',
       error: error instanceof Error ? error.message : 'Unknown error'
     });
   }

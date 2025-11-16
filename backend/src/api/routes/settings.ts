@@ -1,26 +1,27 @@
 import express, { Request, Response } from 'express';
 import { Pool } from 'pg';
-import { WhatsAppService } from '../../services/whatsappService';
+import { EmailService } from '../../services/emailService';
 
 export function createSettingsRouter(pool: Pool): express.Router {
   const router = express.Router();
-  const whatsappService = new WhatsAppService(pool);
+  const emailService = new EmailService(pool);
 
   /**
-   * GET /api/settings/whatsapp
-   * Get current WhatsApp configuration
+   * GET /api/settings/email
+   * Get current email configuration
    */
-  router.get('/whatsapp', async (_req: Request, res: Response): Promise<any> => {
+  router.get('/email', async (_req: Request, res: Response): Promise<any> => {
     try {
-      const config = await whatsappService.getConfig();
+      const config = await emailService.getConfig();
 
       if (!config) {
         return res.json({
           status: 'success',
           data: {
-            phone_number: '',
+            doctor_email: '',
             enabled: false,
-            configured: false
+            configured: false,
+            smtp_configured: false
           }
         });
       }
@@ -29,43 +30,46 @@ export function createSettingsRouter(pool: Pool): express.Router {
       res.json({
         status: 'success',
         data: {
-          phone_number: config.phone_number,
+          doctor_email: config.doctor_email,
           enabled: config.enabled,
-          configured: true
+          configured: true,
+          smtp_configured: !!config.smtp_host,
+          from_email: config.from_email,
+          from_name: config.from_name
         }
       });
     } catch (error) {
-      console.error('Error fetching WhatsApp config:', error);
+      console.error('Error fetching email config:', error);
       res.status(500).json({
         status: 'error',
-        message: 'Failed to fetch WhatsApp configuration',
+        message: 'Failed to fetch email configuration',
         error: error instanceof Error ? error.message : 'Unknown error'
       });
     }
   });
 
   /**
-   * POST /api/settings/whatsapp
-   * Update WhatsApp configuration
+   * POST /api/settings/email
+   * Update email configuration
    */
-  router.post('/whatsapp', async (req: Request, res: Response): Promise<any> => {
+  router.post('/email', async (req: Request, res: Response): Promise<any> => {
     try {
-      const { phone_number, enabled } = req.body;
+      const { doctor_email, enabled, smtp_host, smtp_port, smtp_user, smtp_password, from_email, from_name } = req.body;
 
-      // Validate phone number format (E.164)
-      if (!phone_number || typeof phone_number !== 'string') {
+      // Validate doctor email
+      if (!doctor_email || typeof doctor_email !== 'string') {
         return res.status(400).json({
           status: 'error',
-          message: 'Phone number is required'
+          message: 'Doctor email is required'
         });
       }
 
-      // Basic phone number validation (should start with + and contain 10-15 digits)
-      const phoneRegex = /^\+[1-9]\d{9,14}$/;
-      if (!phoneRegex.test(phone_number)) {
+      // Basic email validation
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(doctor_email)) {
         return res.status(400).json({
           status: 'error',
-          message: 'Invalid phone number format. Use E.164 format (e.g., +1234567890)'
+          message: 'Invalid email address format'
         });
       }
 
@@ -76,33 +80,43 @@ export function createSettingsRouter(pool: Pool): express.Router {
         });
       }
 
-      await whatsappService.updateConfig(phone_number, enabled);
+      // Prepare SMTP settings if provided
+      const smtpSettings = (smtp_host || smtp_port || smtp_user || smtp_password || from_email || from_name) ? {
+        smtp_host: smtp_host || undefined,
+        smtp_port: smtp_port ? parseInt(smtp_port) : undefined,
+        smtp_user: smtp_user || undefined,
+        smtp_password: smtp_password || undefined,
+        from_email: from_email || undefined,
+        from_name: from_name || 'CKD Analyzer System'
+      } : undefined;
+
+      await emailService.updateConfig(doctor_email, enabled, smtpSettings);
 
       res.json({
         status: 'success',
-        message: 'WhatsApp configuration updated successfully',
+        message: 'Email configuration updated successfully',
         data: {
-          phone_number,
+          doctor_email,
           enabled
         }
       });
     } catch (error) {
-      console.error('Error updating WhatsApp config:', error);
+      console.error('Error updating email config:', error);
       res.status(500).json({
         status: 'error',
-        message: 'Failed to update WhatsApp configuration',
+        message: 'Failed to update email configuration',
         error: error instanceof Error ? error.message : 'Unknown error'
       });
     }
   });
 
   /**
-   * POST /api/settings/whatsapp/test
-   * Send a test WhatsApp message
+   * POST /api/settings/email/test
+   * Send a test email
    */
-  router.post('/whatsapp/test', async (_req: Request, res: Response): Promise<any> => {
+  router.post('/email/test', async (_req: Request, res: Response): Promise<any> => {
     try {
-      const result = await whatsappService.testConnection();
+      const result = await emailService.testConnection();
 
       if (result.success) {
         res.json({
@@ -116,34 +130,34 @@ export function createSettingsRouter(pool: Pool): express.Router {
         });
       }
     } catch (error) {
-      console.error('Error testing WhatsApp connection:', error);
+      console.error('Error testing email connection:', error);
       res.status(500).json({
         status: 'error',
-        message: 'Failed to test WhatsApp connection',
+        message: 'Failed to test email connection',
         error: error instanceof Error ? error.message : 'Unknown error'
       });
     }
   });
 
   /**
-   * GET /api/settings/whatsapp/messages
-   * Get WhatsApp message history
+   * GET /api/settings/email/messages
+   * Get email message history
    */
-  router.get('/whatsapp/messages', async (req: Request, res: Response): Promise<any> => {
+  router.get('/email/messages', async (req: Request, res: Response): Promise<any> => {
     try {
       const limit = Math.min(parseInt(req.query.limit as string) || 50, 100);
       const offset = parseInt(req.query.offset as string) || 0;
 
       const result = await pool.query(
-        `SELECT id, phone_number, message, status, twilio_sid, error_message, sent_at
-         FROM whatsapp_messages
+        `SELECT id, to_email, subject, message, status, email_message_id, error_message, sent_at
+         FROM email_messages
          ORDER BY sent_at DESC
          LIMIT $1 OFFSET $2`,
         [limit, offset]
       );
 
       const countResult = await pool.query(
-        'SELECT COUNT(*) as total FROM whatsapp_messages'
+        'SELECT COUNT(*) as total FROM email_messages'
       );
 
       res.json({
@@ -156,10 +170,10 @@ export function createSettingsRouter(pool: Pool): express.Router {
         }
       });
     } catch (error) {
-      console.error('Error fetching WhatsApp messages:', error);
+      console.error('Error fetching email messages:', error);
       res.status(500).json({
         status: 'error',
-        message: 'Failed to fetch WhatsApp messages',
+        message: 'Failed to fetch email messages',
         error: error instanceof Error ? error.message : 'Unknown error'
       });
     }
