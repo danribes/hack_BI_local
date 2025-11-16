@@ -2318,50 +2318,96 @@ function App() {
                 <div
                   key={patient.id}
                   onClick={() => fetchPatientDetail(patient.id)}
-                  className="border border-gray-200 rounded-lg p-4 hover:bg-indigo-50 transition-colors cursor-pointer"
+                  className="border border-gray-200 rounded-lg px-6 py-5 hover:bg-indigo-50 transition-colors cursor-pointer"
                 >
-                  <div className="flex items-start justify-between">
+                  <div className="flex items-center justify-between">
                     <div className="flex-1">
-                      <div className="flex items-center gap-3 flex-wrap mb-2">
-                        <h3 className="text-lg font-semibold text-gray-900">
+                      <div className="flex items-center gap-3 flex-wrap">
+                        <h3 className="text-xl font-semibold text-gray-900">
                           {patient.first_name} {patient.last_name}
                         </h3>
-                        {patient.ckd_severity && patient.ckd_severity !== 'none' && (
+                        {patient.kdigo_classification && (
                           <span className={`px-2 py-1 rounded text-xs font-bold ${
-                            patient.ckd_severity === 'kidney_failure' ? 'bg-red-100 text-red-800 border border-red-300' :
-                            patient.ckd_severity === 'severe' ? 'bg-orange-100 text-orange-800 border border-orange-300' :
-                            patient.ckd_severity === 'moderate' ? 'bg-yellow-100 text-yellow-800 border border-yellow-300' :
-                            'bg-green-100 text-green-800 border border-green-300'
+                            patient.kdigo_classification.has_ckd
+                              ? 'bg-red-100 text-red-800 border border-red-300'
+                              : 'bg-blue-100 text-blue-800 border border-blue-300'
                           }`}>
-                            CKD - {patient.ckd_severity.replace('_', ' ').toUpperCase()}
+                            {patient.kdigo_classification.has_ckd ? 'CKD' : 'No CKD'}
                           </span>
                         )}
-                        {(!patient.ckd_severity || patient.ckd_severity === 'none') && patient.risk_level && (
-                          <span className={`px-2 py-1 rounded text-xs font-bold ${
-                            patient.risk_level === 'high' ? 'bg-orange-100 text-orange-800 border border-orange-300' :
-                            patient.risk_level === 'moderate' ? 'bg-yellow-100 text-yellow-800 border border-yellow-300' :
-                            'bg-green-100 text-green-800 border border-green-300'
+                        {patient.risk_category && (
+                          <span className={`px-3 py-1 rounded-full text-xs font-bold ${getRiskCategoryBadgeColor(patient.risk_category)}`}>
+                            {patient.risk_category}
+                          </span>
+                        )}
+                        {/* Monitoring/Treatment Status Badge */}
+                        {patient.kdigo_classification && !patient.kdigo_classification.has_ckd && (
+                          <span className={`px-2 py-1 rounded text-xs font-semibold ${
+                            (patient.is_monitored !== undefined ? patient.is_monitored : patient.home_monitoring_active)
+                              ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                              : 'bg-gray-100 text-gray-600 border border-gray-300'
                           }`}>
-                            NON-CKD - {patient.risk_level.toUpperCase()} RISK
+                            {(patient.is_monitored !== undefined ? patient.is_monitored : patient.home_monitoring_active) ? '✓ Monitored' : 'Not Monitored'}
+                          </span>
+                        )}
+                        {patient.kdigo_classification && patient.kdigo_classification.has_ckd && (
+                          <span className={`px-2 py-1 rounded text-xs font-semibold ${
+                            (patient.is_treated !== undefined ? patient.is_treated : patient.ckd_treatment_active)
+                              ? 'bg-teal-100 text-teal-800 border border-teal-300'
+                              : 'bg-gray-100 text-gray-600 border border-gray-300'
+                          }`}>
+                            {(patient.is_treated !== undefined ? patient.is_treated : patient.ckd_treatment_active) ? '✓ Under Treatment' : 'Not Treated'}
+                          </span>
+                        )}
+                        {/* Evolution Summary Badge */}
+                        {patient.evolution_summary && (
+                          <span className={`px-2 py-1 rounded text-xs font-semibold ${
+                            patient.evolution_summary.includes('critical') || patient.evolution_summary.includes('worsening') || patient.evolution_summary.includes('worsened') || patient.evolution_summary.includes('increasing')
+                              ? 'bg-red-100 text-red-800 border border-red-300'
+                              : patient.evolution_summary.includes('improving')
+                              ? 'bg-green-100 text-green-800 border border-green-300'
+                              : patient.evolution_summary === 'stable'
+                              ? 'bg-blue-100 text-blue-800 border border-blue-300'
+                              : 'bg-gray-100 text-gray-800 border border-gray-300'
+                          }`}>
+                            Evolution: {patient.evolution_summary}
                           </span>
                         )}
                       </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium text-gray-600">Evolution:</span>
-                        <span className={`text-sm font-semibold ${
-                          patient.evolution_summary.includes('critical') || patient.evolution_summary.includes('worsening') || patient.evolution_summary.includes('worsened') || patient.evolution_summary.includes('increasing')
-                            ? 'text-red-600'
-                            : patient.evolution_summary.includes('improving') || patient.evolution_summary.includes('improving')
-                            ? 'text-green-600'
-                            : patient.evolution_summary === 'stable'
-                            ? 'text-blue-600'
-                            : 'text-gray-600'
-                        }`}>
-                          {patient.evolution_summary}
+                      <div className="mt-2 flex flex-wrap gap-4 text-sm text-gray-600">
+                        <span className="flex items-center">
+                          <svg className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2" />
+                          </svg>
+                          MRN: <strong className="ml-1">{patient.medical_record_number}</strong>
                         </span>
+                        <span className="flex items-center">
+                          <svg className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                          </svg>
+                          Age: <strong className="ml-1">{calculateAge(patient.date_of_birth)}</strong>
+                        </span>
+                        <span className="flex items-center capitalize">
+                          <svg className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                          </svg>
+                          {patient.gender}
+                        </span>
+                        {patient.email && (
+                          <span className="flex items-center">
+                            <svg className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                            </svg>
+                            {patient.email}
+                          </span>
+                        )}
                       </div>
                     </div>
                     <div className="ml-4 flex items-center">
+                      <div className="mr-4">
+                        <div className="text-xs text-gray-500">Patient ID</div>
+                        <div className="text-xs font-mono text-gray-700 mt-1">{patient.id.substring(0, 8)}...</div>
+                      </div>
                       <svg className="h-6 w-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                       </svg>
