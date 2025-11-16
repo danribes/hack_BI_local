@@ -121,7 +121,8 @@ export function createSettingsRouter(pool: Pool): express.Router {
       if (result.success) {
         res.json({
           status: 'success',
-          message: result.message
+          message: result.message,
+          previewUrl: result.previewUrl
         });
       } else {
         res.status(400).json({

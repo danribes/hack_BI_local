@@ -142,18 +142,31 @@ export class EmailService {
    * Send email notification
    */
   async sendNotification(messageData: EmailMessage): Promise<boolean> {
+    const result = await this.sendNotificationWithDetails(messageData);
+    return result.success;
+  }
+
+  /**
+   * Send email notification with detailed result
+   */
+  async sendNotificationWithDetails(messageData: EmailMessage): Promise<{
+    success: boolean;
+    previewUrl?: string;
+    messageId?: string;
+    error?: string;
+  }> {
     try {
       // Get configuration
       const config = await this.getConfig();
 
       if (!config || !config.enabled) {
         console.log('⚠️  Email notifications are disabled');
-        return false;
+        return { success: false, error: 'Email notifications are disabled' };
       }
 
       if (!config.doctor_email) {
         console.log('⚠️  No doctor email configured');
-        return false;
+        return { success: false, error: 'No doctor email configured' };
       }
 
       // Initialize transporter if not already done
@@ -190,15 +203,20 @@ export class EmailService {
         info.messageId
       );
 
-      // For test accounts, log the preview URL
+      // For test accounts, get the preview URL
+      let previewUrl: string | undefined;
       if (info.messageId.includes('ethereal')) {
-        const previewUrl = nodemailer.getTestMessageUrl(info);
+        previewUrl = nodemailer.getTestMessageUrl(info) || undefined;
         if (previewUrl) {
           console.log(`📧 Preview email: ${previewUrl}`);
         }
       }
 
-      return true;
+      return {
+        success: true,
+        messageId: info.messageId,
+        previewUrl
+      };
     } catch (error) {
       console.error('Error sending email notification:', error);
 
@@ -219,7 +237,10 @@ export class EmailService {
         console.error('Error logging failed email:', logError);
       }
 
-      return false;
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
     }
   }
 
@@ -344,7 +365,7 @@ Sent from CKD Analyzer System
   /**
    * Test email connection
    */
-  async testConnection(): Promise<{ success: boolean; message: string }> {
+  async testConnection(): Promise<{ success: boolean; message: string; previewUrl?: string }> {
     try {
       const config = await this.getConfig();
 
@@ -362,8 +383,8 @@ Sent from CKD Analyzer System
         };
       }
 
-      // Send test email
-      const sent = await this.sendNotification({
+      // Send test email with details
+      const result = await this.sendNotificationWithDetails({
         to: config.doctor_email,
         subject: 'Test Email - CKD Analyzer',
         message: 'This is a test email to verify your email notification settings are working correctly.',
@@ -372,15 +393,23 @@ Sent from CKD Analyzer System
         mrn: 'TEST-12345',
       });
 
-      if (sent) {
+      if (result.success) {
+        let message = `Test email sent successfully to ${config.doctor_email}`;
+
+        // If using Ethereal test account, include preview URL
+        if (result.previewUrl) {
+          message += `\n\nℹ️ Note: You are using a test email account. Since no SMTP server is configured, emails are sent to a test inbox.\n\nView your test email here: ${result.previewUrl}`;
+        }
+
         return {
           success: true,
-          message: `Test email sent successfully to ${config.doctor_email}`,
+          message,
+          previewUrl: result.previewUrl
         };
       } else {
         return {
           success: false,
-          message: 'Failed to send test email. Please check your SMTP settings.',
+          message: result.error || 'Failed to send test email. Please check your SMTP settings.',
         };
       }
     } catch (error) {

@@ -560,6 +560,11 @@ function App() {
 
       if (response.ok) {
         alert(`✓ ${data.message}`);
+
+        // If there's a preview URL (Ethereal test account), open it in a new tab
+        if (data.previewUrl) {
+          window.open(data.previewUrl, '_blank');
+        }
       } else {
         alert(`✗ ${data.message}`);
       }
