@@ -378,9 +378,18 @@ function App() {
   };
 
   const handleAdvanceCycle = async () => {
-    const confirmMessage = batchSize === 1000
-      ? 'This will advance ALL 1000 patients to the next cycle. This may take up to 30 seconds. Are you sure?'
-      : `This will advance ${batchSize} patients to the next cycle. Are you sure?`;
+    // Check if we're working with filtered/displayed patients
+    const currentPatientIds = patients.map((p: Patient) => p.id);
+    const isFiltered = activeFilters.patientType !== 'all' ||
+                      activeFilters.ckdSeverity ||
+                      activeFilters.nonCkdRisk ||
+                      currentPatientIds.length < 1000;
+
+    const confirmMessage = isFiltered
+      ? `This will advance the ${currentPatientIds.length} currently displayed patients to the next cycle. Are you sure?`
+      : batchSize === 1000
+        ? 'This will advance ALL 1000 patients to the next cycle. This may take up to 30 seconds. Are you sure?'
+        : `This will advance ${batchSize} patients to the next cycle. Are you sure?`;
 
     if (!confirm(confirmMessage)) {
       return;
@@ -390,11 +399,15 @@ function App() {
       setIsAdvancingCycle(true);
       setError(null);
 
+      // Prepare request body with patient IDs if filtered
+      const requestBody = isFiltered ? { patient_ids: currentPatientIds } : {};
+
       const response = await fetch(`${API_URL}/api/patients/advance-cycle?batch_size=${batchSize}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
-        }
+        },
+        body: JSON.stringify(requestBody)
       });
 
       if (!response.ok) {
@@ -410,8 +423,12 @@ function App() {
         setShowEvolutionModal(true);
       }
 
-      // Refresh patient list, statistics, and detail if a patient is selected
-      await fetchPatients();
+      // Refresh patient list based on current filter state
+      if (activeFilters.patientType !== 'all' || activeFilters.ckdSeverity || activeFilters.nonCkdRisk) {
+        await fetchFilteredPatients();
+      } else {
+        await fetchPatients();
+      }
       await fetchStatistics();
       if (selectedPatient) {
         await fetchPatientDetail(selectedPatient.id);
