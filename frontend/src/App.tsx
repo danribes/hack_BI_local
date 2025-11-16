@@ -89,6 +89,8 @@ interface PatientDetail extends Patient {
   risk_assessment?: RiskAssessment | null;
   kdigo_classification: KDIGOClassification;
   risk_category: string;
+  current_cycle?: number;
+  cycles_to_show?: number[];
   home_monitoring_device?: string | null;
   home_monitoring_active?: boolean;
   ckd_treatment_active?: boolean;
@@ -167,6 +169,8 @@ function App() {
   const [isAdvancingCycle, setIsAdvancingCycle] = useState(false);
   const [isResettingCycles, setIsResettingCycles] = useState(false);
   const [batchSize, setBatchSize] = useState<number>(50);
+  const [selectedPatientsWithEvolution, setSelectedPatientsWithEvolution] = useState<any[]>([]);
+  const [showEvolutionModal, setShowEvolutionModal] = useState(false);
 
   // Settings states
   const [showSettingsModal, setShowSettingsModal] = useState(false);
@@ -375,8 +379,8 @@ function App() {
 
   const handleAdvanceCycle = async () => {
     const confirmMessage = batchSize === 1000
-      ? 'This will advance ALL 1000 patients to the next month cycle. This may take up to 30 seconds. Are you sure?'
-      : `This will advance ${batchSize} patients to the next month cycle. Are you sure?`;
+      ? 'This will advance ALL 1000 patients to the next cycle. This may take up to 30 seconds. Are you sure?'
+      : `This will advance ${batchSize} patients to the next cycle. Are you sure?`;
 
     if (!confirm(confirmMessage)) {
       return;
@@ -400,22 +404,18 @@ function App() {
       const data = await response.json();
       console.log('Cycle advanced:', data);
 
+      // Store selected patients with evolution summaries
+      if (data.data.selected_patients && data.data.selected_patients.length > 0) {
+        setSelectedPatientsWithEvolution(data.data.selected_patients);
+        setShowEvolutionModal(true);
+      }
+
       // Refresh patient list, statistics, and detail if a patient is selected
       await fetchPatients();
       await fetchStatistics();
       if (selectedPatient) {
         await fetchPatientDetail(selectedPatient.id);
       }
-
-      // Show success message with batch info
-      const resetInfo = data.data.patients_reset_to_month_1 > 0
-        ? ` ${data.data.patients_reset_to_month_1} patients were reset to month 1.`
-        : '';
-      const message = batchSize === 1000
-        ? `Successfully advanced ALL patients! Processed ${data.data.patients_processed} patients.${resetInfo}`
-        : `Successfully advanced ${data.data.patients_processed} patients.${resetInfo}`;
-
-      alert(message);
 
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to advance cycle');
@@ -584,6 +584,12 @@ function App() {
 
   const getObservationValue = (observations: Observation[], type: string): Observation | undefined => {
     return observations.find(obs => obs.observation_type === type);
+  };
+
+  const getObservationsByCycle = (observations: Observation[], type: string): Observation[] => {
+    return observations
+      .filter(obs => obs.observation_type === type)
+      .sort((a, b) => (b.month_number || 0) - (a.month_number || 0));
   };
 
   const getSeverityColor = (severity?: string): string => {
@@ -813,7 +819,7 @@ function App() {
                           .map(obs => obs.month_number)
                           .filter((num): num is number => num !== undefined && num !== null);
                         const currentCycle = monthNumbers.length > 0 ? Math.max(...monthNumbers) : 0;
-                        return `Month ${currentCycle}`;
+                        return `Cycle ${currentCycle}`;
                       })()}
                     </div>
                   </div>
@@ -1460,9 +1466,88 @@ function App() {
                     <svg className="h-5 w-5 mr-2 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 4 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2zM9 9h6v6H9V9z" />
                     </svg>
-                    Latest Laboratory Results
+                    Laboratory Results
                   </h3>
                 </div>
+
+                {/* Multi-Cycle Comparison Table */}
+                {selectedPatient.current_cycle !== 12 && selectedPatient.cycles_to_show && selectedPatient.cycles_to_show.length > 1 && (
+                  <div className="mb-8">
+                    <h4 className="font-semibold text-gray-800 mb-3 text-sm uppercase tracking-wide">
+                      Last {selectedPatient.cycles_to_show.length} Cycles - Trend Analysis
+                    </h4>
+                    <div className="overflow-x-auto">
+                      <table className="min-w-full divide-y divide-gray-200">
+                        <thead className="bg-gray-50">
+                          <tr>
+                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                              Biomarker
+                            </th>
+                            {selectedPatient.cycles_to_show.map((cycle: number) => (
+                              <th key={cycle} className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">
+                                Cycle {cycle}
+                              </th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody className="bg-white divide-y divide-gray-200">
+                          {['eGFR', 'uACR', 'BP_Systolic', 'BP_Diastolic', 'HbA1c', 'creatinine', 'BUN'].map((biomarker) => {
+                            const observations = getObservationsByCycle(selectedPatient.observations, biomarker);
+                            if (observations.length === 0) return null;
+
+                            return (
+                              <tr key={biomarker}>
+                                <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">
+                                  {biomarker === 'eGFR' ? 'eGFR' :
+                                   biomarker === 'uACR' ? 'uACR' :
+                                   biomarker === 'BP_Systolic' ? 'Blood Pressure (Systolic)' :
+                                   biomarker === 'BP_Diastolic' ? 'Blood Pressure (Diastolic)' :
+                                   biomarker === 'HbA1c' ? 'HbA1c' :
+                                   biomarker === 'creatinine' ? 'Creatinine' :
+                                   biomarker === 'BUN' ? 'BUN' : biomarker}
+                                </td>
+                                {selectedPatient.cycles_to_show.map((cycle: number) => {
+                                  const obs = observations.find(o => o.month_number === cycle);
+                                  if (!obs) {
+                                    return (
+                                      <td key={cycle} className="px-4 py-3 text-center text-sm text-gray-400">
+                                        -
+                                      </td>
+                                    );
+                                  }
+                                  return (
+                                    <td key={cycle} className="px-4 py-3 text-center text-sm">
+                                      <span className={`font-semibold ${
+                                        biomarker === 'eGFR' ? getLabValueColor('eGFR', obs.value_numeric || 0) :
+                                        biomarker === 'uACR' ? getLabValueColor('uACR', obs.value_numeric || 0) :
+                                        biomarker === 'creatinine' ? getLabValueColor('serum_creatinine', obs.value_numeric || 0) :
+                                        biomarker === 'BUN' ? getLabValueColor('BUN', obs.value_numeric || 0) :
+                                        'text-gray-900'
+                                      }`}>
+                                        {obs.value_numeric?.toFixed(1)}
+                                      </span>
+                                      {obs.unit && (
+                                        <span className="text-xs text-gray-500 ml-1">{obs.unit}</span>
+                                      )}
+                                    </td>
+                                  );
+                                })}
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {selectedPatient.current_cycle === 12 && (
+                  <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                    <p className="text-sm text-yellow-800">
+                      <strong>Final Cycle:</strong> Showing current cycle values only. This is the last cycle of the simulation.
+                    </p>
+                  </div>
+                )}
 
                 {/* Kidney Function */}
                 <div className="mt-6">
@@ -1922,7 +2007,7 @@ function App() {
                   <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                   </svg>
-                  {isAdvancingCycle ? 'Advancing Cycle...' : 'Advance to Next Month'}
+                  {isAdvancingCycle ? 'Advancing Cycle...' : 'Advance to Next Cycle'}
                 </button>
 
                 {/* Reset Cycles Button */}
@@ -2183,6 +2268,97 @@ function App() {
         currentPatientId={(selectedPatient as PatientDetail | null)?.id}
         apiBaseUrl={import.meta.env.VITE_API_URL || 'http://localhost:3000'}
       />
+
+      {/* Evolution Summary Modal */}
+      {showEvolutionModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-8 max-w-4xl w-full mx-4 shadow-2xl max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+                <svg className="h-6 w-6 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                Patients Advanced to Next Cycle
+              </h2>
+              <button
+                onClick={() => setShowEvolutionModal(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+              <p className="text-sm text-blue-800">
+                <strong>{selectedPatientsWithEvolution.length}</strong> patients were selected proportionally from each CKD severity group and advanced to the next cycle.
+              </p>
+            </div>
+
+            <div className="space-y-3">
+              {selectedPatientsWithEvolution.map((patient) => (
+                <div
+                  key={patient.id}
+                  className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors"
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-3 flex-wrap mb-2">
+                        <h3 className="text-lg font-semibold text-gray-900">
+                          {patient.first_name} {patient.last_name}
+                        </h3>
+                        {patient.ckd_severity && (
+                          <span className={`px-2 py-1 rounded text-xs font-bold ${
+                            patient.ckd_severity === 'kidney_failure' ? 'bg-red-100 text-red-800 border border-red-300' :
+                            patient.ckd_severity === 'severe' ? 'bg-orange-100 text-orange-800 border border-orange-300' :
+                            patient.ckd_severity === 'moderate' ? 'bg-yellow-100 text-yellow-800 border border-yellow-300' :
+                            'bg-green-100 text-green-800 border border-green-300'
+                          }`}>
+                            {patient.ckd_severity.replace('_', ' ').toUpperCase()}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-gray-600">Evolution:</span>
+                        <span className={`text-sm font-semibold ${
+                          patient.evolution_summary.includes('critical') || patient.evolution_summary.includes('worsening') || patient.evolution_summary.includes('worsened') || patient.evolution_summary.includes('increasing')
+                            ? 'text-red-600'
+                            : patient.evolution_summary.includes('improving') || patient.evolution_summary.includes('improving')
+                            ? 'text-green-600'
+                            : patient.evolution_summary === 'stable'
+                            ? 'text-blue-600'
+                            : 'text-gray-600'
+                        }`}>
+                          {patient.evolution_summary}
+                        </span>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setShowEvolutionModal(false);
+                        fetchPatientDetail(patient.id);
+                      }}
+                      className="ml-4 px-3 py-1 text-sm bg-indigo-600 text-white rounded hover:bg-indigo-700 transition-colors"
+                    >
+                      View Details
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-6 flex justify-end">
+              <button
+                onClick={() => setShowEvolutionModal(false)}
+                className="px-6 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Settings Modal */}
       {showSettingsModal && (

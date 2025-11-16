@@ -5,6 +5,115 @@ import { classifyKDIGO, getRiskCategoryLabel } from '../../utils/kdigo';
 const router = Router();
 
 /**
+ * Generate patient evolution summary by comparing current and previous cycle values
+ */
+async function generateEvolutionSummary(patientId: string, currentCycle: number, previousCycle: number): Promise<string> {
+  const pool = getPool();
+  const summaries: string[] = [];
+
+  try {
+    // Get current and previous observations for key biomarkers
+    const currentObs = await pool.query(`
+      SELECT observation_type, value_numeric
+      FROM observations
+      WHERE patient_id = $1 AND month_number = $2
+      AND observation_type IN ('eGFR', 'uACR', 'BP_Systolic', 'BP_Diastolic', 'HbA1c', 'triglycerides', 'LDL')
+    `, [patientId, currentCycle]);
+
+    const previousObs = await pool.query(`
+      SELECT observation_type, value_numeric
+      FROM observations
+      WHERE patient_id = $1 AND month_number = $2
+      AND observation_type IN ('eGFR', 'uACR', 'BP_Systolic', 'BP_Diastolic', 'HbA1c', 'triglycerides', 'LDL')
+    `, [patientId, previousCycle]);
+
+    const current = new Map(currentObs.rows.map((r: any) => [r.observation_type, r.value_numeric]));
+    const previous = new Map(previousObs.rows.map((r: any) => [r.observation_type, r.value_numeric]));
+
+    // eGFR analysis
+    const currentEGFR = current.get('eGFR');
+    const previousEGFR = previous.get('eGFR');
+    if (currentEGFR !== undefined && previousEGFR !== undefined) {
+      const change = currentEGFR - previousEGFR;
+      if (currentEGFR < 15) {
+        summaries.push('critical eGFR');
+      } else if (change < -5) {
+        summaries.push('eGFR worsening');
+      } else if (change > 5) {
+        summaries.push('eGFR improving');
+      }
+    }
+
+    // uACR analysis
+    const currentUACR = current.get('uACR');
+    const previousUACR = previous.get('uACR');
+    if (currentUACR !== undefined && previousUACR !== undefined) {
+      const change = ((currentUACR - previousUACR) / previousUACR) * 100;
+      if (currentUACR > 300) {
+        summaries.push('severe albuminuria');
+      } else if (change > 20) {
+        summaries.push('uACR worsening');
+      } else if (change < -20) {
+        summaries.push('uACR improving');
+      }
+    }
+
+    // Blood pressure analysis
+    const currentSBP = current.get('BP_Systolic');
+    const previousSBP = previous.get('BP_Systolic');
+    if (currentSBP !== undefined && previousSBP !== undefined) {
+      if (currentSBP > 160) {
+        summaries.push('critical BP');
+      } else if (currentSBP - previousSBP > 10) {
+        summaries.push('BP increasing');
+      } else if (previousSBP - currentSBP > 10) {
+        summaries.push('BP improving');
+      }
+    }
+
+    // HbA1c analysis (diabetes control)
+    const currentHbA1c = current.get('HbA1c');
+    const previousHbA1c = previous.get('HbA1c');
+    if (currentHbA1c !== undefined && previousHbA1c !== undefined) {
+      if (currentHbA1c >= 6.5 && previousHbA1c < 6.5) {
+        summaries.push('diabetes diagnosed');
+      } else if (currentHbA1c > 9) {
+        summaries.push('poor glucose control');
+      } else if (currentHbA1c - previousHbA1c > 0.5) {
+        summaries.push('HbA1c worsening');
+      }
+    }
+
+    // Triglycerides analysis
+    const currentTrig = current.get('triglycerides');
+    const previousTrig = previous.get('triglycerides');
+    if (currentTrig !== undefined && previousTrig !== undefined) {
+      if (currentTrig > 200 && previousTrig <= 200) {
+        summaries.push('triglycerides elevated');
+      } else if (currentTrig - previousTrig > 50) {
+        summaries.push('triglycerides worsened');
+      }
+    }
+
+    // LDL analysis
+    const currentLDL = current.get('LDL');
+    const previousLDL = previous.get('LDL');
+    if (currentLDL !== undefined && previousLDL !== undefined) {
+      if (currentLDL > 160) {
+        summaries.push('high LDL');
+      } else if (currentLDL - previousLDL > 30) {
+        summaries.push('LDL increasing');
+      }
+    }
+
+    return summaries.length > 0 ? summaries.join(', ') : 'stable';
+  } catch (error) {
+    console.error(`Error generating evolution summary for patient ${patientId}:`, error);
+    return 'unknown';
+  }
+}
+
+/**
  * GET /api/patients/filter
  * Flexible filtering endpoint - all parameters optional
  * Query parameters:
@@ -396,8 +505,33 @@ router.get('/:id', async (req: Request, res: Response): Promise<any> => {
 
     const patient = patientResult.rows[0];
 
-    // Get latest observations grouped by type
+    // Get current cycle for this patient
+    const currentCycleResult = await pool.query(`
+      SELECT COALESCE(MAX(month_number), 1) as current_cycle
+      FROM observations
+      WHERE patient_id = $1
+    `, [id]);
+    const currentCycle = parseInt(currentCycleResult.rows[0]?.current_cycle || '1');
+
+    // Get observations from the last 3 cycles (or fewer if at early cycles)
+    const cyclesToShow = currentCycle === 12 ? [12] : [currentCycle, Math.max(1, currentCycle - 1), Math.max(1, currentCycle - 2)].filter((v, i, a) => a.indexOf(v) === i);
+
     const observationsResult = await pool.query(`
+      SELECT
+        observation_type,
+        value_numeric,
+        value_text,
+        unit,
+        observation_date,
+        notes,
+        month_number
+      FROM observations
+      WHERE patient_id = $1 AND month_number = ANY($2::int[])
+      ORDER BY observation_type, month_number DESC
+    `, [id, cyclesToShow]);
+
+    // Get latest observations for KDIGO calculation (most recent cycle only)
+    const latestObservationsResult = await pool.query(`
       SELECT DISTINCT ON (observation_type)
         observation_type,
         value_numeric,
@@ -445,9 +579,9 @@ router.get('/:id', async (req: Request, res: Response): Promise<any> => {
       LIMIT 1
     `, [id]);
 
-    // Calculate KDIGO classification
-    const egfrObs = observationsResult.rows.find(obs => obs.observation_type === 'eGFR');
-    const uacrObs = observationsResult.rows.find(obs => obs.observation_type === 'uACR');
+    // Calculate KDIGO classification using latest observations
+    const egfrObs = latestObservationsResult.rows.find(obs => obs.observation_type === 'eGFR');
+    const uacrObs = latestObservationsResult.rows.find(obs => obs.observation_type === 'uACR');
 
     const egfr = egfrObs?.value_numeric || 90;
     const uacr = uacrObs?.value_numeric || 15;
@@ -477,13 +611,13 @@ router.get('/:id', async (req: Request, res: Response): Promise<any> => {
       has_polycystic_kidney_disease: conditions.some(c => c.condition_code?.startsWith('Q61') && c.clinical_status === 'active'),
     };
 
-    // Extract vital signs from observations for backward compatibility
-    const observations = observationsResult.rows;
-    const systolicBP = observations.find(o => o.observation_type === 'blood_pressure_systolic');
-    const diastolicBP = observations.find(o => o.observation_type === 'blood_pressure_diastolic');
-    const heartRate = observations.find(o => o.observation_type === 'heart_rate');
-    const oxygenSat = observations.find(o => o.observation_type === 'oxygen_saturation');
-    const bmiObs = observations.find(o => o.observation_type === 'BMI');
+    // Extract vital signs from latest observations for backward compatibility
+    const latestObservations = latestObservationsResult.rows;
+    const systolicBP = latestObservations.find(o => o.observation_type === 'blood_pressure_systolic');
+    const diastolicBP = latestObservations.find(o => o.observation_type === 'blood_pressure_diastolic');
+    const heartRate = latestObservations.find(o => o.observation_type === 'heart_rate');
+    const oxygenSat = latestObservations.find(o => o.observation_type === 'oxygen_saturation');
+    const bmiObs = latestObservations.find(o => o.observation_type === 'BMI');
 
     const vitalSigns = {
       systolic_bp: systolicBP?.value_numeric || null,
@@ -502,6 +636,8 @@ router.get('/:id', async (req: Request, res: Response): Promise<any> => {
         risk_assessment: riskResult.rows[0] || null,
         kdigo_classification: kdigoClassification,
         risk_category: riskCategory,
+        current_cycle: currentCycle,
+        cycles_to_show: cyclesToShow,
         // Comorbidity flags derived from conditions
         ...comorbidities,
         // Vital signs from observations
@@ -527,11 +663,12 @@ router.get('/:id', async (req: Request, res: Response): Promise<any> => {
 
 /**
  * POST /api/patients/advance-cycle
- * Advance a batch of patients to the next cycle/month
+ * Advance a batch of patients to the next cycle
+ * - Selects patients PROPORTIONALLY from each CKD severity subgroup
  * - Generates new lab values for patients in the batch
- * - If at month 12, copies month 12 to month 1 and clears months 2-12
+ * - If at cycle 12, copies cycle 12 to cycle 1 and clears cycles 2-12
  * - Otherwise, increments the cycle counter
- * - All other patients NOT in the batch are reset to month 1
+ * - All other patients NOT in the batch are reset to cycle 1
  * Query params:
  *   - batch_size: number of patients to process (default: 50, max: 1000)
  */
@@ -540,23 +677,46 @@ router.post('/advance-cycle', async (req: Request, res: Response): Promise<any> 
     const pool = getPool();
     const batchSize = Math.min(parseInt(req.query.batch_size as string) || 50, 1000);
 
-    // Get all patients with their current month
-    const patientsResult = await pool.query(`
-      SELECT
-        p.id,
-        p.first_name,
-        p.last_name,
-        cpd.ckd_stage,
-        cpd.ckd_severity,
-        COALESCE(MAX(o.month_number), 0) as current_month
-      FROM patients p
-      LEFT JOIN ckd_patient_data cpd ON p.id = cpd.patient_id
-      LEFT JOIN observations o ON p.id = o.patient_id
-      GROUP BY p.id, p.first_name, p.last_name, cpd.ckd_stage, cpd.ckd_severity
-      LIMIT $1
-    `, [batchSize]);
+    // Get count of patients by CKD severity to calculate proportions
+    const severityCountsResult = await pool.query(`
+      SELECT cpd.ckd_severity, COUNT(*) as count
+      FROM ckd_patient_data cpd
+      INNER JOIN patients p ON cpd.patient_id = p.id
+      GROUP BY cpd.ckd_severity
+    `);
 
-    const patients = patientsResult.rows;
+    const severityCounts = severityCountsResult.rows;
+    const totalPatients = severityCounts.reduce((sum: number, row: any) => sum + parseInt(row.count), 0);
+
+    // Randomly select patients proportionally from each severity group
+    const selectedPatients: any[] = [];
+
+    for (const severityGroup of severityCounts) {
+      const proportion = parseInt(severityGroup.count) / totalPatients;
+      const sampleSize = Math.max(1, Math.round(proportion * batchSize)); // At least 1 from each group
+
+      // Randomly select patients from this severity group
+      const selected = await pool.query(`
+        SELECT
+          p.id,
+          p.first_name,
+          p.last_name,
+          cpd.ckd_stage,
+          cpd.ckd_severity,
+          COALESCE(MAX(o.month_number), 0) as current_month
+        FROM patients p
+        INNER JOIN ckd_patient_data cpd ON p.id = cpd.patient_id
+        LEFT JOIN observations o ON p.id = o.patient_id
+        WHERE cpd.ckd_severity = $1
+        GROUP BY p.id, p.first_name, p.last_name, cpd.ckd_stage, cpd.ckd_severity
+        ORDER BY RANDOM()
+        LIMIT $2
+      `, [severityGroup.ckd_severity, sampleSize]);
+
+      selectedPatients.push(...selected.rows);
+    }
+
+    const patients = selectedPatients;
     const advancingPatientIds = patients.map(p => p.id);
 
     if (patients.length === 0) {
@@ -665,6 +825,28 @@ router.post('/advance-cycle', async (req: Request, res: Response): Promise<any> 
       `, params);
     }
 
+    // Calculate evolution summaries for each patient
+    const patientsWithEvolution = await Promise.all(
+      patients.map(async (patient) => {
+        const currentMonth = patient.current_month >= 12 ? 12 : patient.current_month + 1;
+        const previousMonth = patient.current_month === 0 ? 1 : patient.current_month;
+
+        // Only generate evolution if we have a previous cycle to compare
+        let evolutionSummary = 'new patient';
+        if (patient.current_month > 0) {
+          evolutionSummary = await generateEvolutionSummary(patient.id, currentMonth, previousMonth);
+        }
+
+        return {
+          id: patient.id,
+          first_name: patient.first_name,
+          last_name: patient.last_name,
+          ckd_severity: patient.ckd_severity,
+          evolution_summary: evolutionSummary
+        };
+      })
+    );
+
     // For all other patients NOT in the advancing batch, ensure they stay at month 1
     // by copying their month 1 values if they exist
     let patientsReset = 0;
@@ -733,12 +915,13 @@ router.post('/advance-cycle', async (req: Request, res: Response): Promise<any> 
 
     res.json({
       status: 'success',
-      message: `Cycle advanced for ${patients.length} patients, ${patientsReset} patients reset to month 1`,
+      message: `Cycle advanced for ${patients.length} patients, ${patientsReset} patients reset to cycle 1`,
       data: {
         patients_processed: patients.length,
         patients_reset_to_month_1: patientsReset,
         batch_size: batchSize,
-        observations_created: allObservations.length
+        observations_created: allObservations.length,
+        selected_patients: patientsWithEvolution
       }
     });
 
