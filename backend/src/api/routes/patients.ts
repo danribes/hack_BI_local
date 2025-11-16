@@ -343,12 +343,20 @@ router.get('/statistics', async (_req: Request, res: Response): Promise<any> => 
       }
     });
 
+    // Get current cycle number (max month_number from all observations)
+    const currentCycleResult = await pool.query(`
+      SELECT COALESCE(MAX(month_number), 1) as current_cycle
+      FROM observations
+    `);
+    const currentCycle = parseInt(currentCycleResult.rows[0]?.current_cycle || '1');
+
     res.json({
       status: 'success',
       statistics: {
         total_patients: ckdStats.total + nonCkdStats.total,
         ckd: ckdStats,
-        non_ckd: nonCkdStats
+        non_ckd: nonCkdStats,
+        current_cycle: currentCycle
       }
     });
 

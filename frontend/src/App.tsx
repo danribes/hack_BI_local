@@ -430,8 +430,9 @@ function App() {
       const data = await response.json();
       console.log('Cycle advanced:', data);
 
-      // Refresh patient list and detail if a patient is selected
+      // Refresh patient list, statistics, and detail if a patient is selected
       await fetchPatients();
+      await fetchStatistics();
       if (selectedPatient) {
         await fetchPatientDetail(selectedPatient.id);
       }
@@ -480,8 +481,9 @@ function App() {
       const data = await response.json();
       console.log('Cycles reset:', data);
 
-      // Refresh patient list and detail if a patient is selected
+      // Refresh patient list, statistics, and detail if a patient is selected
       await fetchPatients();
+      await fetchStatistics();
       if (selectedPatient) {
         await fetchPatientDetail(selectedPatient.id);
       }
@@ -1976,6 +1978,17 @@ function App() {
         {!loading && !error && patients.length > 0 && (
           <div className="max-w-6xl mx-auto mb-6">
             <div className="bg-white rounded-lg shadow-lg p-4">
+              <div className="flex items-center gap-4 mb-3">
+                <div className="flex items-center gap-2 px-4 py-2 bg-indigo-50 rounded-lg border border-indigo-200">
+                  <svg className="h-5 w-5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <span className="text-sm font-medium text-gray-600">Current Cycle:</span>
+                  <span className="text-lg font-bold text-indigo-600">
+                    {statistics?.current_cycle || 1}
+                  </span>
+                </div>
+              </div>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                   <svg className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
