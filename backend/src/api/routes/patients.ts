@@ -676,26 +676,14 @@ router.post('/advance-cycle', async (req: Request, res: Response): Promise<any> 
   try {
     const pool = getPool();
     const batchSize = Math.min(parseInt(req.query.batch_size as string) || 50, 1000);
+    const { patient_ids } = req.body;
 
-    // Get count of patients by CKD severity to calculate proportions
-    const severityCountsResult = await pool.query(`
-      SELECT cpd.ckd_severity, COUNT(*) as count
-      FROM ckd_patient_data cpd
-      INNER JOIN patients p ON cpd.patient_id = p.id
-      GROUP BY cpd.ckd_severity
-    `);
+    let selectedPatients: any[] = [];
 
-    const severityCounts = severityCountsResult.rows;
-    const totalPatients = severityCounts.reduce((sum: number, row: any) => sum + parseInt(row.count), 0);
-
-    // Randomly select patients proportionally from each severity group
-    const selectedPatients: any[] = [];
-
-    for (const severityGroup of severityCounts) {
-      const proportion = parseInt(severityGroup.count) / totalPatients;
-      const sampleSize = Math.max(1, Math.round(proportion * batchSize)); // At least 1 from each group
-
-      // Randomly select patients from this severity group
+    // If patient_ids are provided, use those instead of random selection
+    if (patient_ids && Array.isArray(patient_ids) && patient_ids.length > 0) {
+      // Get patient data for the specified IDs
+      const placeholders = patient_ids.map((_: any, idx: number) => `$${idx + 1}`).join(',');
       const selected = await pool.query(`
         SELECT
           p.id,
@@ -707,13 +695,48 @@ router.post('/advance-cycle', async (req: Request, res: Response): Promise<any> 
         FROM patients p
         INNER JOIN ckd_patient_data cpd ON p.id = cpd.patient_id
         LEFT JOIN observations o ON p.id = o.patient_id
-        WHERE cpd.ckd_severity = $1
+        WHERE p.id IN (${placeholders})
         GROUP BY p.id, p.first_name, p.last_name, cpd.ckd_stage, cpd.ckd_severity
-        ORDER BY RANDOM()
-        LIMIT $2
-      `, [severityGroup.ckd_severity, sampleSize]);
+      `, patient_ids);
 
-      selectedPatients.push(...selected.rows);
+      selectedPatients = selected.rows;
+    } else {
+      // Original logic: randomly select patients proportionally from each severity group
+      // Get count of patients by CKD severity to calculate proportions
+      const severityCountsResult = await pool.query(`
+        SELECT cpd.ckd_severity, COUNT(*) as count
+        FROM ckd_patient_data cpd
+        INNER JOIN patients p ON cpd.patient_id = p.id
+        GROUP BY cpd.ckd_severity
+      `);
+
+      const severityCounts = severityCountsResult.rows;
+      const totalPatients = severityCounts.reduce((sum: number, row: any) => sum + parseInt(row.count), 0);
+
+      for (const severityGroup of severityCounts) {
+        const proportion = parseInt(severityGroup.count) / totalPatients;
+        const sampleSize = Math.max(1, Math.round(proportion * batchSize)); // At least 1 from each group
+
+        // Randomly select patients from this severity group
+        const selected = await pool.query(`
+          SELECT
+            p.id,
+            p.first_name,
+            p.last_name,
+            cpd.ckd_stage,
+            cpd.ckd_severity,
+            COALESCE(MAX(o.month_number), 0) as current_month
+          FROM patients p
+          INNER JOIN ckd_patient_data cpd ON p.id = cpd.patient_id
+          LEFT JOIN observations o ON p.id = o.patient_id
+          WHERE cpd.ckd_severity = $1
+          GROUP BY p.id, p.first_name, p.last_name, cpd.ckd_stage, cpd.ckd_severity
+          ORDER BY RANDOM()
+          LIMIT $2
+        `, [severityGroup.ckd_severity, sampleSize]);
+
+        selectedPatients.push(...selected.rows);
+      }
     }
 
     const patients = selectedPatients;

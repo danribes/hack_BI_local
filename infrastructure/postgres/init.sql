@@ -663,7 +663,8 @@ BEGIN
     -- Determine patient category based on required distribution
     -- Distribution:
     --   64.5% - Not diagnosed with CKD
-    --     24.5% - Low or Moderate risk, no CKD diagnosis
+    --     12.0% - Low risk, no CKD diagnosis
+    --     12.5% - Moderate risk, no CKD diagnosis
     --     40.0% - High risk, no CKD diagnosis
     --   35.5% - Diagnosed with CKD
     --     8.0% - Mild CKD (Stage 1-2)
@@ -674,11 +675,19 @@ BEGIN
 
     v_random := random();
 
-    IF v_random < 0.245 THEN
-      -- 24.5% - Low or Moderate risk, no CKD diagnosis
-      v_risk_level := CASE WHEN random() < 0.5 THEN 1 ELSE 2 END;
-      v_egfr := 75 + (random() * 30); -- eGFR 75-105 (normal)
-      v_uacr := random() * 25; -- uACR 0-25 (normal)
+    IF v_random < 0.120 THEN
+      -- 12.0% - Low risk, no CKD diagnosis
+      v_risk_level := 1;
+      v_egfr := 90 + (random() * 20); -- eGFR 90-110 (normal)
+      v_uacr := random() * 15; -- uACR 0-15 (normal)
+      v_creatinine := 0.7 + (random() * 0.3); -- Creatinine 0.7-1.0 (normal)
+      v_ckd_stage := 0; -- No CKD diagnosis
+
+    ELSIF v_random < 0.245 THEN
+      -- 12.5% - Moderate risk, no CKD diagnosis (0.120 + 0.125 = 0.245)
+      v_risk_level := 2;
+      v_egfr := 75 + (random() * 25); -- eGFR 75-100 (normal but lower end)
+      v_uacr := 10 + (random() * 20); -- uACR 10-30 (borderline)
       v_creatinine := 0.8 + (random() * 0.4); -- Creatinine 0.8-1.2 (normal)
       v_ckd_stage := 0; -- No CKD diagnosis
 
@@ -774,26 +783,40 @@ BEGIN
       CASE WHEN v_diagnosis_years > 0 THEN (CURRENT_DATE - (v_diagnosis_years * 365))::date ELSE NULL END,
       (CURRENT_DATE - floor(random() * 90)::integer)::date, -- Last visit 0-90 days ago
       (CURRENT_DATE + (30 + floor(random() * 120)::integer))::date, -- Next visit 30-150 days from now
-      -- Home monitoring: 80% of non-CKD, 100% of CKD patients
+      -- Home monitoring: Varies by CKD stage and risk level
       CASE
-        WHEN v_ckd_stage >= 1 THEN 'Minuteful Kidney'
-        WHEN v_ckd_stage = 0 AND random() < 0.80 THEN 'Minuteful Kidney'
+        WHEN v_ckd_stage >= 4 AND random() < 0.95 THEN 'Minuteful Kidney'  -- 95% for severe CKD
+        WHEN v_ckd_stage = 3 AND random() < 0.90 THEN 'Minuteful Kidney'   -- 90% for moderate CKD
+        WHEN v_ckd_stage >= 1 AND random() < 0.75 THEN 'Minuteful Kidney'  -- 75% for mild CKD
+        WHEN v_ckd_stage = 0 AND v_risk_level = 3 AND random() < 0.85 THEN 'Minuteful Kidney'  -- 85% for high risk non-CKD
+        WHEN v_ckd_stage = 0 AND v_risk_level = 2 AND random() < 0.70 THEN 'Minuteful Kidney'  -- 70% for moderate risk non-CKD
+        WHEN v_ckd_stage = 0 AND v_risk_level = 1 AND random() < 0.50 THEN 'Minuteful Kidney'  -- 50% for low risk non-CKD
         ELSE NULL
       END,
       CASE
-        WHEN v_ckd_stage >= 1 THEN true
-        WHEN v_ckd_stage = 0 AND random() < 0.80 THEN true
+        WHEN v_ckd_stage >= 4 AND random() < 0.95 THEN true
+        WHEN v_ckd_stage = 3 AND random() < 0.90 THEN true
+        WHEN v_ckd_stage >= 1 AND random() < 0.75 THEN true
+        WHEN v_ckd_stage = 0 AND v_risk_level = 3 AND random() < 0.85 THEN true
+        WHEN v_ckd_stage = 0 AND v_risk_level = 2 AND random() < 0.70 THEN true
+        WHEN v_ckd_stage = 0 AND v_risk_level = 1 AND random() < 0.50 THEN true
         ELSE false
       END,
-      -- CKD treatment: 80% of CKD patients
-      v_ckd_stage >= 1 AND random() < 0.80,
+      -- CKD treatment: Varies by severity
       CASE
-        WHEN v_ckd_stage >= 1 AND random() < 0.80 THEN
+        WHEN v_ckd_stage >= 4 THEN random() < 0.90  -- 90% for severe/kidney failure
+        WHEN v_ckd_stage = 3 THEN random() < 0.85   -- 85% for moderate
+        WHEN v_ckd_stage >= 1 THEN random() < 0.70  -- 70% for mild
+        ELSE false
+      END,
+      CASE
+        WHEN v_ckd_stage >= 4 AND random() < 0.90 THEN
           CASE
             WHEN v_ckd_stage >= 4 THEN 'Nephrology care + medications'
-            WHEN v_ckd_stage = 3 THEN 'ACE inhibitors + diet management'
-            ELSE 'Lifestyle modifications + monitoring'
+            ELSE 'ACE inhibitors + diet management'
           END
+        WHEN v_ckd_stage = 3 AND random() < 0.85 THEN 'ACE inhibitors + diet management'
+        WHEN v_ckd_stage >= 1 AND random() < 0.70 THEN 'Lifestyle modifications + monitoring'
         ELSE NULL
       END
     );
@@ -979,17 +1002,28 @@ BEGIN
         ELSE 'mild'
       END;
 
-      -- 100% of CKD patients monitored with Minuteful Kidney
-      v_is_monitored := true;
-      v_monitoring_device := 'Minuteful Kidney';
-      v_monitoring_frequency := CASE
-        WHEN v_ckd_stage >= 4 THEN 'weekly'
-        WHEN v_ckd_stage = 3 THEN 'biweekly'
-        ELSE 'monthly'
+      -- 85% of CKD patients monitored (higher % than non-CKD, but not 100%)
+      -- More severe stages have higher monitoring rates
+      v_is_monitored := CASE
+        WHEN v_ckd_stage >= 4 THEN random() < 0.95  -- 95% for severe/kidney failure
+        WHEN v_ckd_stage = 3 THEN random() < 0.90   -- 90% for moderate
+        ELSE random() < 0.75                         -- 75% for mild
       END;
 
-      -- 80% of CKD patients receiving treatment
-      v_is_treated := random() < 0.80;
+      v_monitoring_device := CASE WHEN v_is_monitored THEN 'Minuteful Kidney' ELSE NULL END;
+      v_monitoring_frequency := CASE
+        WHEN v_is_monitored AND v_ckd_stage >= 4 THEN 'weekly'
+        WHEN v_is_monitored AND v_ckd_stage = 3 THEN 'biweekly'
+        WHEN v_is_monitored THEN 'monthly'
+        ELSE NULL
+      END;
+
+      -- Treatment rates vary by severity: more severe = higher treatment rate
+      v_is_treated := CASE
+        WHEN v_ckd_stage >= 4 THEN random() < 0.90  -- 90% for severe/kidney failure
+        WHEN v_ckd_stage = 3 THEN random() < 0.85   -- 85% for moderate
+        ELSE random() < 0.70                         -- 70% for mild
+      END;
 
       INSERT INTO ckd_patient_data (
         patient_id, ckd_severity, ckd_stage,
@@ -1005,8 +1039,13 @@ BEGIN
 
     ELSE
       -- Non-CKD patient tracking data
-      -- 80% of non-CKD patients monitored with Minuteful Kidney
-      v_is_monitored := random() < 0.80;
+      -- Monitoring rates vary by risk level: higher risk = higher monitoring rate
+      v_is_monitored := CASE
+        WHEN v_risk_level = 3 THEN random() < 0.85  -- 85% for high risk
+        WHEN v_risk_level = 2 THEN random() < 0.70  -- 70% for moderate risk
+        ELSE random() < 0.50                         -- 50% for low risk
+      END;
+
       v_monitoring_device := CASE WHEN v_is_monitored THEN 'Minuteful Kidney' ELSE NULL END;
       v_monitoring_frequency := CASE
         WHEN v_is_monitored AND v_risk_level = 3 THEN 'monthly'
