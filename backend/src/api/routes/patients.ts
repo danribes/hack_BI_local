@@ -847,6 +847,18 @@ router.post('/advance-cycle', async (req: Request, res: Response): Promise<any> 
       const hba1c = hasDiabetes ? Number((5.7 + Math.random() * 5).toFixed(1)) : Number((4.5 + Math.random() * 1).toFixed(1));
       const glucose = hasDiabetes ? Number((100 + Math.random() * 150).toFixed(0)) : Number((70 + Math.random() * 40).toFixed(0));
 
+      // Additional variables for comprehensive CKD monitoring
+      const bicarbonate = Number((ckdStage >= 3 ? 18 + Math.random() * 8 : 22 + Math.random() * 6).toFixed(1)); // Lower in advanced CKD
+      const sodium = Number((135 + Math.random() * 10).toFixed(1));
+      const chloride = Number((95 + Math.random() * 15).toFixed(1));
+      const magnesium = Number((1.5 + Math.random() * 1.0).toFixed(1));
+      const uricAcid = Number((ckdStage >= 3 ? 6 + Math.random() * 4 : 3 + Math.random() * 4).toFixed(1)); // Higher in CKD
+      const pth = Number((ckdStage >= 3 ? 65 + Math.random() * 300 : 10 + Math.random() * 55).toFixed(0)); // Elevated in CKD
+      const vitaminD = Number((ckdStage >= 3 ? 10 + Math.random() * 20 : 20 + Math.random() * 30).toFixed(1)); // Often low in CKD
+      const iron = Number((30 + Math.random() * 140).toFixed(0));
+      const ferritin = Number((ckdStage >= 3 ? 50 + Math.random() * 450 : 20 + Math.random() * 280).toFixed(0));
+      const tsat = Number((15 + Math.random() * 35).toFixed(1)); // Transferrin saturation %
+
       // Collect observations for batch insert
       const observations = [
         { type: 'eGFR', value: eGFR, unit: 'mL/min/1.73m²' },
@@ -865,7 +877,18 @@ router.post('/advance-cycle', async (req: Request, res: Response): Promise<any> 
         { type: 'total_cholesterol', value: totalCholesterol, unit: 'mg/dL' },
         { type: 'triglycerides', value: triglycerides, unit: 'mg/dL' },
         { type: 'HbA1c', value: hba1c, unit: '%' },
-        { type: 'glucose', value: glucose, unit: 'mg/dL' }
+        { type: 'glucose', value: glucose, unit: 'mg/dL' },
+        // Additional variables for comprehensive patient monitoring
+        { type: 'bicarbonate', value: bicarbonate, unit: 'mEq/L' },
+        { type: 'sodium', value: sodium, unit: 'mEq/L' },
+        { type: 'chloride', value: chloride, unit: 'mEq/L' },
+        { type: 'magnesium', value: magnesium, unit: 'mg/dL' },
+        { type: 'uric_acid', value: uricAcid, unit: 'mg/dL' },
+        { type: 'PTH', value: pth, unit: 'pg/mL' },
+        { type: 'vitamin_d', value: vitaminD, unit: 'ng/mL' },
+        { type: 'iron', value: iron, unit: 'µg/dL' },
+        { type: 'ferritin', value: ferritin, unit: 'ng/mL' },
+        { type: 'TSAT', value: tsat, unit: '%' }
       ];
 
       observations.forEach(obs => {
