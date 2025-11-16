@@ -115,23 +115,28 @@ export function createSettingsRouter(pool: Pool): express.Router {
    * Send a test email
    */
   router.post('/email/test', async (_req: Request, res: Response): Promise<any> => {
+    console.log('📧 [API] Test email endpoint called');
     try {
+      console.log('📧 [API] Calling emailService.testConnection()...');
       const result = await emailService.testConnection();
+      console.log('📧 [API] Test connection result:', { success: result.success, hasPreviewUrl: !!result.previewUrl });
 
       if (result.success) {
+        console.log('📧 [API] Sending success response');
         res.json({
           status: 'success',
           message: result.message,
           previewUrl: result.previewUrl
         });
       } else {
+        console.log('📧 [API] Sending error response:', result.message);
         res.status(400).json({
           status: 'error',
           message: result.message
         });
       }
     } catch (error) {
-      console.error('Error testing email connection:', error);
+      console.error('❌ [API] Error testing email connection:', error);
       res.status(500).json({
         status: 'error',
         message: 'Failed to test email connection',

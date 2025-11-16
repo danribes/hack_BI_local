@@ -36,36 +36,44 @@ export class EmailService {
    * Initialize email transporter with SMTP settings
    */
   private async initializeTransporter(): Promise<void> {
-    const config = await this.getConfig();
+    try {
+      const config = await this.getConfig();
 
-    if (!config || !config.smtp_host) {
-      // Use default test account for development/testing
-      const testAccount = await nodemailer.createTestAccount();
+      if (!config || !config.smtp_host) {
+        // Use default test account for development/testing
+        console.log('📧 No SMTP configured, creating Ethereal test account...');
+        const testAccount = await nodemailer.createTestAccount();
+        console.log('📧 Ethereal test account created:', testAccount.user);
+
+        this.transporter = nodemailer.createTransport({
+          host: testAccount.smtp.host,
+          port: testAccount.smtp.port,
+          secure: testAccount.smtp.secure,
+          auth: {
+            user: testAccount.user,
+            pass: testAccount.pass,
+          },
+        });
+        console.log('📧 Using Ethereal test email account (emails won\'t be delivered)');
+        return;
+      }
+
+      // Use configured SMTP settings
       this.transporter = nodemailer.createTransport({
-        host: testAccount.smtp.host,
-        port: testAccount.smtp.port,
-        secure: testAccount.smtp.secure,
-        auth: {
-          user: testAccount.user,
-          pass: testAccount.pass,
-        },
+        host: config.smtp_host,
+        port: config.smtp_port || 587,
+        secure: config.smtp_port === 465,
+        auth: config.smtp_user && config.smtp_password ? {
+          user: config.smtp_user,
+          pass: config.smtp_password,
+        } : undefined,
       });
-      console.log('📧 Using Ethereal test email account (emails won\'t be delivered)');
-      return;
+
+      console.log(`📧 Email service initialized with SMTP: ${config.smtp_host}`);
+    } catch (error) {
+      console.error('❌ Error initializing email transporter:', error);
+      throw error;
     }
-
-    // Use configured SMTP settings
-    this.transporter = nodemailer.createTransport({
-      host: config.smtp_host,
-      port: config.smtp_port || 587,
-      secure: config.smtp_port === 465,
-      auth: config.smtp_user && config.smtp_password ? {
-        user: config.smtp_user,
-        pass: config.smtp_password,
-      } : undefined,
-    });
-
-    console.log(`📧 Email service initialized with SMTP: ${config.smtp_host}`);
   }
 
   /**
@@ -156,8 +164,11 @@ export class EmailService {
     error?: string;
   }> {
     try {
+      console.log('📧 Starting email send process...');
+
       // Get configuration
       const config = await this.getConfig();
+      console.log('📧 Email config retrieved:', config ? `enabled=${config.enabled}, email=${config.doctor_email}` : 'null');
 
       if (!config || !config.enabled) {
         console.log('⚠️  Email notifications are disabled');
@@ -171,6 +182,7 @@ export class EmailService {
 
       // Initialize transporter if not already done
       if (!this.transporter) {
+        console.log('📧 Initializing email transporter...');
         await this.initializeTransporter();
       }
 
@@ -179,9 +191,12 @@ export class EmailService {
       }
 
       // Format the email message
+      console.log('📧 Formatting email message...');
       const formattedMessage = this.formatMessage(messageData);
       const fromEmail = config.from_email || 'noreply@ckd-analyzer.com';
       const fromName = config.from_name || 'CKD Analyzer System';
+
+      console.log(`📧 Sending email to ${config.doctor_email}...`);
 
       // Send email
       const info = await this.transporter.sendMail({
@@ -192,7 +207,7 @@ export class EmailService {
         html: formattedMessage.html,
       });
 
-      console.log(`✓ Email sent to ${config.doctor_email}: ${info.messageId}`);
+      console.log(`✓ Email sent successfully! Message ID: ${info.messageId}`);
 
       // Log the sent message
       await this.logMessage(
@@ -203,22 +218,26 @@ export class EmailService {
         info.messageId
       );
 
-      // For test accounts, get the preview URL
-      let previewUrl: string | undefined;
-      if (info.messageId.includes('ethereal')) {
-        previewUrl = nodemailer.getTestMessageUrl(info) || undefined;
-        if (previewUrl) {
-          console.log(`📧 Preview email: ${previewUrl}`);
-        }
+      // For test accounts (Ethereal), get the preview URL
+      // getTestMessageUrl returns false if not an Ethereal email
+      const previewUrl = nodemailer.getTestMessageUrl(info);
+      if (previewUrl) {
+        console.log(`📧 Ethereal preview URL generated: ${previewUrl}`);
+      } else {
+        console.log('📧 Email sent via configured SMTP (no preview URL available)');
       }
 
       return {
         success: true,
         messageId: info.messageId,
-        previewUrl
+        previewUrl: previewUrl || undefined
       };
     } catch (error) {
-      console.error('Error sending email notification:', error);
+      console.error('❌ Error sending email notification:', error);
+      if (error instanceof Error) {
+        console.error('❌ Error details:', error.message);
+        console.error('❌ Error stack:', error.stack);
+      }
 
       // Log the failed message
       try {
@@ -234,7 +253,7 @@ export class EmailService {
           );
         }
       } catch (logError) {
-        console.error('Error logging failed email:', logError);
+        console.error('❌ Error logging failed email:', logError);
       }
 
       return {
