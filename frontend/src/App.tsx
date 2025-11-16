@@ -417,12 +417,6 @@ function App() {
       const data = await response.json();
       console.log('Cycle advanced:', data);
 
-      // Store selected patients with evolution summaries
-      if (data.data.selected_patients && data.data.selected_patients.length > 0) {
-        setSelectedPatientsWithEvolution(data.data.selected_patients);
-        setShowEvolutionModal(true);
-      }
-
       // Refresh patient list based on current filter state
       if (activeFilters.patientType !== 'all' || activeFilters.ckdSeverity || activeFilters.nonCkdRisk) {
         await fetchFilteredPatients();
@@ -432,6 +426,32 @@ function App() {
       await fetchStatistics();
       if (selectedPatient) {
         await fetchPatientDetail(selectedPatient.id);
+      }
+
+      // Fetch full patient data for selected patients with evolution summaries
+      if (data.data.selected_patients && data.data.selected_patients.length > 0) {
+        const selectedPatientIds = data.data.selected_patients.map((p: any) => p.id);
+        const evolutionMap = new Map(
+          data.data.selected_patients.map((p: any) => [p.id, p.evolution_summary])
+        );
+
+        // Fetch full patient details for the selected patients
+        const fullPatientsResponse = await fetch(`${API_URL}/api/patients`);
+        if (fullPatientsResponse.ok) {
+          const fullPatientsData = await fullPatientsResponse.json();
+          const fullPatients = fullPatientsData.patients || [];
+
+          // Filter to only the selected patients and add evolution summary
+          const patientsWithEvolution = fullPatients
+            .filter((p: Patient) => selectedPatientIds.includes(p.id))
+            .map((p: Patient) => ({
+              ...p,
+              evolution_summary: evolutionMap.get(p.id)
+            }));
+
+          setSelectedPatientsWithEvolution(patientsWithEvolution);
+          setShowEvolutionModal(true);
+        }
       }
 
     } catch (err) {
