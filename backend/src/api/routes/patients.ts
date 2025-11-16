@@ -682,65 +682,105 @@ router.post('/advance-cycle', async (req: Request, res: Response): Promise<any> 
 
     // If patient_ids are provided, use those instead of random selection
     if (patient_ids && Array.isArray(patient_ids) && patient_ids.length > 0) {
-      // Get patient data for the specified IDs
+      // Get patient data for the specified IDs (both CKD and non-CKD)
       const placeholders = patient_ids.map((_: any, idx: number) => `$${idx + 1}`).join(',');
       const selected = await pool.query(`
         SELECT
           p.id,
           p.first_name,
           p.last_name,
-          cpd.ckd_stage,
-          cpd.ckd_severity,
+          COALESCE(cpd.ckd_stage, 0) as ckd_stage,
+          COALESCE(cpd.ckd_severity, 'none') as ckd_severity,
+          COALESCE(nckd.risk_level, 'low') as risk_level,
           COALESCE(MAX(o.month_number), 0) as current_month
         FROM patients p
-        INNER JOIN ckd_patient_data cpd ON p.id = cpd.patient_id
+        LEFT JOIN ckd_patient_data cpd ON p.id = cpd.patient_id
+        LEFT JOIN non_ckd_patient_data nckd ON p.id = nckd.patient_id
         LEFT JOIN observations o ON p.id = o.patient_id
         WHERE p.id IN (${placeholders})
-        GROUP BY p.id, p.first_name, p.last_name, cpd.ckd_stage, cpd.ckd_severity
+        GROUP BY p.id, p.first_name, p.last_name, cpd.ckd_stage, cpd.ckd_severity, nckd.risk_level
       `, patient_ids);
 
       selectedPatients = selected.rows;
     } else {
-      // Original logic: randomly select patients proportionally from each severity group
-      // Get count of patients by CKD severity to calculate proportions
-      const severityCountsResult = await pool.query(`
+      // Select patients proportionally from both CKD and non-CKD groups
+
+      // Get CKD patient counts by severity
+      const ckdCountsResult = await pool.query(`
         SELECT cpd.ckd_severity, COUNT(*) as count
         FROM ckd_patient_data cpd
         INNER JOIN patients p ON cpd.patient_id = p.id
         GROUP BY cpd.ckd_severity
       `);
 
-      const severityCounts = severityCountsResult.rows;
-      const totalPatients = severityCounts.reduce((sum: number, row: any) => sum + parseInt(row.count), 0);
+      // Get non-CKD patient counts by risk level
+      const nonCkdCountsResult = await pool.query(`
+        SELECT nckd.risk_level, COUNT(*) as count
+        FROM non_ckd_patient_data nckd
+        INNER JOIN patients p ON nckd.patient_id = p.id
+        GROUP BY nckd.risk_level
+      `);
 
-      for (const severityGroup of severityCounts) {
-        const proportion = parseInt(severityGroup.count) / totalPatients;
-        const sampleSize = Math.max(1, Math.round(proportion * batchSize)); // At least 1 from each group
+      const allGroups = [
+        ...ckdCountsResult.rows.map((r: any) => ({ type: 'ckd', category: r.ckd_severity, count: parseInt(r.count) })),
+        ...nonCkdCountsResult.rows.map((r: any) => ({ type: 'non_ckd', category: r.risk_level, count: parseInt(r.count) }))
+      ];
 
-        // Randomly select patients from this severity group
-        const selected = await pool.query(`
-          SELECT
-            p.id,
-            p.first_name,
-            p.last_name,
-            cpd.ckd_stage,
-            cpd.ckd_severity,
-            COALESCE(MAX(o.month_number), 0) as current_month
-          FROM patients p
-          INNER JOIN ckd_patient_data cpd ON p.id = cpd.patient_id
-          LEFT JOIN observations o ON p.id = o.patient_id
-          WHERE cpd.ckd_severity = $1
-          GROUP BY p.id, p.first_name, p.last_name, cpd.ckd_stage, cpd.ckd_severity
-          ORDER BY RANDOM()
-          LIMIT $2
-        `, [severityGroup.ckd_severity, sampleSize]);
+      const totalPatients = allGroups.reduce((sum, group) => sum + group.count, 0);
 
-        selectedPatients.push(...selected.rows);
+      // Select patients proportionally from each group
+      for (const group of allGroups) {
+        const proportion = group.count / totalPatients;
+        const sampleSize = Math.max(1, Math.round(proportion * batchSize));
+
+        if (group.type === 'ckd') {
+          // Select CKD patients
+          const selected = await pool.query(`
+            SELECT
+              p.id,
+              p.first_name,
+              p.last_name,
+              cpd.ckd_stage,
+              cpd.ckd_severity,
+              NULL as risk_level,
+              COALESCE(MAX(o.month_number), 0) as current_month
+            FROM patients p
+            INNER JOIN ckd_patient_data cpd ON p.id = cpd.patient_id
+            LEFT JOIN observations o ON p.id = o.patient_id
+            WHERE cpd.ckd_severity = $1
+            GROUP BY p.id, p.first_name, p.last_name, cpd.ckd_stage, cpd.ckd_severity
+            ORDER BY RANDOM()
+            LIMIT $2
+          `, [group.category, sampleSize]);
+
+          selectedPatients.push(...selected.rows);
+        } else {
+          // Select non-CKD patients
+          const selected = await pool.query(`
+            SELECT
+              p.id,
+              p.first_name,
+              p.last_name,
+              0 as ckd_stage,
+              'none' as ckd_severity,
+              nckd.risk_level,
+              COALESCE(MAX(o.month_number), 0) as current_month
+            FROM patients p
+            INNER JOIN non_ckd_patient_data nckd ON p.id = nckd.patient_id
+            LEFT JOIN observations o ON p.id = o.patient_id
+            WHERE nckd.risk_level = $1
+            GROUP BY p.id, p.first_name, p.last_name, nckd.risk_level
+            ORDER BY RANDOM()
+            LIMIT $2
+          `, [group.category, sampleSize]);
+
+          selectedPatients.push(...selected.rows);
+        }
       }
     }
 
     const patients = selectedPatients;
-    const advancingPatientIds = patients.map(p => p.id);
+    const advancingPatientIds = patients.map((p: any) => p.id);
 
     if (patients.length === 0) {
       return res.json({
@@ -865,6 +905,7 @@ router.post('/advance-cycle', async (req: Request, res: Response): Promise<any> 
           first_name: patient.first_name,
           last_name: patient.last_name,
           ckd_severity: patient.ckd_severity,
+          risk_level: patient.risk_level,
           evolution_summary: evolutionSummary
         };
       })

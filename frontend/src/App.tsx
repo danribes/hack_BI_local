@@ -2309,7 +2309,7 @@ function App() {
 
             <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
               <p className="text-sm text-blue-800">
-                <strong>{selectedPatientsWithEvolution.length}</strong> patients were selected proportionally from each CKD severity group and advanced to the next cycle.
+                <strong>{selectedPatientsWithEvolution.length}</strong> patients were selected proportionally from each risk group and advanced to the next cycle.
               </p>
             </div>
 
@@ -2325,14 +2325,23 @@ function App() {
                         <h3 className="text-lg font-semibold text-gray-900">
                           {patient.first_name} {patient.last_name}
                         </h3>
-                        {patient.ckd_severity && (
+                        {patient.ckd_severity && patient.ckd_severity !== 'none' && (
                           <span className={`px-2 py-1 rounded text-xs font-bold ${
                             patient.ckd_severity === 'kidney_failure' ? 'bg-red-100 text-red-800 border border-red-300' :
                             patient.ckd_severity === 'severe' ? 'bg-orange-100 text-orange-800 border border-orange-300' :
                             patient.ckd_severity === 'moderate' ? 'bg-yellow-100 text-yellow-800 border border-yellow-300' :
                             'bg-green-100 text-green-800 border border-green-300'
                           }`}>
-                            {patient.ckd_severity.replace('_', ' ').toUpperCase()}
+                            CKD - {patient.ckd_severity.replace('_', ' ').toUpperCase()}
+                          </span>
+                        )}
+                        {(!patient.ckd_severity || patient.ckd_severity === 'none') && patient.risk_level && (
+                          <span className={`px-2 py-1 rounded text-xs font-bold ${
+                            patient.risk_level === 'high' ? 'bg-orange-100 text-orange-800 border border-orange-300' :
+                            patient.risk_level === 'moderate' ? 'bg-yellow-100 text-yellow-800 border border-yellow-300' :
+                            'bg-green-100 text-green-800 border border-green-300'
+                          }`}>
+                            NON-CKD - {patient.risk_level.toUpperCase()} RISK
                           </span>
                         )}
                       </div>
