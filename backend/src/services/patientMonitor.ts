@@ -323,7 +323,7 @@ export class PatientMonitorService {
               to: '', // Will be determined by WhatsApp config
               subject: `AI Alert: ${alertResult.alertType} - ${patientName} (MRN: ${mrn})`,
               message: alertResult.message || 'AI analysis detected a significant finding requiring review.',
-              priority: alertResult.priority,
+              priority: alertResult.priority || 'HIGH',
               patientName,
               mrn,
             });
