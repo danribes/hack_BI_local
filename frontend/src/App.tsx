@@ -1483,7 +1483,7 @@ function App() {
                             <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
                               Biomarker
                             </th>
-                            {selectedPatient.cycles_to_show.map((cycle: number) => (
+                            {(selectedPatient.cycles_to_show || []).map((cycle: number) => (
                               <th key={cycle} className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">
                                 Cycle {cycle}
                               </th>
@@ -1506,7 +1506,7 @@ function App() {
                                    biomarker === 'creatinine' ? 'Creatinine' :
                                    biomarker === 'BUN' ? 'BUN' : biomarker}
                                 </td>
-                                {selectedPatient.cycles_to_show.map((cycle: number) => {
+                                {(selectedPatient.cycles_to_show || []).map((cycle: number) => {
                                   const obs = observations.find(o => o.month_number === cycle);
                                   if (!obs) {
                                     return (
