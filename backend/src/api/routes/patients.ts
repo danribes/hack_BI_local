@@ -794,7 +794,7 @@ router.post('/advance-cycle', async (req: Request, res: Response): Promise<any> 
 
     // Batch insert all observations at once
     if (allObservations.length > 0) {
-      const values = allObservations.map((obs, idx) => {
+      const values = allObservations.map((_obs, idx) => {
         const base = idx * 6;
         return `($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, $${base + 5}, $${base + 6}, 'final')`;
       }).join(',');
