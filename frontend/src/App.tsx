@@ -2317,7 +2317,11 @@ function App() {
               {selectedPatientsWithEvolution.map((patient) => (
                 <div
                   key={patient.id}
-                  className="border border-gray-200 rounded-lg p-4 hover:bg-gray-50 transition-colors"
+                  onClick={() => {
+                    setShowEvolutionModal(false);
+                    fetchPatientDetail(patient.id);
+                  }}
+                  className="border border-gray-200 rounded-lg p-4 hover:bg-indigo-50 transition-colors cursor-pointer"
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
@@ -2360,15 +2364,11 @@ function App() {
                         </span>
                       </div>
                     </div>
-                    <button
-                      onClick={() => {
-                        setShowEvolutionModal(false);
-                        fetchPatientDetail(patient.id);
-                      }}
-                      className="ml-4 px-3 py-1 text-sm bg-indigo-600 text-white rounded hover:bg-indigo-700 transition-colors"
-                    >
-                      View Details
-                    </button>
+                    <div className="ml-4 flex items-center">
+                      <svg className="h-6 w-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                      </svg>
+                    </div>
                   </div>
                 </div>
               ))}
