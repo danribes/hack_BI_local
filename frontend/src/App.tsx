@@ -171,10 +171,17 @@ function App() {
 
   // Settings states
   const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [showAdvancedEmailSettings, setShowAdvancedEmailSettings] = useState(false);
   const [emailConfig, setEmailConfig] = useState<{
     doctor_email: string;
     enabled: boolean;
     configured: boolean;
+    smtp_host?: string;
+    smtp_port?: number;
+    smtp_user?: string;
+    smtp_password?: string;
+    from_email?: string;
+    from_name?: string;
   }>({
     doctor_email: '',
     enabled: false,
@@ -518,15 +525,27 @@ function App() {
     try {
       setSavingSettings(true);
 
+      const payload: any = {
+        doctor_email: emailConfig.doctor_email,
+        enabled: emailConfig.enabled
+      };
+
+      // Include SMTP settings if configured
+      if (emailConfig.smtp_host) {
+        payload.smtp_host = emailConfig.smtp_host;
+        payload.smtp_port = emailConfig.smtp_port || 587;
+        payload.smtp_user = emailConfig.smtp_user || '';
+        payload.smtp_password = emailConfig.smtp_password || '';
+        payload.from_email = emailConfig.from_email || '';
+        payload.from_name = emailConfig.from_name || 'CKD Analyzer System';
+      }
+
       const response = await fetch(`${API_URL}/api/settings/email`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({
-          doctor_email: emailConfig.doctor_email,
-          enabled: emailConfig.enabled
-        })
+        body: JSON.stringify(payload)
       });
 
       if (!response.ok) {
@@ -537,6 +556,7 @@ function App() {
       await response.json(); // Consume response body
       alert('Email settings saved successfully!');
       setEmailConfig({ ...emailConfig, configured: true });
+      await fetchEmailConfig(); // Refresh config
       setShowSettingsModal(false);
     } catch (err) {
       console.error('Error saving Email settings:', err);
@@ -2263,22 +2283,136 @@ function App() {
                     </button>
                   </div>
 
-                  {/* Phone Number Input */}
+                  {/* Email Address Input */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Doctor Email Address
                     </label>
                     <input
-                      type="tel"
+                      type="email"
                       value={emailConfig.doctor_email}
                       onChange={(e) => setEmailConfig({ ...emailConfig, doctor_email: e.target.value })}
                       placeholder="doctor@example.com"
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
                     />
                     <p className="mt-1 text-xs text-gray-500">
-                      Enter email address for receiving patient alerts (e.g., doctor@example.com)
+                      Enter email address for receiving patient alerts
                     </p>
                   </div>
+
+                  {/* Advanced SMTP Settings Toggle */}
+                  <div className="pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowAdvancedEmailSettings(!showAdvancedEmailSettings)}
+                      className="flex items-center gap-2 text-sm font-medium text-blue-600 hover:text-blue-700"
+                    >
+                      <svg className={`h-4 w-4 transform transition-transform ${showAdvancedEmailSettings ? 'rotate-90' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                      </svg>
+                      {showAdvancedEmailSettings ? 'Hide' : 'Show'} SMTP Configuration (Optional)
+                    </button>
+                    <p className="mt-1 text-xs text-gray-500">
+                      {showAdvancedEmailSettings ? 'Configure your own SMTP server for sending real emails' : 'Leave empty to use test email account (Ethereal)'}
+                    </p>
+                  </div>
+
+                  {/* Advanced SMTP Settings */}
+                  {showAdvancedEmailSettings && (
+                    <div className="space-y-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                      <div className="mb-2">
+                        <p className="text-sm font-medium text-gray-700 mb-1">Common SMTP Providers:</p>
+                        <div className="text-xs text-gray-600 space-y-1">
+                          <p><strong>Gmail:</strong> smtp.gmail.com:587 (use App Password)</p>
+                          <p><strong>Outlook:</strong> smtp-mail.outlook.com:587</p>
+                          <p><strong>SendGrid:</strong> smtp.sendgrid.net:587</p>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="col-span-2">
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            SMTP Host
+                          </label>
+                          <input
+                            type="text"
+                            value={emailConfig.smtp_host || ''}
+                            onChange={(e) => setEmailConfig({ ...emailConfig, smtp_host: e.target.value })}
+                            placeholder="smtp.gmail.com"
+                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            SMTP Port
+                          </label>
+                          <input
+                            type="number"
+                            value={emailConfig.smtp_port || 587}
+                            onChange={(e) => setEmailConfig({ ...emailConfig, smtp_port: parseInt(e.target.value) })}
+                            placeholder="587"
+                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            From Name
+                          </label>
+                          <input
+                            type="text"
+                            value={emailConfig.from_name || ''}
+                            onChange={(e) => setEmailConfig({ ...emailConfig, from_name: e.target.value })}
+                            placeholder="CKD Analyzer System"
+                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          />
+                        </div>
+
+                        <div className="col-span-2">
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            SMTP Username
+                          </label>
+                          <input
+                            type="text"
+                            value={emailConfig.smtp_user || ''}
+                            onChange={(e) => setEmailConfig({ ...emailConfig, smtp_user: e.target.value })}
+                            placeholder="your-email@gmail.com"
+                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          />
+                        </div>
+
+                        <div className="col-span-2">
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            SMTP Password / App Password
+                          </label>
+                          <input
+                            type="password"
+                            value={emailConfig.smtp_password || ''}
+                            onChange={(e) => setEmailConfig({ ...emailConfig, smtp_password: e.target.value })}
+                            placeholder="••••••••••••••••"
+                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          />
+                          <p className="mt-1 text-xs text-gray-500">
+                            For Gmail, use an App Password (not your regular password)
+                          </p>
+                        </div>
+
+                        <div className="col-span-2">
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            From Email (Optional)
+                          </label>
+                          <input
+                            type="email"
+                            value={emailConfig.from_email || ''}
+                            onChange={(e) => setEmailConfig({ ...emailConfig, from_email: e.target.value })}
+                            placeholder="noreply@yourdomain.com"
+                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Test Connection Button */}
                   {emailConfig.configured && emailConfig.enabled && (
