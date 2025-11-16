@@ -675,49 +675,63 @@ router.post('/:id/simulate-new-labs', async (req: Request, res: Response): Promi
  * - Generates new lab values for all patients
  * - If at month 12, copies month 12 to month 1 and clears months 2-12
  * - Otherwise, increments the cycle counter
+ * Query params:
+ *   - batch_size: number of patients to process (default: 50, max: 200)
  */
-router.post('/advance-cycle', async (_req: Request, res: Response): Promise<any> => {
+router.post('/advance-cycle', async (req: Request, res: Response): Promise<any> => {
   try {
     const pool = getPool();
+    const batchSize = Math.min(parseInt(req.query.batch_size as string) || 50, 200);
 
-    // Get all patients
+    // Get all patients with their current month
     const patientsResult = await pool.query(`
-      SELECT p.id, p.first_name, p.last_name, cpd.ckd_stage, cpd.ckd_severity
+      SELECT
+        p.id,
+        p.first_name,
+        p.last_name,
+        cpd.ckd_stage,
+        cpd.ckd_severity,
+        COALESCE(MAX(o.month_number), 0) as current_month
       FROM patients p
       LEFT JOIN ckd_patient_data cpd ON p.id = cpd.patient_id
-    `);
+      LEFT JOIN observations o ON p.id = o.patient_id
+      GROUP BY p.id, p.first_name, p.last_name, cpd.ckd_stage, cpd.ckd_severity
+      LIMIT $1
+    `, [batchSize]);
 
     const patients = patientsResult.rows;
-    let patientsProcessed = 0;
 
+    if (patients.length === 0) {
+      return res.json({
+        status: 'success',
+        message: 'No patients to process',
+        data: {
+          patients_processed: 0,
+          total_patients: 0
+        }
+      });
+    }
+
+    const observationDate = new Date();
+    const allObservations: any[] = [];
+
+    // Process each patient and collect all observations
     for (const patient of patients) {
-      // Determine current max month number for this patient
-      const monthResult = await pool.query(`
-        SELECT COALESCE(MAX(month_number), 0) as current_month
-        FROM observations
-        WHERE patient_id = $1
-      `, [patient.id]);
-
-      const currentMonth = monthResult.rows[0].current_month;
+      const currentMonth = patient.current_month;
       const newMonth = currentMonth >= 12 ? 12 : currentMonth + 1;
 
-      // If we're at month 12, handle the rollover
+      // Handle month 12 rollover
       if (currentMonth === 12) {
-        // Delete months 2-12
         await pool.query(`
           DELETE FROM observations
           WHERE patient_id = $1 AND month_number BETWEEN 2 AND 12
         `, [patient.id]);
 
-        // Copy month 12 to month 1
         await pool.query(`
           UPDATE observations
           SET month_number = 1
           WHERE patient_id = $1 AND month_number = 12
         `, [patient.id]);
-
-        // Now generate new values for month 12
-        // (The new month is still 12 since we're at the max)
       }
 
       // Generate realistic lab values
@@ -732,6 +746,7 @@ router.post('/advance-cycle', async (_req: Request, res: Response): Promise<any>
         case 2: baseEGFR = 60 + Math.random() * 29; break;
         default: baseEGFR = 90 + Math.random() * 30; break;
       }
+
       const eGFR = Number(baseEGFR.toFixed(1));
       const creatinine = Number((175 / (eGFR + 50) + 0.3).toFixed(2));
       const bun = Number((7 + Math.random() * 25).toFixed(1));
@@ -751,8 +766,7 @@ router.post('/advance-cycle', async (_req: Request, res: Response): Promise<any>
       const hba1c = hasDiabetes ? Number((5.7 + Math.random() * 5).toFixed(1)) : Number((4.5 + Math.random() * 1).toFixed(1));
       const glucose = hasDiabetes ? Number((100 + Math.random() * 150).toFixed(0)) : Number((70 + Math.random() * 40).toFixed(0));
 
-      // Insert new observations
-      const observationDate = new Date();
+      // Collect observations for batch insert
       const observations = [
         { type: 'eGFR', value: eGFR, unit: 'mL/min/1.73m²' },
         { type: 'creatinine', value: creatinine, unit: 'mg/dL' },
@@ -773,22 +787,33 @@ router.post('/advance-cycle', async (_req: Request, res: Response): Promise<any>
         { type: 'glucose', value: glucose, unit: 'mg/dL' }
       ];
 
-      for (const obs of observations) {
-        await pool.query(`
-          INSERT INTO observations (patient_id, observation_type, value_numeric, unit, observation_date, month_number, status)
-          VALUES ($1, $2, $3, $4, $5, $6, 'final')
-        `, [patient.id, obs.type, obs.value, obs.unit, observationDate, newMonth]);
-      }
+      observations.forEach(obs => {
+        allObservations.push([patient.id, obs.type, obs.value, obs.unit, observationDate, newMonth]);
+      });
+    }
 
-      patientsProcessed++;
+    // Batch insert all observations at once
+    if (allObservations.length > 0) {
+      const values = allObservations.map((obs, idx) => {
+        const base = idx * 6;
+        return `($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, $${base + 5}, $${base + 6}, 'final')`;
+      }).join(',');
+
+      const params = allObservations.flat();
+
+      await pool.query(`
+        INSERT INTO observations (patient_id, observation_type, value_numeric, unit, observation_date, month_number, status)
+        VALUES ${values}
+      `, params);
     }
 
     res.json({
       status: 'success',
-      message: `Cycle advanced for ${patientsProcessed} patients`,
+      message: `Cycle advanced for ${patients.length} patients`,
       data: {
-        patients_processed: patientsProcessed,
-        total_patients: patients.length
+        patients_processed: patients.length,
+        batch_size: batchSize,
+        observations_created: allObservations.length
       }
     });
 
