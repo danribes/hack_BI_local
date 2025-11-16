@@ -484,7 +484,7 @@ function App() {
         throw new Error(errorData.message || 'Failed to save settings');
       }
 
-      const data = await response.json();
+      await response.json(); // Consume response body
       alert('WhatsApp settings saved successfully!');
       setWhatsappConfig({ ...whatsappConfig, configured: true });
       setShowSettingsModal(false);
