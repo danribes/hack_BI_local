@@ -169,34 +169,12 @@ function App() {
   const [statistics, setStatistics] = useState<any>(null);
   const [isAdvancingCycle, setIsAdvancingCycle] = useState(false);
   const [isResettingCycles, setIsResettingCycles] = useState(false);
-  const [batchSize, setBatchSize] = useState<number>(50);
-
-  // Settings states
-  const [showSettingsModal, setShowSettingsModal] = useState(false);
-  const [showAdvancedEmailSettings, setShowAdvancedEmailSettings] = useState(false);
-  const [emailConfig, setEmailConfig] = useState<{
-    doctor_email: string;
-    enabled: boolean;
-    configured: boolean;
-    smtp_host?: string;
-    smtp_port?: number;
-    smtp_user?: string;
-    smtp_password?: string;
-    from_email?: string;
-    from_name?: string;
-  }>({
-    doctor_email: '',
-    enabled: false,
-    configured: false
-  });
-  const [savingSettings, setSavingSettings] = useState(false);
 
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
   useEffect(() => {
     fetchPatients();
     fetchStatistics();
-    fetchEmailConfig();
   }, []);
 
   // Fetch patients when filters change
@@ -386,9 +364,7 @@ function App() {
 
     const confirmMessage = isFiltered
       ? `This will advance the ${currentPatientIds.length} currently displayed patients to the next cycle. Are you sure?`
-      : batchSize === 1000
-        ? 'This will advance ALL 1000 patients to the next cycle. This may take up to 30 seconds. Are you sure?'
-        : `This will advance ${batchSize} patients to the next cycle. Are you sure?`;
+      : 'This will advance ALL 1000 patients to the next cycle. This may take up to 30 seconds. Are you sure?';
 
     if (!confirm(confirmMessage)) {
       return;
@@ -401,7 +377,8 @@ function App() {
       // Prepare request body with patient IDs if filtered
       const requestBody = isFiltered ? { patient_ids: currentPatientIds } : {};
 
-      const response = await fetch(`${API_URL}/api/patients/advance-cycle?batch_size=${batchSize}`, {
+      // Always process all patients (batch_size=1000)
+      const response = await fetch(`${API_URL}/api/patients/advance-cycle?batch_size=1000`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -495,93 +472,6 @@ function App() {
       alert('Failed to reset cycles. Please try again.');
     } finally {
       setIsResettingCycles(false);
-    }
-  };
-
-  // Fetch Email configuration
-  const fetchEmailConfig = async () => {
-    try {
-      const response = await fetch(`${API_URL}/api/settings/email`);
-      if (response.ok) {
-        const data = await response.json();
-        setEmailConfig(data.data);
-      }
-    } catch (err) {
-      console.error('Error fetching Email config:', err);
-    }
-  };
-
-  // Save Email configuration
-  const handleSaveEmailSettings = async () => {
-    try {
-      setSavingSettings(true);
-
-      const payload: any = {
-        doctor_email: emailConfig.doctor_email,
-        enabled: emailConfig.enabled
-      };
-
-      // Include SMTP settings if configured
-      if (emailConfig.smtp_host) {
-        payload.smtp_host = emailConfig.smtp_host;
-        payload.smtp_port = emailConfig.smtp_port || 587;
-        payload.smtp_user = emailConfig.smtp_user || '';
-        payload.smtp_password = emailConfig.smtp_password || '';
-        payload.from_email = emailConfig.from_email || '';
-        payload.from_name = emailConfig.from_name || 'CKD Analyzer System';
-      }
-
-      const response = await fetch(`${API_URL}/api/settings/email`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(payload)
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to save settings');
-      }
-
-      await response.json(); // Consume response body
-      alert('Email settings saved successfully!');
-      setEmailConfig({ ...emailConfig, configured: true });
-      await fetchEmailConfig(); // Refresh config
-      setShowSettingsModal(false);
-    } catch (err) {
-      console.error('Error saving Email settings:', err);
-      alert(err instanceof Error ? err.message : 'Failed to save Email settings');
-    } finally {
-      setSavingSettings(false);
-    }
-  };
-
-  // Test Email connection
-  const handleTestEmail = async () => {
-    try {
-      const response = await fetch(`${API_URL}/api/settings/email/test`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        alert(`✓ ${data.message}`);
-
-        // If there's a preview URL (Ethereal test account), open it in a new tab
-        if (data.previewUrl) {
-          window.open(data.previewUrl, '_blank');
-        }
-      } else {
-        alert(`✗ ${data.message}`);
-      }
-    } catch (err) {
-      console.error('Error testing Email:', err);
-      alert('Failed to test Email connection');
     }
   };
 
@@ -1994,38 +1884,6 @@ function App() {
             </div>
             {!loading && !error && patients.length > 0 && (
               <div className="flex items-center gap-3">
-                {/* Settings Button */}
-                <button
-                  onClick={() => setShowSettingsModal(true)}
-                  className="px-4 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 flex items-center gap-2 transition-colors duration-200 shadow-lg"
-                  title="Settings"
-                >
-                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                  </svg>
-                </button>
-
-                {/* Batch Size Selector */}
-                <div className="flex flex-col items-end gap-1">
-                  <label htmlFor="batch-size" className="text-xs text-gray-600 font-medium">
-                    Batch Size:
-                  </label>
-                  <select
-                    id="batch-size"
-                    value={batchSize}
-                    onChange={(e) => setBatchSize(Number(e.target.value))}
-                    disabled={isAdvancingCycle || isResettingCycles}
-                    className="px-4 py-2 bg-white border-2 border-gray-300 rounded-lg text-gray-900 font-semibold cursor-pointer hover:border-green-500 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 disabled:bg-gray-100 disabled:cursor-not-allowed transition-all duration-200 shadow-md"
-                  >
-                    <option value={50}>50 patients</option>
-                    <option value={100}>100 patients</option>
-                    <option value={250}>250 patients</option>
-                    <option value={500}>500 patients</option>
-                    <option value={1000}>All 1000 patients</option>
-                  </select>
-                </div>
-
                 {/* Advance Cycle Button */}
                 <button
                   onClick={handleAdvanceCycle}
@@ -2181,7 +2039,14 @@ function App() {
                 </h2>
               </div>
 
-              {/* Patient List */}
+              {/* Patient List
+                  Changes Summary:
+                  - Removed batch size selector menu (now processes all 1000 patients by default)
+                  - Removed Settings modal and email configuration UI
+                  - Advance Cycle button now processes all patients automatically
+                  - Backend generates additional clinical variables per patient (see advance-cycle endpoint)
+                  - Patient evolution summaries are displayed as badges showing cycle-to-cycle changes
+              */}
               <div className="divide-y divide-gray-200">
                 {filteredPatients.length > 0 ? (
                   filteredPatients.map((patient) => (
@@ -2310,222 +2175,6 @@ function App() {
         currentPatientId={(selectedPatient as PatientDetail | null)?.id}
         apiBaseUrl={import.meta.env.VITE_API_URL || 'http://localhost:3000'}
       />
-
-      {/* Settings Modal */}
-      {showSettingsModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-8 max-w-lg w-full mx-4 shadow-2xl">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-                <svg className="h-6 w-6 text-gray-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
-                Settings
-              </h2>
-              <button
-                onClick={() => setShowSettingsModal(false)}
-                className="text-gray-400 hover:text-gray-600"
-              >
-                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-
-            <div className="space-y-6">
-              {/* Email Notifications Section */}
-              <div className="border-t pt-4">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                  <svg className="h-5 w-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                  </svg>
-                  Email Notifications
-                </h3>
-
-                <div className="space-y-4">
-                  {/* Enable/Disable Toggle */}
-                  <div className="flex items-center justify-between">
-                    <label className="text-sm font-medium text-gray-700">
-                      Enable Notifications
-                    </label>
-                    <button
-                      onClick={() => setEmailConfig({ ...emailConfig, enabled: !emailConfig.enabled })}
-                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                        emailConfig.enabled ? 'bg-green-600' : 'bg-gray-300'
-                      }`}
-                    >
-                      <span
-                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                          emailConfig.enabled ? 'translate-x-6' : 'translate-x-1'
-                        }`}
-                      />
-                    </button>
-                  </div>
-
-                  {/* Email Address Input */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Doctor Email Address
-                    </label>
-                    <input
-                      type="email"
-                      value={emailConfig.doctor_email}
-                      onChange={(e) => setEmailConfig({ ...emailConfig, doctor_email: e.target.value })}
-                      placeholder="doctor@example.com"
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
-                    />
-                    <p className="mt-1 text-xs text-gray-500">
-                      Enter email address for receiving patient alerts
-                    </p>
-                  </div>
-
-                  {/* Advanced SMTP Settings Toggle */}
-                  <div className="pt-2">
-                    <button
-                      type="button"
-                      onClick={() => setShowAdvancedEmailSettings(!showAdvancedEmailSettings)}
-                      className="flex items-center gap-2 text-sm font-medium text-blue-600 hover:text-blue-700"
-                    >
-                      <svg className={`h-4 w-4 transform transition-transform ${showAdvancedEmailSettings ? 'rotate-90' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                      </svg>
-                      {showAdvancedEmailSettings ? 'Hide' : 'Show'} SMTP Configuration (Optional)
-                    </button>
-                    <p className="mt-1 text-xs text-gray-500">
-                      {showAdvancedEmailSettings ? 'Configure your own SMTP server for sending real emails' : 'Leave empty to use test email account (Ethereal)'}
-                    </p>
-                  </div>
-
-                  {/* Advanced SMTP Settings */}
-                  {showAdvancedEmailSettings && (
-                    <div className="space-y-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
-                      <div className="mb-2">
-                        <p className="text-sm font-medium text-gray-700 mb-1">Common SMTP Providers:</p>
-                        <div className="text-xs text-gray-600 space-y-1">
-                          <p><strong>Gmail:</strong> smtp.gmail.com:587 (use App Password)</p>
-                          <p><strong>Outlook:</strong> smtp-mail.outlook.com:587</p>
-                          <p><strong>SendGrid:</strong> smtp.sendgrid.net:587</p>
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="col-span-2">
-                          <label className="block text-sm font-medium text-gray-700 mb-2">
-                            SMTP Host
-                          </label>
-                          <input
-                            type="text"
-                            value={emailConfig.smtp_host || ''}
-                            onChange={(e) => setEmailConfig({ ...emailConfig, smtp_host: e.target.value })}
-                            placeholder="smtp.gmail.com"
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">
-                            SMTP Port
-                          </label>
-                          <input
-                            type="number"
-                            value={emailConfig.smtp_port || 587}
-                            onChange={(e) => setEmailConfig({ ...emailConfig, smtp_port: parseInt(e.target.value) })}
-                            placeholder="587"
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          />
-                        </div>
-
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-2">
-                            From Name
-                          </label>
-                          <input
-                            type="text"
-                            value={emailConfig.from_name || ''}
-                            onChange={(e) => setEmailConfig({ ...emailConfig, from_name: e.target.value })}
-                            placeholder="CKD Analyzer System"
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          />
-                        </div>
-
-                        <div className="col-span-2">
-                          <label className="block text-sm font-medium text-gray-700 mb-2">
-                            SMTP Username
-                          </label>
-                          <input
-                            type="text"
-                            value={emailConfig.smtp_user || ''}
-                            onChange={(e) => setEmailConfig({ ...emailConfig, smtp_user: e.target.value })}
-                            placeholder="your-email@gmail.com"
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          />
-                        </div>
-
-                        <div className="col-span-2">
-                          <label className="block text-sm font-medium text-gray-700 mb-2">
-                            SMTP Password / App Password
-                          </label>
-                          <input
-                            type="password"
-                            value={emailConfig.smtp_password || ''}
-                            onChange={(e) => setEmailConfig({ ...emailConfig, smtp_password: e.target.value })}
-                            placeholder="••••••••••••••••"
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          />
-                          <p className="mt-1 text-xs text-gray-500">
-                            For Gmail, use an App Password (not your regular password)
-                          </p>
-                        </div>
-
-                        <div className="col-span-2">
-                          <label className="block text-sm font-medium text-gray-700 mb-2">
-                            From Email (Optional)
-                          </label>
-                          <input
-                            type="email"
-                            value={emailConfig.from_email || ''}
-                            onChange={(e) => setEmailConfig({ ...emailConfig, from_email: e.target.value })}
-                            placeholder="noreply@yourdomain.com"
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Test Connection Button */}
-                  {emailConfig.configured && emailConfig.enabled && (
-                    <button
-                      onClick={handleTestEmail}
-                      className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                    >
-                      Send Test Email
-                    </button>
-                  )}
-                </div>
-              </div>
-
-              {/* Action Buttons */}
-              <div className="flex gap-3 pt-4 border-t">
-                <button
-                  onClick={() => setShowSettingsModal(false)}
-                  className="flex-1 px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleSaveEmailSettings}
-                  disabled={savingSettings}
-                  className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400 transition-colors"
-                >
-                  {savingSettings ? 'Saving...' : 'Save Settings'}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
