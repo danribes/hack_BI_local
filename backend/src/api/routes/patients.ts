@@ -396,7 +396,8 @@ router.get('/:id', async (req: Request, res: Response): Promise<any> => {
         value_text,
         unit,
         observation_date,
-        notes
+        notes,
+        month_number
       FROM observations
       WHERE patient_id = $1
       ORDER BY observation_type, observation_date DESC
@@ -671,17 +672,18 @@ router.post('/:id/simulate-new-labs', async (req: Request, res: Response): Promi
 
 /**
  * POST /api/patients/advance-cycle
- * Advance all patients to the next cycle/month
- * - Generates new lab values for all patients
+ * Advance a batch of patients to the next cycle/month
+ * - Generates new lab values for patients in the batch
  * - If at month 12, copies month 12 to month 1 and clears months 2-12
  * - Otherwise, increments the cycle counter
+ * - All other patients NOT in the batch are reset to month 1
  * Query params:
- *   - batch_size: number of patients to process (default: 50, max: 200)
+ *   - batch_size: number of patients to process (default: 50, max: 1000)
  */
 router.post('/advance-cycle', async (req: Request, res: Response): Promise<any> => {
   try {
     const pool = getPool();
-    const batchSize = Math.min(parseInt(req.query.batch_size as string) || 50, 200);
+    const batchSize = Math.min(parseInt(req.query.batch_size as string) || 50, 1000);
 
     // Get all patients with their current month
     const patientsResult = await pool.query(`
@@ -700,6 +702,7 @@ router.post('/advance-cycle', async (req: Request, res: Response): Promise<any> 
     `, [batchSize]);
 
     const patients = patientsResult.rows;
+    const advancingPatientIds = patients.map(p => p.id);
 
     if (patients.length === 0) {
       return res.json({
@@ -807,11 +810,78 @@ router.post('/advance-cycle', async (req: Request, res: Response): Promise<any> 
       `, params);
     }
 
+    // For all other patients NOT in the advancing batch, ensure they stay at month 1
+    // by copying their month 1 values if they exist
+    let patientsReset = 0;
+    if (advancingPatientIds.length > 0) {
+      // Get all patients that have observations but are NOT in the advancing batch
+      const otherPatientsResult = await pool.query(`
+        SELECT DISTINCT patient_id
+        FROM observations
+        WHERE patient_id NOT IN (${advancingPatientIds.map((_, idx) => `$${idx + 1}`).join(',')})
+      `, advancingPatientIds);
+
+      for (const otherPatient of otherPatientsResult.rows) {
+        const patientId = otherPatient.patient_id;
+
+        // Get month 1 observations for this patient
+        const month1Observations = await pool.query(`
+          SELECT
+            observation_type,
+            value_numeric,
+            value_text,
+            unit,
+            observation_date,
+            notes,
+            status
+          FROM observations
+          WHERE patient_id = $1 AND month_number = 1
+        `, [patientId]);
+
+        if (month1Observations.rows.length > 0) {
+          // Delete all observations for this patient
+          await pool.query(`
+            DELETE FROM observations
+            WHERE patient_id = $1
+          `, [patientId]);
+
+          // Re-insert month 1 observations
+          const observations = month1Observations.rows;
+          const values = observations.map((_obs, idx) => {
+            const base = idx * 8;
+            return `($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, $${base + 5}, $${base + 6}, $${base + 7}, $${base + 8})`;
+          }).join(',');
+
+          const params: any[] = [];
+          observations.forEach(obs => {
+            params.push(
+              patientId,
+              obs.observation_type,
+              obs.value_numeric,
+              obs.value_text,
+              obs.unit,
+              obs.observation_date,
+              obs.notes,
+              1 // month_number = 1
+            );
+          });
+
+          await pool.query(`
+            INSERT INTO observations (patient_id, observation_type, value_numeric, value_text, unit, observation_date, notes, month_number)
+            VALUES ${values}
+          `, params);
+
+          patientsReset++;
+        }
+      }
+    }
+
     res.json({
       status: 'success',
-      message: `Cycle advanced for ${patients.length} patients`,
+      message: `Cycle advanced for ${patients.length} patients, ${patientsReset} patients reset to month 1`,
       data: {
         patients_processed: patients.length,
+        patients_reset_to_month_1: patientsReset,
         batch_size: batchSize,
         observations_created: allObservations.length
       }
@@ -822,6 +892,113 @@ router.post('/advance-cycle', async (req: Request, res: Response): Promise<any> 
     res.status(500).json({
       status: 'error',
       message: 'Failed to advance cycle',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+/**
+ * Reset cycles - Copy last cycle to first and remove the rest
+ * POST /api/patients/reset-cycles
+ */
+router.post('/reset-cycles', async (_req: Request, res: Response): Promise<any> => {
+  try {
+    const pool = getPool();
+
+    // Get all patients with their observations
+    const patientsResult = await pool.query(`
+      SELECT DISTINCT patient_id
+      FROM observations
+    `);
+
+    const patients = patientsResult.rows;
+    let totalProcessed = 0;
+    let totalObservationsCopied = 0;
+
+    for (const patient of patients) {
+      const patientId = patient.patient_id;
+
+      // Find the maximum month number for this patient
+      const maxMonthResult = await pool.query(`
+        SELECT MAX(month_number) as max_month
+        FROM observations
+        WHERE patient_id = $1
+      `, [patientId]);
+
+      const maxMonth = maxMonthResult.rows[0]?.max_month;
+
+      if (!maxMonth || maxMonth === 0) {
+        continue; // Skip patients with no valid observations
+      }
+
+      // Get all observations from the last cycle
+      const lastCycleObservations = await pool.query(`
+        SELECT
+          observation_type,
+          value_numeric,
+          value_text,
+          unit,
+          observation_date,
+          notes,
+          status
+        FROM observations
+        WHERE patient_id = $1 AND month_number = $2
+      `, [patientId, maxMonth]);
+
+      if (lastCycleObservations.rows.length === 0) {
+        continue;
+      }
+
+      // Delete all existing observations for this patient
+      await pool.query(`
+        DELETE FROM observations
+        WHERE patient_id = $1
+      `, [patientId]);
+
+      // Insert observations as month 1
+      const observations = lastCycleObservations.rows;
+      const values = observations.map((_obs, idx) => {
+        const base = idx * 8;
+        return `($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, $${base + 5}, $${base + 6}, $${base + 7}, $${base + 8})`;
+      }).join(',');
+
+      const params: any[] = [];
+      observations.forEach(obs => {
+        params.push(
+          patientId,
+          obs.observation_type,
+          obs.value_numeric,
+          obs.value_text,
+          obs.unit,
+          obs.observation_date,
+          obs.notes,
+          1 // month_number = 1
+        );
+      });
+
+      await pool.query(`
+        INSERT INTO observations (patient_id, observation_type, value_numeric, value_text, unit, observation_date, notes, month_number)
+        VALUES ${values}
+      `, params);
+
+      totalProcessed++;
+      totalObservationsCopied += observations.length;
+    }
+
+    res.json({
+      status: 'success',
+      message: `Cycles reset for ${totalProcessed} patients`,
+      data: {
+        patients_processed: totalProcessed,
+        observations_copied: totalObservationsCopied
+      }
+    });
+
+  } catch (error) {
+    console.error('[Patients API] Error resetting cycles:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to reset cycles',
       error: error instanceof Error ? error.message : 'Unknown error'
     });
   }

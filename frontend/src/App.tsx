@@ -52,6 +52,7 @@ interface Observation {
   unit?: string;
   observation_date: string;
   notes?: string;
+  month_number?: number;
 }
 
 interface Condition {
@@ -165,6 +166,7 @@ function App() {
   const [statistics, setStatistics] = useState<any>(null);
   const [isSimulating, setIsSimulating] = useState(false);
   const [isAdvancingCycle, setIsAdvancingCycle] = useState(false);
+  const [isResettingCycles, setIsResettingCycles] = useState(false);
   const [batchSize, setBatchSize] = useState<number>(50);
 
   // Settings states
@@ -435,9 +437,12 @@ function App() {
       }
 
       // Show success message with batch info
+      const resetInfo = data.data.patients_reset_to_month_1 > 0
+        ? ` ${data.data.patients_reset_to_month_1} patients were reset to month 1.`
+        : '';
       const message = batchSize === 1000
-        ? `Successfully advanced ALL patients! Processed ${data.data.patients_processed} patients.`
-        : `Successfully advanced ${data.data.patients_processed} patients. (${1000 - data.data.patients_processed} patients remaining)`;
+        ? `Successfully advanced ALL patients! Processed ${data.data.patients_processed} patients.${resetInfo}`
+        : `Successfully advanced ${data.data.patients_processed} patients.${resetInfo}`;
 
       alert(message);
 
@@ -447,6 +452,49 @@ function App() {
       alert('Failed to advance cycle. Please try again.');
     } finally {
       setIsAdvancingCycle(false);
+    }
+  };
+
+  const handleResetCycles = async () => {
+    const confirmMessage = 'This will reset ALL cycles for ALL patients. The values from the last cycle will be copied to cycle 1, and all other cycles will be deleted. This action cannot be undone. Are you sure?';
+
+    if (!confirm(confirmMessage)) {
+      return;
+    }
+
+    try {
+      setIsResettingCycles(true);
+      setError(null);
+
+      const response = await fetch(`${API_URL}/api/patients/reset-cycles`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to reset cycles: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log('Cycles reset:', data);
+
+      // Refresh patient list and detail if a patient is selected
+      await fetchPatients();
+      if (selectedPatient) {
+        await fetchPatientDetail(selectedPatient.id);
+      }
+
+      // Show success message
+      alert(`Successfully reset cycles for ${data.data.patients_processed} patients!`);
+
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to reset cycles');
+      console.error('Error resetting cycles:', err);
+      alert('Failed to reset cycles. Please try again.');
+    } finally {
+      setIsResettingCycles(false);
     }
   };
 
@@ -754,7 +802,7 @@ function App() {
                 </div>
 
                 {/* Demographics & Contact */}
-                <div className="p-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div className="p-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
                   <div>
                     <div className="text-sm font-semibold text-gray-500 uppercase tracking-wider">Age</div>
                     <div className="text-2xl font-bold text-gray-900 mt-1">{age} years</div>
@@ -766,6 +814,18 @@ function App() {
                   <div>
                     <div className="text-sm font-semibold text-gray-500 uppercase tracking-wider">Date of Birth</div>
                     <div className="text-lg font-semibold text-gray-900 mt-1">{formatDate(selectedPatient.date_of_birth)}</div>
+                  </div>
+                  <div>
+                    <div className="text-sm font-semibold text-gray-500 uppercase tracking-wider">Current Cycle</div>
+                    <div className="text-2xl font-bold text-indigo-600 mt-1">
+                      {(() => {
+                        const monthNumbers = selectedPatient.observations
+                          .map(obs => obs.month_number)
+                          .filter((num): num is number => num !== undefined && num !== null);
+                        const currentCycle = monthNumbers.length > 0 ? Math.max(...monthNumbers) : 0;
+                        return `Month ${currentCycle}`;
+                      })()}
+                    </div>
                   </div>
                   <div>
                     <div className="text-sm font-semibold text-gray-500 uppercase tracking-wider">Patient ID</div>
@@ -1862,7 +1922,7 @@ function App() {
                     id="batch-size"
                     value={batchSize}
                     onChange={(e) => setBatchSize(Number(e.target.value))}
-                    disabled={isAdvancingCycle}
+                    disabled={isAdvancingCycle || isResettingCycles}
                     className="px-4 py-2 bg-white border-2 border-gray-300 rounded-lg text-gray-900 font-semibold cursor-pointer hover:border-green-500 focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 disabled:bg-gray-100 disabled:cursor-not-allowed transition-all duration-200 shadow-md"
                   >
                     <option value={50}>50 patients</option>
@@ -1876,13 +1936,25 @@ function App() {
                 {/* Advance Cycle Button */}
                 <button
                   onClick={handleAdvanceCycle}
-                  disabled={isAdvancingCycle}
+                  disabled={isAdvancingCycle || isResettingCycles}
                   className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center gap-2 transition-colors duration-200 shadow-lg"
                 >
                   <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                   </svg>
                   {isAdvancingCycle ? 'Advancing Cycle...' : 'Advance to Next Month'}
+                </button>
+
+                {/* Reset Cycles Button */}
+                <button
+                  onClick={handleResetCycles}
+                  disabled={isAdvancingCycle || isResettingCycles}
+                  className="px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center gap-2 transition-colors duration-200 shadow-lg"
+                >
+                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                  {isResettingCycles ? 'Resetting Cycles...' : 'Reset Cycles'}
                 </button>
               </div>
             )}
