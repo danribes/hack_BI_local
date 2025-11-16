@@ -2317,10 +2317,7 @@ function App() {
               {selectedPatientsWithEvolution.map((patient) => (
                 <div
                   key={patient.id}
-                  onClick={() => {
-                    setShowEvolutionModal(false);
-                    fetchPatientDetail(patient.id);
-                  }}
+                  onClick={() => fetchPatientDetail(patient.id)}
                   className="border border-gray-200 rounded-lg p-4 hover:bg-indigo-50 transition-colors cursor-pointer"
                 >
                   <div className="flex items-start justify-between">
