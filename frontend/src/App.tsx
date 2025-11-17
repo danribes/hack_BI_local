@@ -167,8 +167,6 @@ function App() {
   });
 
   const [statistics, setStatistics] = useState<any>(null);
-  const [isAdvancingCycle, setIsAdvancingCycle] = useState(false);
-  const [isResettingCycles, setIsResettingCycles] = useState(false);
 
   const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
 
@@ -351,127 +349,6 @@ function App() {
       console.error('Error populating database:', err);
     } finally {
       setPopulating(false);
-    }
-  };
-
-  const handleAdvanceCycle = async () => {
-    // Check if we're working with filtered/displayed patients
-    const currentPatientIds = patients.map((p: Patient) => p.id);
-    const isFiltered = activeFilters.patientType !== 'all' ||
-                      activeFilters.ckdSeverity ||
-                      activeFilters.nonCkdRisk ||
-                      currentPatientIds.length < 1000;
-
-    const confirmMessage = isFiltered
-      ? `This will advance the ${currentPatientIds.length} currently displayed patients to the next cycle. Are you sure?`
-      : 'This will advance ALL 1000 patients to the next cycle. This may take up to 30 seconds. Are you sure?';
-
-    if (!confirm(confirmMessage)) {
-      return;
-    }
-
-    try {
-      setIsAdvancingCycle(true);
-      setError(null);
-
-      // Prepare request body with patient IDs if filtered
-      const requestBody = isFiltered ? { patient_ids: currentPatientIds } : {};
-
-      // Always process all patients (batch_size=1000)
-      const response = await fetch(`${API_URL}/api/patients/advance-cycle?batch_size=1000`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(requestBody)
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to advance cycle: ${response.status}`);
-      }
-
-      const data = await response.json();
-      console.log('Cycle advanced:', data);
-
-      // Create evolution map for merging with patient data
-      const evolutionMap = new Map();
-      if (data.data.selected_patients && data.data.selected_patients.length > 0) {
-        data.data.selected_patients.forEach((p: any) => {
-          evolutionMap.set(p.id, p.evolution_summary);
-        });
-      }
-
-      // Refresh patient list based on current filter state
-      if (activeFilters.patientType !== 'all' || activeFilters.ckdSeverity || activeFilters.nonCkdRisk) {
-        await fetchFilteredPatients();
-      } else {
-        await fetchPatients();
-      }
-      await fetchStatistics();
-      if (selectedPatient) {
-        await fetchPatientDetail(selectedPatient.id);
-      }
-
-      // Merge evolution summaries into the patients array
-      if (evolutionMap.size > 0) {
-        setPatients((currentPatients: Patient[]) =>
-          currentPatients.map((p: Patient) => ({
-            ...p,
-            evolution_summary: evolutionMap.get(p.id)
-          }))
-        );
-      }
-
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to advance cycle');
-      console.error('Error advancing cycle:', err);
-      alert('Failed to advance cycle. Please try again.');
-    } finally {
-      setIsAdvancingCycle(false);
-    }
-  };
-
-  const handleResetCycles = async () => {
-    const confirmMessage = 'This will reset ALL cycles for ALL patients. The values from the last cycle will be copied to cycle 1, and all other cycles will be deleted. This action cannot be undone. Are you sure?';
-
-    if (!confirm(confirmMessage)) {
-      return;
-    }
-
-    try {
-      setIsResettingCycles(true);
-      setError(null);
-
-      const response = await fetch(`${API_URL}/api/patients/reset-cycles`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (!response.ok) {
-        throw new Error(`Failed to reset cycles: ${response.status}`);
-      }
-
-      const data = await response.json();
-      console.log('Cycles reset:', data);
-
-      // Refresh patient list, statistics, and detail if a patient is selected
-      await fetchPatients();
-      await fetchStatistics();
-      if (selectedPatient) {
-        await fetchPatientDetail(selectedPatient.id);
-      }
-
-      // Show success message
-      alert(`Successfully reset cycles for ${data.data.patients_processed} patients!`);
-
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to reset cycles');
-      console.error('Error resetting cycles:', err);
-      alert('Failed to reset cycles. Please try again.');
-    } finally {
-      setIsResettingCycles(false);
     }
   };
 
@@ -1882,33 +1759,6 @@ function App() {
                 Patient Database
               </p>
             </div>
-            {!loading && !error && patients.length > 0 && (
-              <div className="flex items-center gap-3">
-                {/* Advance Cycle Button */}
-                <button
-                  onClick={handleAdvanceCycle}
-                  disabled={isAdvancingCycle || isResettingCycles}
-                  className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center gap-2 transition-colors duration-200 shadow-lg"
-                >
-                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                  </svg>
-                  {isAdvancingCycle ? 'Advancing Cycle...' : 'Advance to Next Cycle'}
-                </button>
-
-                {/* Reset Cycles Button */}
-                <button
-                  onClick={handleResetCycles}
-                  disabled={isAdvancingCycle || isResettingCycles}
-                  className="px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center gap-2 transition-colors duration-200 shadow-lg"
-                >
-                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                  </svg>
-                  {isResettingCycles ? 'Resetting Cycles...' : 'Reset Cycles'}
-                </button>
-              </div>
-            )}
           </div>
         </header>
 
