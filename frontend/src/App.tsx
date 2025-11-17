@@ -480,6 +480,15 @@ function App() {
         await fetchHealthStateComments(selectedPatient.id);
       }
 
+      // Refresh patient list to show updated risk level in main list
+      console.log('[UPDATE] Refreshing patient list...');
+      if (activeFilters.patientType !== 'all' || activeFilters.ckdSeverity || activeFilters.nonCkdRisk) {
+        await fetchFilteredPatients();
+      } else {
+        await fetchPatients();
+      }
+      console.log('[UPDATE] Patient list refreshed successfully');
+
       // Show success message (you could add a toast notification here)
       const stateChangeMessage = data.health_state_changed
         ? ` Health state changed: ${data.previous_health_state} → ${data.new_health_state}.`

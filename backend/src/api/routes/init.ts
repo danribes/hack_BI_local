@@ -129,6 +129,81 @@ router.post('/migrate', async (_req: Request, res: Response): Promise<any> => {
       UPDATE patients SET ckd_treatment_active = false WHERE ckd_treatment_active IS NULL;
     `);
 
+    // Create patient_health_state_comments table
+    console.log('Creating patient_health_state_comments table...');
+    await pool.query(`
+      CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+    `);
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS patient_health_state_comments (
+        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+        patient_id UUID NOT NULL REFERENCES patients(id) ON DELETE CASCADE,
+        state_transition_id UUID,
+        comment_text TEXT NOT NULL,
+        comment_type VARCHAR(50) NOT NULL DEFAULT 'automatic',
+        health_state_from VARCHAR(10),
+        health_state_to VARCHAR(10) NOT NULL,
+        risk_level_from VARCHAR(20),
+        risk_level_to VARCHAR(20) NOT NULL,
+        change_type VARCHAR(20),
+        is_ckd_patient BOOLEAN NOT NULL DEFAULT false,
+        severity_from VARCHAR(20),
+        severity_to VARCHAR(20),
+        cycle_number INTEGER,
+        egfr_from DECIMAL(5, 2),
+        egfr_to DECIMAL(5, 2),
+        egfr_change DECIMAL(6, 2),
+        uacr_from DECIMAL(8, 2),
+        uacr_to DECIMAL(8, 2),
+        uacr_change DECIMAL(8, 2),
+        clinical_summary TEXT,
+        recommended_actions TEXT[],
+        mitigation_measures TEXT[],
+        acknowledgment_text TEXT,
+        severity VARCHAR(20) NOT NULL DEFAULT 'info',
+        created_by VARCHAR(100) DEFAULT 'system',
+        created_by_type VARCHAR(20) DEFAULT 'system',
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        visibility VARCHAR(20) DEFAULT 'visible',
+        is_pinned BOOLEAN DEFAULT false,
+        is_read BOOLEAN DEFAULT false,
+        read_at TIMESTAMP,
+        CONSTRAINT valid_comment_type CHECK (comment_type IN ('automatic', 'manual', 'ai_generated')),
+        CONSTRAINT valid_change_type CHECK (change_type IN ('improved', 'worsened', 'stable', 'initial')),
+        CONSTRAINT valid_severity CHECK (severity IN ('info', 'warning', 'critical')),
+        CONSTRAINT valid_visibility CHECK (visibility IN ('visible', 'archived')),
+        CONSTRAINT valid_created_by_type CHECK (created_by_type IN ('system', 'doctor', 'ai'))
+      );
+    `);
+
+    // Create indexes
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_patient_comments_patient_id ON patient_health_state_comments(patient_id);
+    `);
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_patient_comments_state_transition ON patient_health_state_comments(state_transition_id);
+    `);
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_patient_comments_created_at ON patient_health_state_comments(created_at DESC);
+    `);
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_patient_comments_visibility ON patient_health_state_comments(visibility);
+    `);
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_patient_comments_is_read ON patient_health_state_comments(is_read);
+    `);
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_patient_comments_change_type ON patient_health_state_comments(change_type);
+    `);
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_patient_comments_severity ON patient_health_state_comments(severity);
+    `);
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_patient_comments_recent_changes ON patient_health_state_comments(patient_id, created_at DESC, change_type)
+      WHERE visibility = 'visible' AND change_type IN ('improved', 'worsened');
+    `);
+
     console.log('✓ Database migrations completed successfully');
 
     res.json({
