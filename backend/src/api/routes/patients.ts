@@ -534,4 +534,212 @@ router.get('/:id', async (req: Request, res: Response): Promise<any> => {
   }
 });
 
+/**
+ * POST /api/patients/:id/update-records
+ * Generate AI-powered patient progression with new cycle of lab values
+ * Creates realistic progressions based on treatment status
+ */
+router.post('/:id/update-records', async (req: Request, res: Response): Promise<any> => {
+  try {
+    const { id } = req.params;
+    const pool = getPool();
+
+    // Get current patient data with latest observations
+    const patientResult = await pool.query(`
+      SELECT *
+      FROM patients
+      WHERE id = $1
+    `, [id]);
+
+    if (patientResult.rows.length === 0) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Patient not found'
+      });
+    }
+
+    const patient = patientResult.rows[0];
+
+    // Get latest observations
+    const latestObservationsResult = await pool.query(`
+      SELECT DISTINCT ON (observation_type)
+        observation_type,
+        value_numeric,
+        value_text,
+        unit,
+        observation_date,
+        month_number
+      FROM observations
+      WHERE patient_id = $1
+      ORDER BY observation_type, observation_date DESC
+    `, [id]);
+
+    const latestObs = latestObservationsResult.rows;
+
+    // Get the highest month_number to determine the next cycle
+    const maxMonthResult = await pool.query(`
+      SELECT COALESCE(MAX(month_number), 0) as max_month
+      FROM observations
+      WHERE patient_id = $1
+    `, [id]);
+
+    const nextMonthNumber = (maxMonthResult.rows[0]?.max_month || 0) + 1;
+
+    // Calculate KDIGO classification
+    const egfrObs = latestObs.find(obs => obs.observation_type === 'eGFR');
+    const uacrObs = latestObs.find(obs => obs.observation_type === 'uACR');
+    const egfr = egfrObs?.value_numeric || 90;
+    const uacr = uacrObs?.value_numeric || 15;
+
+    const kdigoClassification = classifyKDIGO(egfr, uacr);
+
+    // Determine treatment status and progression direction
+    const isTreated = patient.ckd_treatment_active || false;
+    const hasCKD = kdigoClassification.has_ckd;
+
+    // Import Anthropic client
+    const Anthropic = (await import('@anthropic-ai/sdk')).default;
+    const anthropic = new Anthropic({
+      apiKey: process.env.ANTHROPIC_API_KEY
+    });
+
+    // Build context for AI
+    const currentLabValues = latestObs.map(obs =>
+      `${obs.observation_type}: ${obs.value_numeric} ${obs.unit || ''}`
+    ).join('\n');
+
+    const prompt = `You are a clinical data simulator for a CKD (Chronic Kidney Disease) patient tracking system.
+
+PATIENT CONTEXT:
+- Patient ID: ${patient.medical_record_number}
+- CKD Status: ${hasCKD ? 'Has CKD' : 'No CKD'}
+- Treatment Active: ${isTreated ? 'YES' : 'NO'}
+- Treatment Type: ${patient.ckd_treatment_type || 'None'}
+- Current Month/Cycle: ${nextMonthNumber - 1}
+
+CURRENT LAB VALUES (Latest):
+${currentLabValues}
+
+TASK:
+Generate realistic lab values for the NEXT cycle (Month ${nextMonthNumber}) based on the following rules:
+
+**IF TREATED (Treatment Active = YES):**
+- eGFR: Should stabilize or improve slightly (increase by 1-3 units or stay stable)
+- Serum Creatinine: Should stabilize or decrease slightly
+- uACR: Should decrease (treatment reducing proteinuria)
+- Blood Pressure: Should improve towards target (130/80)
+- HbA1c: If diabetic, should improve slightly
+- Other values: Show improvement or stabilization
+
+**IF NOT TREATED (Treatment Active = NO):**
+- eGFR: Should decline (decrease by 2-5 units) - kidney function worsening
+- Serum Creatinine: Should increase
+- uACR: Should increase (more protein leakage)
+- Blood Pressure: May increase or stay elevated
+- HbA1c: If diabetic, may worsen or stay high
+- Other values: Show gradual worsening
+
+IMPORTANT CONSTRAINTS:
+1. Changes should be gradual and realistic (no sudden jumps)
+2. Values must stay within physiologically plausible ranges
+3. Maintain consistency with the clinical trajectory
+4. Consider the patient's baseline values
+
+OUTPUT FORMAT (JSON only, no explanations):
+{
+  "eGFR": number,
+  "serum_creatinine": number,
+  "BUN": number,
+  "uACR": number,
+  "blood_pressure_systolic": number,
+  "blood_pressure_diastolic": number,
+  "HbA1c": number,
+  "glucose": number,
+  "potassium": number,
+  "sodium": number,
+  "hemoglobin": number,
+  "heart_rate": number,
+  "oxygen_saturation": number,
+  "reasoning": "brief explanation of the trajectory"
+}
+
+Provide ONLY the JSON object, nothing else.`;
+
+    // Call Claude AI to generate new values
+    const response = await anthropic.messages.create({
+      model: 'claude-sonnet-4-5-20250929',
+      max_tokens: 2048,
+      messages: [{
+        role: 'user',
+        content: prompt
+      }]
+    });
+
+    const textContent = response.content.find(block => block.type === 'text');
+    const aiResponseText = textContent ? (textContent as any).text : '{}';
+
+    // Parse AI response - extract JSON from potential markdown code blocks
+    let generatedValues;
+    try {
+      // Try to extract JSON from markdown code blocks if present
+      const jsonMatch = aiResponseText.match(/```json\s*([\s\S]*?)\s*```/) ||
+                       aiResponseText.match(/```\s*([\s\S]*?)\s*```/) ||
+                       [null, aiResponseText];
+      const jsonText = jsonMatch[1] || aiResponseText;
+      generatedValues = JSON.parse(jsonText.trim());
+    } catch (parseError) {
+      console.error('Failed to parse AI response:', aiResponseText);
+      throw new Error('AI generated invalid response format');
+    }
+
+    // Calculate new observation date (1 month from latest)
+    const latestDate = new Date(egfrObs?.observation_date || new Date());
+    const newDate = new Date(latestDate);
+    newDate.setMonth(newDate.getMonth() + 1);
+
+    // Insert new observations into database
+    const observationsToInsert = [
+      { type: 'eGFR', value: generatedValues.eGFR, unit: 'mL/min/1.73m²' },
+      { type: 'serum_creatinine', value: generatedValues.serum_creatinine, unit: 'mg/dL' },
+      { type: 'BUN', value: generatedValues.BUN, unit: 'mg/dL' },
+      { type: 'uACR', value: generatedValues.uACR, unit: 'mg/g' },
+      { type: 'blood_pressure_systolic', value: generatedValues.blood_pressure_systolic, unit: 'mmHg' },
+      { type: 'blood_pressure_diastolic', value: generatedValues.blood_pressure_diastolic, unit: 'mmHg' },
+      { type: 'HbA1c', value: generatedValues.HbA1c, unit: '%' },
+      { type: 'glucose', value: generatedValues.glucose, unit: 'mg/dL' },
+      { type: 'potassium', value: generatedValues.potassium, unit: 'mEq/L' },
+      { type: 'sodium', value: generatedValues.sodium, unit: 'mEq/L' },
+      { type: 'hemoglobin', value: generatedValues.hemoglobin, unit: 'g/dL' },
+      { type: 'heart_rate', value: generatedValues.heart_rate, unit: 'bpm' },
+      { type: 'oxygen_saturation', value: generatedValues.oxygen_saturation, unit: '%' },
+    ];
+
+    for (const obs of observationsToInsert) {
+      if (obs.value !== undefined && obs.value !== null) {
+        await pool.query(`
+          INSERT INTO observations (patient_id, observation_type, value_numeric, unit, observation_date, month_number, status)
+          VALUES ($1, $2, $3, $4, $5, $6, 'final')
+        `, [id, obs.type, obs.value, obs.unit, newDate, nextMonthNumber]);
+      }
+    }
+
+    res.json({
+      status: 'success',
+      message: `Generated cycle ${nextMonthNumber} for patient`,
+      cycle_number: nextMonthNumber,
+      observation_date: newDate,
+      generated_values: generatedValues,
+      treatment_status: isTreated ? 'treated' : 'not_treated'
+    });
+
+  } catch (error) {
+    console.error('[Patients API] Error updating patient records:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to update patient records',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
 export default router;

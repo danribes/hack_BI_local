@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import PatientFilters from './components/PatientFilters';
 import { DoctorChatBar } from './components/DoctorChatBar';
+import { PatientTrendGraphs } from './components/PatientTrendGraphs';
 
 interface KDIGOClassification {
   gfr_category: string;
@@ -148,6 +149,7 @@ function App() {
   const [error, setError] = useState<string | null>(null);
   const [populating, setPopulating] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [updatingPatient, setUpdatingPatient] = useState(false);
 
   // Filter states
   const [activeFilters, setActiveFilters] = useState<{
@@ -317,6 +319,42 @@ function App() {
       console.error('Error fetching patient details:', err);
     } finally {
       setLoadingDetail(false);
+    }
+  };
+
+  const updatePatientRecords = async () => {
+    if (!selectedPatient) return;
+
+    try {
+      setUpdatingPatient(true);
+      setError(null);
+
+      const response = await fetch(`${API_URL}/api/patients/${selectedPatient.id}/update-records`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to update patient records: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log('Update response:', data);
+
+      // Refresh patient details to show new data
+      await fetchPatientDetail(selectedPatient.id);
+
+      // Show success message (you could add a toast notification here)
+      alert(`Successfully generated cycle ${data.cycle_number} for patient. ${data.treatment_status === 'treated' ? 'Treatment improvements reflected.' : 'Natural progression simulated.'}`);
+
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update patient records');
+      console.error('Error updating patient records:', err);
+      alert('Failed to update patient records. Please try again.');
+    } finally {
+      setUpdatingPatient(false);
     }
   };
 
@@ -536,8 +574,8 @@ function App() {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
         <div className="container mx-auto px-4 py-8">
-          {/* Header with Back Button */}
-          <div className="max-w-6xl mx-auto mb-6">
+          {/* Header with Back Button and Update Button */}
+          <div className="max-w-6xl mx-auto mb-6 flex justify-between items-center">
             <button
               onClick={() => setSelectedPatient(null)}
               className="flex items-center text-indigo-600 hover:text-indigo-800 font-semibold transition-colors"
@@ -546,6 +584,33 @@ function App() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
               </svg>
               Back to Patient List
+            </button>
+
+            <button
+              onClick={updatePatientRecords}
+              disabled={updatingPatient}
+              className={`flex items-center px-6 py-3 rounded-lg font-semibold text-white shadow-lg transition-all transform hover:scale-105 ${
+                updatingPatient
+                  ? 'bg-gray-400 cursor-not-allowed'
+                  : 'bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700'
+              }`}
+            >
+              {updatingPatient ? (
+                <>
+                  <svg className="animate-spin h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Generating Update...
+                </>
+              ) : (
+                <>
+                  <svg className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                  </svg>
+                  Update Patient Records
+                </>
+              )}
             </button>
           </div>
 
@@ -808,6 +873,14 @@ function App() {
                   )}
                 </div>
               </div>
+
+              {/* Patient Trend Graphs */}
+              {selectedPatient.observations && selectedPatient.observations.length > 0 && (
+                <PatientTrendGraphs
+                  observations={selectedPatient.observations}
+                  isTreated={selectedPatient.ckd_treatment_active || false}
+                />
+              )}
 
               {/* Clinical Overview - 3 Column Grid */}
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
