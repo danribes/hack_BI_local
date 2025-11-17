@@ -222,7 +222,53 @@ Now every `git push` to main will trigger automatic deployment!
 
 Your database is empty after creation. You need to initialize it with schema and mock data.
 
-### Option A: Using the Initialization Script (Recommended)
+### Option A: Using the Migration API Endpoint (Recommended)
+
+The easiest way to initialize your database is to use the built-in migration endpoint:
+
+**After backend is deployed:**
+
+1. **Run the migration endpoint**:
+   ```bash
+   # Replace with your actual backend URL
+   curl -X POST https://ckd-analyzer-backend.onrender.com/api/init/migrate
+   ```
+
+   This will:
+   - ✅ Create all tables and schema
+   - ✅ Create the patient_health_state_comments table
+   - ✅ Add all necessary indexes
+   - ✅ Add monitoring triggers
+   - ✅ Verify tables were created
+
+   **Estimated time**: 5-10 seconds
+
+2. **Verify migration succeeded**:
+   ```bash
+   curl https://ckd-analyzer-backend.onrender.com/api/init/migrate
+   ```
+
+   Expected response:
+   ```json
+   {
+     "message": "Migration completed successfully",
+     "tables_created": [
+       "patients",
+       "observations",
+       "conditions",
+       "patient_health_state_comments"
+     ]
+   }
+   ```
+
+3. **Load mock patient data** (if needed):
+   ```bash
+   curl -X POST https://ckd-analyzer-backend.onrender.com/api/init
+   ```
+
+   This will populate the database with sample patients and clinical data.
+
+### Option B: Using the Initialization Script (Alternative)
 
 **From your local machine:**
 
@@ -243,11 +289,11 @@ Your database is empty after creation. You need to initialize it with schema and
 
 3. **Run initialization script**:
    ```bash
-   cd /home/user/webapp
-   
-   # Make script executable
+   cd /home/user/hack_BI
+
+   # Make script executable (if exists)
    chmod +x scripts/init-render-db.sh
-   
+
    # Run initialization (replace with your actual DATABASE_URL)
    ./scripts/init-render-db.sh "postgresql://user:pass@host/database"
    ```
@@ -353,6 +399,82 @@ Expected response:
   "recommendations": [...]
 }
 ```
+
+---
+
+## Health State Comments Feature
+
+The application now automatically generates intelligent comments when a patient's health state changes.
+
+### How It Works
+
+1. **Automatic Detection**: When patient observations are updated (eGFR, uACR values), the system automatically detects if the KDIGO health state changed
+2. **Smart Comments**: The system generates context-aware comments that:
+   - Describe the patient's health evolution
+   - Provide mitigation measures for worsening conditions
+   - Acknowledge improvements for better health states
+   - Include clinical recommendations based on KDIGO guidelines
+
+### Features
+
+**For Worsening Health States:**
+- ⚠️ Warning indicators
+- Clinical summary of changes (eGFR decline, uACR increase)
+- Severity-specific mitigation measures
+- Urgent recommendations for critical stages (G5, A3)
+- CKD-specific vs non-CKD messaging
+
+**For Improving Health States:**
+- ✅ Positive acknowledgment
+- Recognition of improvements
+- Encouragement to maintain good practices
+- Continued monitoring recommendations
+
+**Patient Filtering:**
+- Filter patients by recent health state changes (7/30/90 days)
+- Filter by change type (improved/worsened/any)
+- Quickly identify patients needing attention
+
+### Testing the Feature
+
+After deployment and migration:
+
+1. **Update a patient's observations**:
+   ```bash
+   # This should trigger a health state change
+   curl -X POST https://ckd-analyzer-backend.onrender.com/api/patients/[PATIENT_ID]/update-records \
+     -H "Content-Type: application/json" \
+     -d '{
+       "cycle_number": 5,
+       "baseline_egfr": 45.0,
+       "baseline_uacr": 150.0
+     }'
+   ```
+
+2. **View health state comments**:
+   ```bash
+   curl https://ckd-analyzer-backend.onrender.com/api/patients/[PATIENT_ID]/comments
+   ```
+
+3. **Filter patients with health state changes**:
+   ```bash
+   # Patients with changes in last 30 days
+   curl "https://ckd-analyzer-backend.onrender.com/api/patients?filter=health-state-changed&days=30"
+
+   # Only patients with worsening conditions
+   curl "https://ckd-analyzer-backend.onrender.com/api/patients?filter=health-state-changed&days=30&changeType=worsened"
+   ```
+
+### UI Features
+
+In the frontend, you'll see:
+- **Health State Evolution Comments** section in patient detail view
+- Color-coded comments (red for worsening, green for improving)
+- Health state transition display (e.g., "G2-A1 → G3a-A2")
+- Lab value changes with delta indicators
+- Mitigation measures for declining patients
+- Recommended actions based on current severity
+- "Recent Health State Changes" filter button in the patient list
 
 ---
 
@@ -521,6 +643,82 @@ Expected response:
 3. **Use health check warming** (automated):
    - Set up cron job or UptimeRobot to ping every 10 minutes
 
+### Issue 8: Health State Comments Not Appearing
+
+**Symptoms:**
+- Patient details don't show health state comments
+- "Recent Health State Changes" filter returns empty results
+
+**Solutions:**
+
+1. **Ensure migration was run**:
+   ```bash
+   # Check if the comments table exists
+   curl -X POST https://ckd-analyzer-backend.onrender.com/api/init/migrate
+   ```
+
+   Expected response should include:
+   ```json
+   {
+     "message": "Migration completed successfully",
+     "tables_created": ["...", "patient_health_state_comments"]
+   }
+   ```
+
+2. **Verify table exists in database**:
+   ```bash
+   # Using psql
+   psql "YOUR_EXTERNAL_DATABASE_URL" -c "\dt patient_health_state_comments"
+   ```
+
+   Should show the table exists.
+
+3. **Trigger a health state change**:
+   ```bash
+   # Update a patient to force health state change
+   curl -X POST https://ckd-analyzer-backend.onrender.com/api/patients/[PATIENT_ID]/update-records \
+     -H "Content-Type: application/json" \
+     -d '{"cycle_number": 5}'
+   ```
+
+4. **Check comments were created**:
+   ```bash
+   curl https://ckd-analyzer-backend.onrender.com/api/patients/[PATIENT_ID]/comments
+   ```
+
+   Should return array of comment objects.
+
+5. **Review backend logs** for errors:
+   - Dashboard → ckd-analyzer-backend → "Logs"
+   - Look for "HealthStateCommentService" errors
+
+### Issue 9: Filter Shows "No Patients Found"
+
+**Symptoms:**
+- Clicking "Recent Health State Changes" filter shows no results
+- Error in browser console
+
+**Solutions:**
+
+1. **Ensure comments table exists** (see Issue 8 above)
+
+2. **Trigger some health state changes first**:
+   - Update a few patients to generate comments
+   - Wait for health state to actually change (not just lab values)
+
+3. **Check filter parameters**:
+   ```bash
+   # Test the API endpoint directly
+   curl "https://ckd-analyzer-backend.onrender.com/api/patients?filter=health-state-changed&days=30"
+   ```
+
+4. **Verify database has comments**:
+   ```bash
+   psql "YOUR_EXTERNAL_DATABASE_URL" -c "SELECT COUNT(*) FROM patient_health_state_comments;"
+   ```
+
+   If count is 0, no comments exist yet - update some patients.
+
 ---
 
 ## Deployment Checklist
@@ -538,7 +736,9 @@ Expected response:
 - [ ] Backend build completed (~5 min)
 - [ ] Frontend build completed (~3 min)
 - [ ] ANTHROPIC_API_KEY set in backend environment
+- [ ] Database migration run: `POST /api/init/migrate`
 - [ ] Database initialized with schema and mock data
+- [ ] Health state comments table created
 
 ### Post-Deployment
 - [ ] Backend health check returns `{"status": "healthy"}`
@@ -547,6 +747,10 @@ Expected response:
 - [ ] AI analysis button works
 - [ ] Risk assessment returns in <5 seconds
 - [ ] CORS configured correctly
+- [ ] Health state comments feature working:
+  - [ ] Update a patient and verify comment created
+  - [ ] "Recent Health State Changes" filter works
+  - [ ] Comments display in patient detail view
 - [ ] Auto-deploy enabled (optional)
 
 ---
