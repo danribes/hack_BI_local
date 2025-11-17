@@ -90,8 +90,6 @@ interface PatientDetail extends Patient {
   risk_assessment?: RiskAssessment | null;
   kdigo_classification: KDIGOClassification;
   risk_category: string;
-  current_cycle?: number;
-  cycles_to_show?: number[];
   home_monitoring_device?: string | null;
   home_monitoring_active?: boolean;
   ckd_treatment_active?: boolean;
@@ -381,12 +379,6 @@ function App() {
     return observations.find(obs => obs.observation_type === type);
   };
 
-  const getObservationsByCycle = (observations: Observation[], type: string): Observation[] => {
-    return observations
-      .filter(obs => obs.observation_type === type)
-      .sort((a, b) => (b.month_number || 0) - (a.month_number || 0));
-  };
-
   const getSeverityColor = (severity?: string): string => {
     switch (severity?.toLowerCase()) {
       case 'severe': return 'text-red-700 bg-red-100 border-red-300';
@@ -605,18 +597,6 @@ function App() {
                   <div>
                     <div className="text-sm font-semibold text-gray-500 uppercase tracking-wider">Date of Birth</div>
                     <div className="text-lg font-semibold text-gray-900 mt-1">{formatDate(selectedPatient.date_of_birth)}</div>
-                  </div>
-                  <div>
-                    <div className="text-sm font-semibold text-gray-500 uppercase tracking-wider">Current Cycle</div>
-                    <div className="text-2xl font-bold text-indigo-600 mt-1">
-                      {(() => {
-                        const monthNumbers = selectedPatient.observations
-                          .map(obs => obs.month_number)
-                          .filter((num): num is number => num !== undefined && num !== null);
-                        const currentCycle = monthNumbers.length > 0 ? Math.max(...monthNumbers) : 0;
-                        return `Cycle ${currentCycle}`;
-                      })()}
-                    </div>
                   </div>
                   <div>
                     <div className="text-sm font-semibold text-gray-500 uppercase tracking-wider">Patient ID</div>
@@ -1265,85 +1245,6 @@ function App() {
                   </h3>
                 </div>
 
-                {/* Multi-Cycle Comparison Table */}
-                {selectedPatient.current_cycle !== 12 && selectedPatient.cycles_to_show && selectedPatient.cycles_to_show.length > 1 && (
-                  <div className="mb-8">
-                    <h4 className="font-semibold text-gray-800 mb-3 text-sm uppercase tracking-wide">
-                      Last {selectedPatient.cycles_to_show.length} Cycles - Trend Analysis
-                    </h4>
-                    <div className="overflow-x-auto">
-                      <table className="min-w-full divide-y divide-gray-200">
-                        <thead className="bg-gray-50">
-                          <tr>
-                            <th className="px-4 py-3 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                              Biomarker
-                            </th>
-                            {(selectedPatient.cycles_to_show || []).map((cycle: number) => (
-                              <th key={cycle} className="px-4 py-3 text-center text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                                Cycle {cycle}
-                              </th>
-                            ))}
-                          </tr>
-                        </thead>
-                        <tbody className="bg-white divide-y divide-gray-200">
-                          {['eGFR', 'uACR', 'BP_Systolic', 'BP_Diastolic', 'HbA1c', 'creatinine', 'BUN'].map((biomarker) => {
-                            const observations = getObservationsByCycle(selectedPatient.observations, biomarker);
-                            if (observations.length === 0) return null;
-
-                            return (
-                              <tr key={biomarker}>
-                                <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">
-                                  {biomarker === 'eGFR' ? 'eGFR' :
-                                   biomarker === 'uACR' ? 'uACR' :
-                                   biomarker === 'BP_Systolic' ? 'Blood Pressure (Systolic)' :
-                                   biomarker === 'BP_Diastolic' ? 'Blood Pressure (Diastolic)' :
-                                   biomarker === 'HbA1c' ? 'HbA1c' :
-                                   biomarker === 'creatinine' ? 'Creatinine' :
-                                   biomarker === 'BUN' ? 'BUN' : biomarker}
-                                </td>
-                                {(selectedPatient.cycles_to_show || []).map((cycle: number) => {
-                                  const obs = observations.find(o => o.month_number === cycle);
-                                  if (!obs) {
-                                    return (
-                                      <td key={cycle} className="px-4 py-3 text-center text-sm text-gray-400">
-                                        -
-                                      </td>
-                                    );
-                                  }
-                                  return (
-                                    <td key={cycle} className="px-4 py-3 text-center text-sm">
-                                      <span className={`font-semibold ${
-                                        biomarker === 'eGFR' ? getLabValueColor('eGFR', obs.value_numeric || 0) :
-                                        biomarker === 'uACR' ? getLabValueColor('uACR', obs.value_numeric || 0) :
-                                        biomarker === 'creatinine' ? getLabValueColor('serum_creatinine', obs.value_numeric || 0) :
-                                        biomarker === 'BUN' ? getLabValueColor('BUN', obs.value_numeric || 0) :
-                                        'text-gray-900'
-                                      }`}>
-                                        {obs.value_numeric?.toFixed(1)}
-                                      </span>
-                                      {obs.unit && (
-                                        <span className="text-xs text-gray-500 ml-1">{obs.unit}</span>
-                                      )}
-                                    </td>
-                                  );
-                                })}
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                )}
-
-                {selectedPatient.current_cycle === 12 && (
-                  <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                    <p className="text-sm text-yellow-800">
-                      <strong>Final Cycle:</strong> Showing current cycle values only. This is the last cycle of the simulation.
-                    </p>
-                  </div>
-                )}
-
                 {/* Kidney Function */}
                 <div className="mt-6">
                   <h4 className="font-semibold text-gray-800 mb-3 text-sm uppercase tracking-wide">Kidney Function</h4>
@@ -1777,17 +1678,6 @@ function App() {
         {!loading && !error && patients.length > 0 && (
           <div className="max-w-6xl mx-auto mb-6">
             <div className="bg-white rounded-lg shadow-lg p-4">
-              <div className="flex items-center gap-4 mb-3">
-                <div className="flex items-center gap-2 px-4 py-2 bg-indigo-50 rounded-lg border border-indigo-200">
-                  <svg className="h-5 w-5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  <span className="text-sm font-medium text-gray-600">Current Cycle:</span>
-                  <span className="text-lg font-bold text-indigo-600">
-                    {statistics?.current_cycle || 1}
-                  </span>
-                </div>
-              </div>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                   <svg className="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">

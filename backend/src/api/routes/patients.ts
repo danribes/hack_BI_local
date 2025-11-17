@@ -346,20 +346,12 @@ router.get('/statistics', async (_req: Request, res: Response): Promise<any> => 
       }
     });
 
-    // Get current cycle number (max month_number from all observations)
-    const currentCycleResult = await pool.query(`
-      SELECT COALESCE(MAX(month_number), 1) as current_cycle
-      FROM observations
-    `);
-    const currentCycle = parseInt(currentCycleResult.rows[0]?.current_cycle || '1');
-
     res.json({
       status: 'success',
       statistics: {
         total_patients: ckdStats.total + nonCkdStats.total,
         ckd: ckdStats,
-        non_ckd: nonCkdStats,
-        current_cycle: currentCycle
+        non_ckd: nonCkdStats
       }
     });
 
@@ -399,17 +391,6 @@ router.get('/:id', async (req: Request, res: Response): Promise<any> => {
 
     const patient = patientResult.rows[0];
 
-    // Get current cycle for this patient
-    const currentCycleResult = await pool.query(`
-      SELECT COALESCE(MAX(month_number), 1) as current_cycle
-      FROM observations
-      WHERE patient_id = $1
-    `, [id]);
-    const currentCycle = parseInt(currentCycleResult.rows[0]?.current_cycle || '1');
-
-    // Get observations from the last 3 cycles (or fewer if at early cycles)
-    const cyclesToShow = currentCycle === 12 ? [12] : [currentCycle, Math.max(1, currentCycle - 1), Math.max(1, currentCycle - 2)].filter((v, i, a) => a.indexOf(v) === i);
-
     const observationsResult = await pool.query(`
       SELECT
         observation_type,
@@ -420,9 +401,9 @@ router.get('/:id', async (req: Request, res: Response): Promise<any> => {
         notes,
         month_number
       FROM observations
-      WHERE patient_id = $1 AND month_number = ANY($2::int[])
+      WHERE patient_id = $1
       ORDER BY observation_type, month_number DESC
-    `, [id, cyclesToShow]);
+    `, [id]);
 
     // Get latest observations for KDIGO calculation (most recent cycle only)
     const latestObservationsResult = await pool.query(`
@@ -530,8 +511,6 @@ router.get('/:id', async (req: Request, res: Response): Promise<any> => {
         risk_assessment: riskResult.rows[0] || null,
         kdigo_classification: kdigoClassification,
         risk_category: riskCategory,
-        current_cycle: currentCycle,
-        cycles_to_show: cyclesToShow,
         // Comorbidity flags derived from conditions
         ...comorbidities,
         // Vital signs from observations
