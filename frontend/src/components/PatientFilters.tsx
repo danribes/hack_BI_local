@@ -3,11 +3,13 @@ import { FC } from 'react';
 interface FilterProps {
   statistics: any;
   activeFilters: {
-    patientType: 'all' | 'ckd' | 'non-ckd';
+    patientType: 'all' | 'ckd' | 'non-ckd' | 'health-state-changed';
     ckdSeverity: string | null;
     ckdTreatment: string | null;
     nonCkdRisk: string | null;
     nonCkdMonitoring: string | null;
+    healthStateChangeDays: number;
+    healthStateChangeType: 'any' | 'improved' | 'worsened';
   };
   onFilterChange: (filters: any) => void;
 }
@@ -17,13 +19,15 @@ const PatientFilters: FC<FilterProps> = ({ statistics, activeFilters, onFilterCh
 
   const { ckd, non_ckd, total_patients } = statistics;
 
-  const handlePatientTypeChange = (type: 'all' | 'ckd' | 'non-ckd') => {
+  const handlePatientTypeChange = (type: 'all' | 'ckd' | 'non-ckd' | 'health-state-changed') => {
     onFilterChange({
       patientType: type,
       ckdSeverity: null,
       ckdTreatment: null,
       nonCkdRisk: null,
-      nonCkdMonitoring: null
+      nonCkdMonitoring: null,
+      healthStateChangeDays: 30,
+      healthStateChangeType: 'any'
     });
   };
 
@@ -54,6 +58,20 @@ const PatientFilters: FC<FilterProps> = ({ statistics, activeFilters, onFilterCh
     onFilterChange({
       ...activeFilters,
       nonCkdMonitoring: monitoring
+    });
+  };
+
+  const handleHealthStateChangeDaysChange = (days: number) => {
+    onFilterChange({
+      ...activeFilters,
+      healthStateChangeDays: days
+    });
+  };
+
+  const handleHealthStateChangeTypeChange = (type: 'any' | 'improved' | 'worsened') => {
+    onFilterChange({
+      ...activeFilters,
+      healthStateChangeType: type
     });
   };
 
@@ -122,6 +140,21 @@ const PatientFilters: FC<FilterProps> = ({ statistics, activeFilters, onFilterCh
             onClick={() => handlePatientTypeChange('non-ckd')}
             color="bg-blue-600"
           />
+          <button
+            onClick={() => handlePatientTypeChange('health-state-changed')}
+            className={`px-4 py-2 rounded-lg font-medium text-sm transition-all ${
+              activeFilters.patientType === 'health-state-changed'
+                ? 'bg-purple-600 text-white shadow-md'
+                : 'bg-white text-gray-700 border-2 border-gray-200 hover:border-gray-300 hover:shadow-sm'
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+              </svg>
+              <span>Recent Health State Changes</span>
+            </div>
+          </button>
         </div>
       </div>
 
@@ -301,6 +334,69 @@ const PatientFilters: FC<FilterProps> = ({ statistics, activeFilters, onFilterCh
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Health State Change Filters */}
+      {activeFilters.patientType === 'health-state-changed' && (
+        <div className="mb-6 pl-4 border-l-4 border-purple-300">
+          <label className="block text-sm font-semibold text-gray-700 mb-3">Health State Change Filters</label>
+
+          {/* Time Period Filter */}
+          <div className="mb-4">
+            <label className="block text-xs font-semibold text-gray-600 uppercase mb-2">Time Period</label>
+            <div className="flex gap-3 flex-wrap">
+              <FilterButton
+                label="Last 7 days"
+                count={0}
+                active={activeFilters.healthStateChangeDays === 7}
+                onClick={() => handleHealthStateChangeDaysChange(7)}
+                color="bg-purple-500"
+              />
+              <FilterButton
+                label="Last 30 days"
+                count={0}
+                active={activeFilters.healthStateChangeDays === 30}
+                onClick={() => handleHealthStateChangeDaysChange(30)}
+                color="bg-purple-600"
+              />
+              <FilterButton
+                label="Last 90 days"
+                count={0}
+                active={activeFilters.healthStateChangeDays === 90}
+                onClick={() => handleHealthStateChangeDaysChange(90)}
+                color="bg-purple-700"
+              />
+            </div>
+          </div>
+
+          {/* Change Type Filter */}
+          <div>
+            <label className="block text-xs font-semibold text-gray-600 uppercase mb-2">Change Type</label>
+            <div className="flex gap-3 flex-wrap">
+              <FilterButton
+                label="All Changes"
+                count={0}
+                active={activeFilters.healthStateChangeType === 'any'}
+                onClick={() => handleHealthStateChangeTypeChange('any')}
+                color="bg-gray-600"
+              />
+              <FilterButton
+                label="Improved"
+                count={0}
+                active={activeFilters.healthStateChangeType === 'improved'}
+                onClick={() => handleHealthStateChangeTypeChange('improved')}
+                color="bg-green-600"
+              />
+              <FilterButton
+                label="Worsened"
+                count={0}
+                active={activeFilters.healthStateChangeType === 'worsened'}
+                onClick={() => handleHealthStateChangeTypeChange('worsened')}
+                color="bg-red-600"
+              />
+            </div>
+          </div>
         </div>
       )}
 
