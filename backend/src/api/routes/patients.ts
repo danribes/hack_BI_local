@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { getPool } from '../../config/database';
 import { classifyKDIGO, getRiskCategoryLabel } from '../../utils/kdigo';
+import { HealthStateCommentService } from '../../services/healthStateCommentService';
 
 const router = Router();
 
@@ -146,6 +147,120 @@ router.get('/filter', async (req: Request, res: Response): Promise<any> => {
     res.status(500).json({
       status: 'error',
       message: 'Failed to filter patients',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+/**
+ * GET /api/patients/with-health-state-changes
+ * Get patients with recent health state changes
+ * Query parameters:
+ *   - days: number of days to look back (default: 30)
+ *   - change_type: 'improved' | 'worsened' | 'any' (default: 'any')
+ */
+router.get('/with-health-state-changes', async (req: Request, res: Response): Promise<any> => {
+  try {
+    const pool = getPool();
+    const days = parseInt(req.query.days as string) || 30;
+    const changeType = req.query.change_type as string || 'any';
+
+    const commentService = new HealthStateCommentService(pool);
+    const patientIds = await commentService.getPatientsWithRecentHealthStateChanges(days);
+
+    if (patientIds.length === 0) {
+      return res.json({
+        status: 'success',
+        filters_applied: {
+          days_back: days,
+          change_type: changeType
+        },
+        count: 0,
+        patients: []
+      });
+    }
+
+    // Build query to get full patient details
+    let whereClause = `p.id = ANY($1::uuid[])`;
+    const queryParams: any[] = [patientIds];
+    let paramCounter = 2;
+
+    // Add change type filter if specified
+    if (changeType !== 'any') {
+      whereClause += ` AND EXISTS (
+        SELECT 1 FROM patient_health_state_comments phsc
+        WHERE phsc.patient_id = p.id
+        AND phsc.change_type = $${paramCounter}
+        AND phsc.created_at >= NOW() - INTERVAL '${days} days'
+        AND phsc.visibility = 'visible'
+      )`;
+      queryParams.push(changeType);
+      paramCounter++;
+    }
+
+    const result = await pool.query(`
+      SELECT
+        p.id,
+        p.medical_record_number,
+        p.first_name,
+        p.last_name,
+        p.date_of_birth,
+        p.gender,
+        p.email,
+        p.phone,
+        p.last_visit_date,
+        p.created_at,
+        -- Latest observations
+        (SELECT value_numeric FROM observations
+         WHERE patient_id = p.id AND observation_type = 'eGFR'
+         ORDER BY observation_date DESC LIMIT 1) as latest_egfr,
+        (SELECT value_numeric FROM observations
+         WHERE patient_id = p.id AND observation_type = 'uACR'
+         ORDER BY observation_date DESC LIMIT 1) as latest_uacr,
+        -- CKD patient data
+        cpd.ckd_severity,
+        cpd.ckd_stage,
+        cpd.kdigo_health_state as ckd_health_state,
+        cpd.is_monitored as ckd_is_monitored,
+        cpd.is_treated as ckd_is_treated,
+        -- Non-CKD patient data
+        npd.risk_level as non_ckd_risk_level,
+        npd.kdigo_health_state as non_ckd_health_state,
+        npd.is_monitored as non_ckd_is_monitored,
+        -- Recent health state change info
+        (SELECT change_type FROM patient_health_state_comments
+         WHERE patient_id = p.id AND visibility = 'visible'
+         ORDER BY created_at DESC LIMIT 1) as latest_change_type,
+        (SELECT created_at FROM patient_health_state_comments
+         WHERE patient_id = p.id AND visibility = 'visible'
+         ORDER BY created_at DESC LIMIT 1) as latest_change_date,
+        (SELECT health_state_to FROM patient_health_state_comments
+         WHERE patient_id = p.id AND visibility = 'visible'
+         ORDER BY created_at DESC LIMIT 1) as current_health_state
+      FROM patients p
+      LEFT JOIN ckd_patient_data cpd ON p.id = cpd.patient_id
+      LEFT JOIN non_ckd_patient_data npd ON p.id = npd.patient_id
+      WHERE ${whereClause}
+      ORDER BY (SELECT created_at FROM patient_health_state_comments
+                WHERE patient_id = p.id AND visibility = 'visible'
+                ORDER BY created_at DESC LIMIT 1) DESC
+    `, queryParams);
+
+    res.json({
+      status: 'success',
+      filters_applied: {
+        days_back: days,
+        change_type: changeType
+      },
+      count: result.rows.length,
+      patients: result.rows
+    });
+
+  } catch (error) {
+    console.error('[Patients API] Error fetching patients with health state changes:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to fetch patients with health state changes',
       error: error instanceof Error ? error.message : 'Unknown error'
     });
   }
@@ -697,6 +812,10 @@ Provide ONLY the JSON object, nothing else.`;
     const newDate = new Date(latestDate);
     newDate.setMonth(newDate.getMonth() + 1);
 
+    // Calculate previous health state for comparison
+    const previousHealthState = kdigoClassification.health_state;
+    const previousRiskLevel = kdigoClassification.risk_level;
+
     // Insert new observations into database
     const observationsToInsert = [
       { type: 'eGFR', value: generatedValues.eGFR, unit: 'mL/min/1.73m²' },
@@ -723,13 +842,50 @@ Provide ONLY the JSON object, nothing else.`;
       }
     }
 
+    // Calculate new health state after inserting observations
+    const newKdigoClassification = classifyKDIGO(generatedValues.eGFR, generatedValues.uACR);
+    const newHealthState = newKdigoClassification.health_state;
+    const newRiskLevel = newKdigoClassification.risk_level;
+
+    // Check if health state changed and generate comment
+    let commentId = null;
+    if (previousHealthState !== newHealthState) {
+      console.log(`[Patient Update] Health state changed for patient ${id}: ${previousHealthState} -> ${newHealthState}`);
+
+      try {
+        const commentService = new HealthStateCommentService(pool);
+        commentId = await commentService.createCommentForHealthStateChange({
+          patient_id: id,
+          from_health_state: previousHealthState,
+          to_health_state: newHealthState,
+          from_risk_level: previousRiskLevel,
+          to_risk_level: newRiskLevel,
+          egfr_from: egfr,
+          egfr_to: generatedValues.eGFR,
+          uacr_from: uacr,
+          uacr_to: generatedValues.uACR,
+          cycle_number: nextMonthNumber,
+          is_ckd_patient: newKdigoClassification.has_ckd
+        });
+
+        console.log(`✓ Health state comment created: ${commentId}`);
+      } catch (commentError) {
+        console.error('[Patient Update] Error creating health state comment:', commentError);
+        // Don't fail the update if comment creation fails
+      }
+    }
+
     res.json({
       status: 'success',
       message: `Generated cycle ${nextMonthNumber} for patient`,
       cycle_number: nextMonthNumber,
       observation_date: newDate,
       generated_values: generatedValues,
-      treatment_status: isTreated ? 'treated' : 'not_treated'
+      treatment_status: isTreated ? 'treated' : 'not_treated',
+      health_state_changed: previousHealthState !== newHealthState,
+      previous_health_state: previousHealthState,
+      new_health_state: newHealthState,
+      comment_id: commentId
     });
 
   } catch (error) {
@@ -737,6 +893,86 @@ Provide ONLY the JSON object, nothing else.`;
     res.status(500).json({
       status: 'error',
       message: 'Failed to update patient records',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+/**
+ * GET /api/patients/:id/comments
+ * Get health state comments for a specific patient
+ */
+router.get('/:id/comments', async (req: Request, res: Response): Promise<any> => {
+  try {
+    const { id } = req.params;
+    const limit = parseInt(req.query.limit as string) || 50;
+    const pool = getPool();
+
+    const commentService = new HealthStateCommentService(pool);
+    const comments = await commentService.getCommentsForPatient(id, limit);
+
+    res.json({
+      status: 'success',
+      count: comments.length,
+      comments
+    });
+  } catch (error) {
+    console.error('[Patients API] Error fetching comments:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to fetch comments',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+/**
+ * POST /api/patients/:id/comments/:commentId/read
+ * Mark a comment as read
+ */
+router.post('/:id/comments/:commentId/read', async (req: Request, res: Response): Promise<any> => {
+  try {
+    const { commentId } = req.params;
+    const pool = getPool();
+
+    const commentService = new HealthStateCommentService(pool);
+    await commentService.markCommentAsRead(commentId);
+
+    res.json({
+      status: 'success',
+      message: 'Comment marked as read'
+    });
+  } catch (error) {
+    console.error('[Patients API] Error marking comment as read:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to mark comment as read',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+/**
+ * POST /api/patients/:id/comments/:commentId/archive
+ * Archive a comment
+ */
+router.post('/:id/comments/:commentId/archive', async (req: Request, res: Response): Promise<any> => {
+  try {
+    const { commentId } = req.params;
+    const pool = getPool();
+
+    const commentService = new HealthStateCommentService(pool);
+    await commentService.archiveComment(commentId);
+
+    res.json({
+      status: 'success',
+      message: 'Comment archived'
+    });
+  } catch (error) {
+    console.error('[Patients API] Error archiving comment:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to archive comment',
       error: error instanceof Error ? error.message : 'Unknown error'
     });
   }

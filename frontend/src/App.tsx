@@ -74,6 +74,37 @@ interface RiskAssessment {
   assessed_at: string;
 }
 
+interface HealthStateComment {
+  id: string;
+  patient_id: string;
+  comment_text: string;
+  comment_type: string;
+  health_state_from: string | null;
+  health_state_to: string;
+  risk_level_from: string | null;
+  risk_level_to: string;
+  change_type: string;
+  is_ckd_patient: boolean;
+  severity_from: string | null;
+  severity_to: string | null;
+  cycle_number: number;
+  egfr_from: number | null;
+  egfr_to: number;
+  egfr_change: number | null;
+  uacr_from: number | null;
+  uacr_to: number;
+  uacr_change: number | null;
+  clinical_summary: string;
+  recommended_actions: string[];
+  mitigation_measures: string[];
+  acknowledgment_text: string | null;
+  severity: string;
+  created_at: string;
+  visibility: string;
+  is_pinned: boolean;
+  is_read: boolean;
+}
+
 interface PatientDetail extends Patient {
   weight?: number;
   height?: number;
@@ -144,6 +175,8 @@ interface PatientDetail extends Patient {
 function App() {
   const [patients, setPatients] = useState<Patient[]>([]);
   const [selectedPatient, setSelectedPatient] = useState<PatientDetail | null>(null);
+  const [healthStateComments, setHealthStateComments] = useState<HealthStateComment[]>([]);
+  const [loadingComments, setLoadingComments] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -153,17 +186,21 @@ function App() {
 
   // Filter states
   const [activeFilters, setActiveFilters] = useState<{
-    patientType: 'all' | 'ckd' | 'non-ckd';
+    patientType: 'all' | 'ckd' | 'non-ckd' | 'health-state-changed';
     ckdSeverity: string | null;
     ckdTreatment: string | null;
     nonCkdRisk: string | null;
     nonCkdMonitoring: string | null;
+    healthStateChangeDays: number;
+    healthStateChangeType: 'any' | 'improved' | 'worsened';
   }>({
     patientType: 'all',
     ckdSeverity: null,
     ckdTreatment: null,
     nonCkdRisk: null,
-    nonCkdMonitoring: null
+    nonCkdMonitoring: null,
+    healthStateChangeDays: 30,
+    healthStateChangeType: 'any'
   });
 
   const [statistics, setStatistics] = useState<any>(null);
@@ -224,6 +261,25 @@ function App() {
     try {
       setLoading(true);
       setError(null);
+
+      // Special handling for health state change filter
+      if (activeFilters.patientType === 'health-state-changed') {
+        const params = new URLSearchParams();
+        params.append('days', activeFilters.healthStateChangeDays.toString());
+        params.append('change_type', activeFilters.healthStateChangeType);
+
+        const url = `${API_URL}/api/patients/with-health-state-changes?${params.toString()}`;
+        const response = await fetch(url);
+
+        if (!response.ok) {
+          throw new Error(`Failed to fetch patients with health state changes: ${response.status}`);
+        }
+
+        const data = await response.json();
+        setPatients(data.patients || []);
+        setLoading(false);
+        return;
+      }
 
       // Build query parameters based on active filters
       const params = new URLSearchParams();
@@ -358,6 +414,38 @@ function App() {
     }
   };
 
+  const fetchHealthStateComments = async (patientId: string) => {
+    try {
+      setLoadingComments(true);
+
+      const response = await fetch(`${API_URL}/api/patients/${patientId}/comments?limit=50`);
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch comments: ${response.status}`);
+      }
+
+      const data = await response.json();
+
+      if (data.status === 'success' && data.comments) {
+        setHealthStateComments(data.comments);
+        console.log(`[FETCH_COMMENTS] Loaded ${data.comments.length} comments for patient`);
+      } else {
+        setHealthStateComments([]);
+      }
+
+    } catch (err) {
+      console.error('[FETCH_COMMENTS] Error fetching health state comments:', err);
+      setHealthStateComments([]);
+    } finally {
+      setLoadingComments(false);
+    }
+  };
+
+  const handlePatientClick = async (patientId: string) => {
+    await fetchPatientDetail(patientId);
+    await fetchHealthStateComments(patientId);
+  };
+
   const updatePatientRecords = async () => {
     if (!selectedPatient) return;
 
@@ -386,8 +474,17 @@ function App() {
       await fetchPatientDetail(selectedPatient.id);
       console.log('[UPDATE] Patient details refreshed successfully');
 
+      // Refresh health state comments to show any new comments
+      if (data.health_state_changed) {
+        console.log('[UPDATE] Health state changed, refreshing comments...');
+        await fetchHealthStateComments(selectedPatient.id);
+      }
+
       // Show success message (you could add a toast notification here)
-      alert(`Successfully generated cycle ${data.cycle_number} for patient. ${data.treatment_status === 'treated' ? 'Treatment improvements reflected.' : 'Natural progression simulated.'}`);
+      const stateChangeMessage = data.health_state_changed
+        ? ` Health state changed: ${data.previous_health_state} → ${data.new_health_state}.`
+        : '';
+      alert(`Successfully generated cycle ${data.cycle_number} for patient. ${data.treatment_status === 'treated' ? 'Treatment improvements reflected.' : 'Natural progression simulated.'}${stateChangeMessage}`);
 
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update patient records');
@@ -965,6 +1062,155 @@ function App() {
                   )}
                 </div>
               </div>
+
+              {/* Health State Change Comments */}
+              {healthStateComments.length > 0 && (
+                <div className="bg-white rounded-lg shadow-xl overflow-hidden">
+                  <div className="px-8 py-4 bg-gradient-to-r from-purple-600 to-indigo-600">
+                    <h2 className="text-2xl font-bold text-white flex items-center">
+                      <svg className="h-6 w-6 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z" />
+                      </svg>
+                      Health State Evolution Comments
+                    </h2>
+                  </div>
+
+                  <div className="p-8">
+                    {loadingComments ? (
+                      <div className="flex items-center justify-center py-8">
+                        <div className="text-gray-500">Loading comments...</div>
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        {healthStateComments.map((comment) => {
+                          const changeTypeColor =
+                            comment.change_type === 'worsened' ? 'border-red-300 bg-red-50' :
+                            comment.change_type === 'improved' ? 'border-green-300 bg-green-50' :
+                            comment.change_type === 'initial' ? 'border-blue-300 bg-blue-50' :
+                            'border-gray-300 bg-gray-50';
+
+                          const changeTypeIcon =
+                            comment.change_type === 'worsened' ? '⚠️' :
+                            comment.change_type === 'improved' ? '✓' :
+                            comment.change_type === 'initial' ? 'ℹ️' :
+                            '•';
+
+                          const severityColor =
+                            comment.severity === 'critical' ? 'text-red-700' :
+                            comment.severity === 'warning' ? 'text-orange-700' :
+                            'text-blue-700';
+
+                          return (
+                            <div
+                              key={comment.id}
+                              className={`border-l-4 ${changeTypeColor} rounded-r-lg p-4`}
+                            >
+                              {/* Header */}
+                              <div className="flex items-start justify-between mb-2">
+                                <div className="flex items-center gap-2">
+                                  <span className="text-lg">{changeTypeIcon}</span>
+                                  <span className={`font-semibold text-sm uppercase tracking-wide ${severityColor}`}>
+                                    {comment.change_type}
+                                  </span>
+                                  {comment.health_state_from && (
+                                    <span className="text-sm text-gray-600">
+                                      {comment.health_state_from} → {comment.health_state_to}
+                                    </span>
+                                  )}
+                                </div>
+                                <span className="text-xs text-gray-500">
+                                  {new Date(comment.created_at).toLocaleDateString()} - Cycle {comment.cycle_number}
+                                </span>
+                              </div>
+
+                              {/* Comment Text */}
+                              <div className="text-gray-800 mb-3">
+                                {comment.comment_text}
+                              </div>
+
+                              {/* Clinical Summary */}
+                              {comment.clinical_summary && (
+                                <div className="bg-white border border-gray-200 rounded p-3 mb-3">
+                                  <div className="text-xs font-semibold text-gray-600 uppercase mb-1">Clinical Summary</div>
+                                  <div className="text-sm text-gray-700">{comment.clinical_summary}</div>
+                                </div>
+                              )}
+
+                              {/* Lab Value Changes */}
+                              {(comment.egfr_change !== null || comment.uacr_change !== null) && (
+                                <div className="grid grid-cols-2 gap-2 mb-3">
+                                  {comment.egfr_change !== null && (
+                                    <div className="bg-white border border-gray-200 rounded p-2">
+                                      <div className="text-xs text-gray-600">eGFR Change</div>
+                                      <div className={`text-sm font-semibold ${comment.egfr_change < 0 ? 'text-red-600' : 'text-green-600'}`}>
+                                        {comment.egfr_from?.toFixed(1)} → {comment.egfr_to.toFixed(1)} ({comment.egfr_change > 0 ? '+' : ''}{comment.egfr_change.toFixed(1)})
+                                      </div>
+                                    </div>
+                                  )}
+                                  {comment.uacr_change !== null && (
+                                    <div className="bg-white border border-gray-200 rounded p-2">
+                                      <div className="text-xs text-gray-600">uACR Change</div>
+                                      <div className={`text-sm font-semibold ${comment.uacr_change > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                                        {comment.uacr_from?.toFixed(1)} → {comment.uacr_to.toFixed(1)} ({comment.uacr_change > 0 ? '+' : ''}{comment.uacr_change.toFixed(1)})
+                                      </div>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+
+                              {/* Acknowledgment Text (for improvements) */}
+                              {comment.acknowledgment_text && (
+                                <div className="bg-green-100 border border-green-300 rounded p-3 mb-3">
+                                  <div className="flex items-start">
+                                    <svg className="h-5 w-5 text-green-600 mr-2 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                    </svg>
+                                    <div className="text-sm text-green-800">{comment.acknowledgment_text}</div>
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Mitigation Measures (for worsening) */}
+                              {comment.mitigation_measures && comment.mitigation_measures.length > 0 && (
+                                <div className="bg-orange-50 border border-orange-300 rounded p-3 mb-3">
+                                  <div className="text-xs font-semibold text-orange-800 uppercase mb-2 flex items-center">
+                                    <svg className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                    </svg>
+                                    Mitigation Measures
+                                  </div>
+                                  <ul className="list-disc list-inside space-y-1">
+                                    {comment.mitigation_measures.map((measure, idx) => (
+                                      <li key={idx} className="text-sm text-orange-900">{measure}</li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
+
+                              {/* Recommended Actions */}
+                              {comment.recommended_actions && comment.recommended_actions.length > 0 && (
+                                <div className="bg-blue-50 border border-blue-300 rounded p-3">
+                                  <div className="text-xs font-semibold text-blue-800 uppercase mb-2 flex items-center">
+                                    <svg className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                                    </svg>
+                                    Recommended Actions
+                                  </div>
+                                  <ul className="list-disc list-inside space-y-1">
+                                    {comment.recommended_actions.map((action, idx) => (
+                                      <li key={idx} className="text-sm text-blue-900">{action}</li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
 
               {/* Patient Trend Graphs */}
               {selectedPatient.observations && selectedPatient.observations.length > 0 && (
@@ -1957,7 +2203,7 @@ function App() {
                   filteredPatients.map((patient) => (
                   <div
                     key={patient.id}
-                    onClick={() => fetchPatientDetail(patient.id)}
+                    onClick={() => handlePatientClick(patient.id)}
                     className="px-6 py-5 hover:bg-indigo-50 transition-colors cursor-pointer"
                   >
                     <div className="flex items-center justify-between">
