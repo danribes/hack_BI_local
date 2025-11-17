@@ -896,19 +896,27 @@ router.post('/advance-cycle', async (req: Request, res: Response): Promise<any> 
       });
     }
 
-    // Batch insert all observations at once
+    // Batch insert all observations in chunks to avoid PostgreSQL parameter limit (65535)
+    // With 27 observations per patient * 6 params = 162 params per patient
+    // Safe batch size: 65535 / 162 ≈ 404 patients at a time
     if (allObservations.length > 0) {
-      const values = allObservations.map((_obs, idx) => {
-        const base = idx * 6;
-        return `($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, $${base + 5}, $${base + 6}, 'final')`;
-      }).join(',');
+      const BATCH_SIZE = 400 * 27; // 400 patients * 27 observations = 10,800 rows per batch
 
-      const params = allObservations.flat();
+      for (let i = 0; i < allObservations.length; i += BATCH_SIZE) {
+        const batch = allObservations.slice(i, i + BATCH_SIZE);
 
-      await pool.query(`
-        INSERT INTO observations (patient_id, observation_type, value_numeric, unit, observation_date, month_number, status)
-        VALUES ${values}
-      `, params);
+        const values = batch.map((_obs, idx) => {
+          const base = idx * 6;
+          return `($${base + 1}, $${base + 2}, $${base + 3}, $${base + 4}, $${base + 5}, $${base + 6}, 'final')`;
+        }).join(',');
+
+        const params = batch.flat();
+
+        await pool.query(`
+          INSERT INTO observations (patient_id, observation_type, value_numeric, unit, observation_date, month_number, status)
+          VALUES ${values}
+        `, params);
+      }
     }
 
     // Calculate evolution summaries for each patient
@@ -937,13 +945,17 @@ router.post('/advance-cycle', async (req: Request, res: Response): Promise<any> 
     // For all other patients NOT in the advancing batch, ensure they stay at month 1
     // by copying their month 1 values if they exist
     let patientsReset = 0;
-    if (advancingPatientIds.length > 0) {
+    if (advancingPatientIds.length > 0 && advancingPatientIds.length < 900) {
+      // Only reset other patients if we're not advancing most/all patients
+      // Skip this step when advancing 900+ patients to avoid parameter limit issues
+
       // Get all patients that have observations but are NOT in the advancing batch
+      // Use ANY with array instead of IN to avoid parameter limits
       const otherPatientsResult = await pool.query(`
         SELECT DISTINCT patient_id
         FROM observations
-        WHERE patient_id NOT IN (${advancingPatientIds.map((_, idx) => `$${idx + 1}`).join(',')})
-      `, advancingPatientIds);
+        WHERE patient_id NOT IN (SELECT unnest($1::text[]))
+      `, [advancingPatientIds]);
 
       for (const otherPatient of otherPatientsResult.rows) {
         const patientId = otherPatient.patient_id;
