@@ -323,11 +323,36 @@ function App() {
         data.patient.conditions = [];
       }
 
+      // Validate critical demographic fields
+      if (!data.patient.date_of_birth) {
+        console.warn('[FETCH_DETAIL] Missing date_of_birth, setting default');
+        data.patient.date_of_birth = '1970-01-01';
+      }
+
+      // Validate observations have valid dates
+      if (data.patient.observations && data.patient.observations.length > 0) {
+        data.patient.observations = data.patient.observations.filter((obs: any) => {
+          if (!obs.observation_date) {
+            console.warn('[FETCH_DETAIL] Observation missing date, filtering out:', obs);
+            return false;
+          }
+          const date = new Date(obs.observation_date);
+          if (isNaN(date.getTime())) {
+            console.warn('[FETCH_DETAIL] Observation has invalid date, filtering out:', obs);
+            return false;
+          }
+          return true;
+        });
+      }
+
       setSelectedPatient(data.patient);
 
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load patient details');
-      console.error('Error fetching patient details:', err);
+      const errorMessage = err instanceof Error ? err.message : 'Failed to load patient details';
+      setError(errorMessage);
+      console.error('[FETCH_DETAIL] Error fetching patient details:', err);
+      // Don't clear selectedPatient here - keep showing old data with error message
+      // This prevents the UI from getting into an invalid state
     } finally {
       setLoadingDetail(false);
     }
@@ -404,8 +429,13 @@ function App() {
     }
   };
 
-  const calculateAge = (dateOfBirth: string): number => {
+  const calculateAge = (dateOfBirth?: string): number => {
+    if (!dateOfBirth) return 0;
     const birthDate = new Date(dateOfBirth);
+
+    // Check if date is valid
+    if (isNaN(birthDate.getTime())) return 0;
+
     const today = new Date();
     let age = today.getFullYear() - birthDate.getFullYear();
     const monthDiff = today.getMonth() - birthDate.getMonth();
@@ -584,15 +614,22 @@ function App() {
     const bmi = calculateBMI(selectedPatient.weight, selectedPatient.height);
     const age = calculateAge(selectedPatient.date_of_birth);
 
-    // Check if required data is loaded
-    const hasRequiredData = selectedPatient.kdigo_classification && selectedPatient.risk_category;
+    // Check if required data is loaded with comprehensive validation
+    const hasValidKdigoClassification = selectedPatient.kdigo_classification &&
+      typeof selectedPatient.kdigo_classification === 'object' &&
+      'has_ckd' in selectedPatient.kdigo_classification &&
+      'gfr_category' in selectedPatient.kdigo_classification &&
+      'albuminuria_category' in selectedPatient.kdigo_classification;
+
+    const hasRequiredData = hasValidKdigoClassification && selectedPatient.risk_category;
 
     // Debug logging
     console.log('[RENDER] Patient detail view rendering');
     console.log('[RENDER] loadingDetail:', loadingDetail);
     console.log('[RENDER] error:', error);
     console.log('[RENDER] hasRequiredData:', hasRequiredData);
-    console.log('[RENDER] kdigo_classification:', !!selectedPatient.kdigo_classification);
+    console.log('[RENDER] hasValidKdigoClassification:', hasValidKdigoClassification);
+    console.log('[RENDER] kdigo_classification:', selectedPatient.kdigo_classification);
     console.log('[RENDER] risk_category:', selectedPatient.risk_category);
 
     return (

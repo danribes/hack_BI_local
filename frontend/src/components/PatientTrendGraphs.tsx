@@ -18,11 +18,23 @@ interface PatientTrendGraphsProps {
 export const PatientTrendGraphs: React.FC<PatientTrendGraphsProps> = ({ observations, isTreated }) => {
   // Group observations by month/cycle
   const groupedByMonth = observations.reduce((acc, obs) => {
+    // Skip observations without dates or with invalid dates
+    if (!obs.observation_date) {
+      console.warn('[PatientTrendGraphs] Skipping observation without date:', obs);
+      return acc;
+    }
+
+    const observationDate = new Date(obs.observation_date);
+    if (isNaN(observationDate.getTime())) {
+      console.warn('[PatientTrendGraphs] Skipping observation with invalid date:', obs);
+      return acc;
+    }
+
     const monthNum = obs.month_number || 0;
     if (!acc[monthNum]) {
       acc[monthNum] = {
         month: monthNum,
-        date: new Date(obs.observation_date).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
+        date: observationDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
       };
     }
     if (obs.value_numeric !== undefined) {
