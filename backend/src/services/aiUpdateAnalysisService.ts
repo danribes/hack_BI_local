@@ -429,12 +429,8 @@ Return ONLY the JSON response, no additional text.`;
         healthStateTo = healthStateTo.substring(0, 10);
       }
 
-      // Extract and validate risk level (max 20 chars)
-      let riskLevelTo = currentKdigo.risk_level || 'low';
-      if (riskLevelTo && riskLevelTo.length > 20) {
-        console.warn(`[AI Update] risk_level too long (${riskLevelTo.length} chars), truncating:`, riskLevelTo);
-        riskLevelTo = riskLevelTo.substring(0, 20);
-      }
+      // Extract risk level (always one of the valid values from KDIGO classification)
+      const riskLevelTo: 'low' | 'moderate' | 'high' | 'very_high' = currentKdigo.risk_level || 'low';
 
       // Determine if patient has CKD from classification
       const isCkdPatient = currentKdigo.has_ckd || false;
