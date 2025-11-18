@@ -401,12 +401,12 @@ const PatientFilters: FC<FilterProps> = ({ statistics, activeFilters, onFilterCh
       )}
 
       {/* Active Filters Summary */}
-      {(activeFilters.patientType !== 'all' || activeFilters.ckdSeverity || activeFilters.nonCkdRisk) && (
+      {(activeFilters.patientType === 'ckd' || activeFilters.patientType === 'non-ckd' || activeFilters.ckdSeverity || activeFilters.nonCkdRisk) && (
         <div className="mt-6 pt-4 border-t border-gray-200">
           <div className="flex items-center justify-between">
             <div className="text-sm text-gray-600">
               <span className="font-semibold">Active Filters:</span>
-              {activeFilters.patientType !== 'all' && (
+              {(activeFilters.patientType === 'ckd' || activeFilters.patientType === 'non-ckd') && (
                 <span className="ml-2 px-2 py-1 bg-gray-100 rounded text-xs">
                   {activeFilters.patientType === 'ckd' ? 'CKD' : 'Non-CKD'}
                 </span>

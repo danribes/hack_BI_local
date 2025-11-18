@@ -48,19 +48,30 @@ export const PatientTrendGraphs: React.FC<PatientTrendGraphsProps> = ({ observat
 
   // Custom tooltip
   const CustomTooltip = ({ active, payload, label }: any) => {
-    if (active && payload && payload.length) {
+    if (!active || !payload || !payload.length) {
+      return null;
+    }
+
+    try {
       return (
         <div className="bg-white border border-gray-300 rounded-lg shadow-lg p-3">
           <p className="font-semibold text-gray-900">{label}</p>
-          {payload.map((entry: any, index: number) => (
-            <p key={index} style={{ color: entry.color }} className="text-sm">
-              {entry.name}: {entry.value?.toFixed(1)} {entry.unit}
-            </p>
-          ))}
+          {payload.map((entry: any, index: number) => {
+            if (!entry || entry.value === undefined || entry.value === null) {
+              return null;
+            }
+            return (
+              <p key={index} style={{ color: entry.color || '#000' }} className="text-sm">
+                {entry.name || 'Value'}: {typeof entry.value === 'number' ? entry.value.toFixed(1) : entry.value}
+              </p>
+            );
+          }).filter(Boolean)}
         </div>
       );
+    } catch (err) {
+      console.error('[CustomTooltip] Error rendering tooltip:', err);
+      return null;
     }
-    return null;
   };
 
   return (
