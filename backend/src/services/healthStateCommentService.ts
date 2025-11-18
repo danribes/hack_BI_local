@@ -281,7 +281,46 @@ export class HealthStateCommentService {
    * Determine if health state improved, worsened, or stayed stable
    */
   private determineChangeType(data: HealthStateChangeData): 'improved' | 'worsened' | 'stable' {
-    // Risk level mapping for comparison
+    // First, check if the KDIGO categories (GFR or albuminuria) changed
+    // This is important because risk level alone may not capture category transitions
+    // (e.g., G3b-A3 → G4-A3 are both "very_high" risk but G4 is worse than G3b)
+    if (data.from_health_state && data.to_health_state) {
+      const fromParts = data.from_health_state.split('-');
+      const toParts = data.to_health_state.split('-');
+
+      if (fromParts.length === 2 && toParts.length === 2) {
+        const fromGFR = fromParts[0]; // e.g., "G3b"
+        const toGFR = toParts[0]; // e.g., "G4"
+        const fromAlb = fromParts[1]; // e.g., "A2"
+        const toAlb = toParts[1]; // e.g., "A3"
+
+        // GFR category order (higher number = worse kidney function)
+        const gfrOrder: { [key: string]: number } = {
+          'G1': 1, 'G2': 2, 'G3a': 3, 'G3b': 4, 'G4': 5, 'G5': 6
+        };
+
+        // Albuminuria category order (higher number = worse)
+        const albOrder: { [key: string]: number } = {
+          'A1': 1, 'A2': 2, 'A3': 3
+        };
+
+        const fromGFRNum = gfrOrder[fromGFR] || 0;
+        const toGFRNum = gfrOrder[toGFR] || 0;
+        const fromAlbNum = albOrder[fromAlb] || 0;
+        const toAlbNum = albOrder[toAlb] || 0;
+
+        // Check if GFR or albuminuria category changed
+        if (toGFRNum > fromGFRNum || toAlbNum > fromAlbNum) {
+          // Category worsened
+          return 'worsened';
+        } else if (toGFRNum < fromGFRNum || toAlbNum < fromAlbNum) {
+          // Category improved
+          return 'improved';
+        }
+      }
+    }
+
+    // If KDIGO categories didn't change, check risk level
     const riskOrder: { [key: string]: number } = {
       'low': 1,
       'moderate': 2,
