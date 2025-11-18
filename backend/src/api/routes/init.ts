@@ -1645,4 +1645,182 @@ router.post('/migrate-email-tables', async (_req: Request, res: Response): Promi
   }
 });
 
+/**
+ * POST /api/init/fix-duplicate-names
+ * Replace duplicate patient names with unique names
+ */
+router.post('/fix-duplicate-names', async (_req: Request, res: Response): Promise<any> => {
+  try {
+    const pool = getPool();
+
+    console.log('Analyzing duplicate names...');
+
+    // Expanded name lists to ensure uniqueness
+    const firstNamesMale = [
+      'James', 'John', 'Robert', 'Michael', 'William', 'David', 'Richard', 'Joseph', 'Thomas', 'Charles',
+      'Christopher', 'Daniel', 'Matthew', 'Anthony', 'Donald', 'Mark', 'Paul', 'Steven', 'Andrew', 'Kenneth',
+      'Joshua', 'Kevin', 'Brian', 'George', 'Edward', 'Ronald', 'Timothy', 'Jason', 'Jeffrey', 'Ryan',
+      'Jacob', 'Gary', 'Nicholas', 'Eric', 'Jonathan', 'Stephen', 'Larry', 'Justin', 'Scott', 'Brandon',
+      'Frank', 'Benjamin', 'Gregory', 'Samuel', 'Raymond', 'Patrick', 'Alexander', 'Jack', 'Dennis', 'Jerry',
+      'Tyler', 'Aaron', 'Henry', 'Douglas', 'Peter', 'Adam', 'Nathan', 'Zachary', 'Walter', 'Harold',
+      'Kyle', 'Carl', 'Arthur', 'Gerald', 'Roger', 'Keith', 'Jeremy', 'Terry', 'Lawrence', 'Sean',
+      'Christian', 'Albert', 'Joe', 'Ethan', 'Austin', 'Jesse', 'Willie', 'Billy', 'Bryan', 'Bruce',
+      'Noah', 'Jordan', 'Dylan', 'Ralph', 'Roy', 'Eugene', 'Randy', 'Vincent', 'Russell', 'Louis',
+      'Philip', 'Bobby', 'Johnny', 'Bradley', 'Howard', 'Fred', 'Ernest', 'Carlos', 'Martin', 'Craig'
+    ];
+
+    const firstNamesFemale = [
+      'Mary', 'Patricia', 'Jennifer', 'Linda', 'Barbara', 'Elizabeth', 'Susan', 'Jessica', 'Sarah', 'Karen',
+      'Nancy', 'Lisa', 'Betty', 'Margaret', 'Sandra', 'Ashley', 'Kimberly', 'Emily', 'Donna', 'Michelle',
+      'Dorothy', 'Carol', 'Amanda', 'Melissa', 'Deborah', 'Stephanie', 'Rebecca', 'Sharon', 'Laura', 'Cynthia',
+      'Kathleen', 'Amy', 'Shirley', 'Angela', 'Helen', 'Anna', 'Brenda', 'Pamela', 'Nicole', 'Samantha',
+      'Katherine', 'Emma', 'Ruth', 'Christine', 'Catherine', 'Debra', 'Rachel', 'Carolyn', 'Janet', 'Virginia',
+      'Maria', 'Heather', 'Diane', 'Julie', 'Joyce', 'Victoria', 'Olivia', 'Kelly', 'Christina', 'Lauren',
+      'Joan', 'Evelyn', 'Judith', 'Megan', 'Cheryl', 'Andrea', 'Hannah', 'Jacqueline', 'Martha', 'Gloria',
+      'Teresa', 'Ann', 'Sara', 'Madison', 'Frances', 'Kathryn', 'Janice', 'Jean', 'Abigail', 'Alice',
+      'Judy', 'Sophia', 'Grace', 'Denise', 'Amber', 'Doris', 'Marilyn', 'Danielle', 'Beverly', 'Isabella',
+      'Theresa', 'Diana', 'Natalie', 'Brittany', 'Charlotte', 'Marie', 'Kayla', 'Alexis', 'Lori', 'Julia'
+    ];
+
+    const lastNames = [
+      'Smith', 'Johnson', 'Williams', 'Brown', 'Jones', 'Garcia', 'Miller', 'Davis', 'Rodriguez', 'Martinez',
+      'Hernandez', 'Lopez', 'Gonzalez', 'Wilson', 'Anderson', 'Thomas', 'Taylor', 'Moore', 'Jackson', 'Martin',
+      'Lee', 'Perez', 'Thompson', 'White', 'Harris', 'Sanchez', 'Clark', 'Ramirez', 'Lewis', 'Robinson',
+      'Walker', 'Young', 'Allen', 'King', 'Wright', 'Scott', 'Torres', 'Nguyen', 'Hill', 'Flores',
+      'Green', 'Adams', 'Nelson', 'Baker', 'Hall', 'Rivera', 'Campbell', 'Mitchell', 'Carter', 'Roberts',
+      'Gomez', 'Phillips', 'Evans', 'Turner', 'Diaz', 'Parker', 'Cruz', 'Edwards', 'Collins', 'Reyes',
+      'Stewart', 'Morris', 'Morales', 'Murphy', 'Cook', 'Rogers', 'Gutierrez', 'Ortiz', 'Morgan', 'Cooper',
+      'Peterson', 'Bailey', 'Reed', 'Kelly', 'Howard', 'Ramos', 'Kim', 'Cox', 'Ward', 'Richardson',
+      'Watson', 'Brooks', 'Chavez', 'Wood', 'James', 'Bennett', 'Gray', 'Mendoza', 'Ruiz', 'Hughes',
+      'Price', 'Alvarez', 'Castillo', 'Sanders', 'Patel', 'Myers', 'Long', 'Ross', 'Foster', 'Jimenez'
+    ];
+
+    // Step 1: Find all duplicate name combinations
+    const duplicatesResult = await pool.query(`
+      SELECT first_name, last_name, ARRAY_AGG(id ORDER BY medical_record_number) as patient_ids
+      FROM patients
+      GROUP BY first_name, last_name
+      HAVING COUNT(*) > 1
+      ORDER BY COUNT(*) DESC
+    `);
+
+    if (duplicatesResult.rows.length === 0) {
+      return res.json({
+        status: 'success',
+        message: 'No duplicate names found',
+        duplicates_fixed: 0
+      });
+    }
+
+    console.log(`Found ${duplicatesResult.rows.length} duplicate name combinations`);
+
+    // Track used name combinations to ensure uniqueness
+    const usedNames = new Set<string>();
+
+    // Add all current unique names to the set
+    const currentNamesResult = await pool.query(`
+      SELECT DISTINCT first_name, last_name FROM patients
+    `);
+
+    currentNamesResult.rows.forEach(row => {
+      usedNames.add(`${row.first_name}|${row.last_name}`);
+    });
+
+    let totalFixed = 0;
+
+    // Step 2: For each duplicate set, keep the first patient, rename the rest
+    for (const duplicate of duplicatesResult.rows) {
+      const patientIds = duplicate.patient_ids;
+
+      // Keep the first patient (oldest), rename the rest
+      for (let i = 1; i < patientIds.length; i++) {
+        const patientId = patientIds[i];
+
+        // Get patient's gender to choose appropriate first names
+        const patientResult = await pool.query(
+          'SELECT gender FROM patients WHERE id = $1',
+          [patientId]
+        );
+
+        const gender = patientResult.rows[0]?.gender;
+        const firstNamePool = gender === 'male' ? firstNamesMale :
+                             gender === 'female' ? firstNamesFemale :
+                             [...firstNamesMale, ...firstNamesFemale];
+
+        // Find a unique name combination
+        let newFirstName = '';
+        let newLastName = '';
+        let attempts = 0;
+        const maxAttempts = 1000;
+
+        while (attempts < maxAttempts) {
+          newFirstName = firstNamePool[Math.floor(Math.random() * firstNamePool.length)];
+          newLastName = lastNames[Math.floor(Math.random() * lastNames.length)];
+          const nameKey = `${newFirstName}|${newLastName}`;
+
+          if (!usedNames.has(nameKey)) {
+            usedNames.add(nameKey);
+            break;
+          }
+          attempts++;
+        }
+
+        if (attempts >= maxAttempts) {
+          console.error(`Could not find unique name for patient ${patientId} after ${maxAttempts} attempts`);
+          continue;
+        }
+
+        // Update the patient with the new unique name
+        await pool.query(
+          `UPDATE patients
+           SET first_name = $1, last_name = $2,
+               email = $3
+           WHERE id = $4`,
+          [
+            newFirstName,
+            newLastName,
+            `${newFirstName.toLowerCase()}.${newLastName.toLowerCase()}@email.com`,
+            patientId
+          ]
+        );
+
+        totalFixed++;
+        console.log(`✓ Renamed patient ${patientId}: ${duplicate.first_name} ${duplicate.last_name} → ${newFirstName} ${newLastName}`);
+      }
+    }
+
+    // Step 3: Verify no duplicates remain
+    const verifyResult = await pool.query(`
+      SELECT COUNT(*) as remaining_duplicates
+      FROM (
+        SELECT first_name, last_name, COUNT(*) as dup_count
+        FROM patients
+        GROUP BY first_name, last_name
+        HAVING COUNT(*) > 1
+      ) dup
+    `);
+
+    const remainingDuplicates = parseInt(verifyResult.rows[0].remaining_duplicates);
+
+    console.log(`✓ Fixed ${totalFixed} duplicate patient names`);
+    console.log(`✓ Remaining duplicates: ${remainingDuplicates}`);
+
+    res.json({
+      status: 'success',
+      message: 'Duplicate names fixed successfully',
+      duplicates_fixed: totalFixed,
+      remaining_duplicates: remainingDuplicates,
+      duplicate_sets_processed: duplicatesResult.rows.length
+    });
+
+  } catch (error) {
+    console.error('[Init API] Error fixing duplicate names:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to fix duplicate names',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
 export default router;
