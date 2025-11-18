@@ -491,11 +491,25 @@ router.get('/:id', async (req: Request, res: Response): Promise<any> => {
     const { id } = req.params;
     const pool = getPool();
 
-    // Get patient basic info
+    // Get patient basic info with tracking data from new tables
     const patientResult = await pool.query(`
-      SELECT *
-      FROM patients
-      WHERE id = $1
+      SELECT
+        p.*,
+        -- CKD patient tracking data
+        cpd.is_treated as ckd_is_treated,
+        cpd.is_monitored as ckd_is_monitored,
+        cpd.monitoring_device as ckd_monitoring_device,
+        cpd.monitoring_frequency as ckd_monitoring_frequency,
+        cpd.last_monitoring_date as ckd_last_monitoring_date,
+        -- Non-CKD patient tracking data
+        npd.is_monitored as non_ckd_is_monitored,
+        npd.monitoring_device as non_ckd_monitoring_device,
+        npd.monitoring_frequency as non_ckd_monitoring_frequency,
+        npd.last_monitoring_date as non_ckd_last_monitoring_date
+      FROM patients p
+      LEFT JOIN ckd_patient_data cpd ON p.id = cpd.patient_id
+      LEFT JOIN non_ckd_patient_data npd ON p.id = npd.patient_id
+      WHERE p.id = $1
     `, [id]);
 
     if (patientResult.rows.length === 0) {
@@ -618,6 +632,25 @@ router.get('/:id', async (req: Request, res: Response): Promise<any> => {
       bmi: bmiObs?.value_numeric || null,
     };
 
+    // Combine tracking data from new tables with legacy fields (same logic as list endpoint)
+    // Use data from tracking tables if available, otherwise fall back to legacy fields
+    const is_monitored = kdigoClassification.has_ckd
+      ? (patient.ckd_is_monitored !== null ? patient.ckd_is_monitored : patient.home_monitoring_active)
+      : (patient.non_ckd_is_monitored !== null ? patient.non_ckd_is_monitored : patient.home_monitoring_active);
+
+    const monitoring_device = kdigoClassification.has_ckd
+      ? (patient.ckd_monitoring_device || patient.home_monitoring_device)
+      : (patient.non_ckd_monitoring_device || patient.home_monitoring_device);
+
+    const monitoring_frequency = kdigoClassification.has_ckd
+      ? (patient.ckd_monitoring_frequency || null)
+      : (patient.non_ckd_monitoring_frequency || null);
+
+    // Treatment tracking: Combine tracking table with legacy field (OR logic)
+    const is_treated = kdigoClassification.has_ckd
+      ? (patient.ckd_is_treated || patient.ckd_treatment_active || false)
+      : false;
+
     res.json({
       status: 'success',
       patient: {
@@ -631,12 +664,16 @@ router.get('/:id', async (req: Request, res: Response): Promise<any> => {
         ...comorbidities,
         // Vital signs from observations
         ...vitalSigns,
-        // Home monitoring
-        home_monitoring_device: patient.home_monitoring_device || null,
-        home_monitoring_active: patient.home_monitoring_active || false,
-        // Treatment tracking
-        ckd_treatment_active: patient.ckd_treatment_active || false,
-        ckd_treatment_type: patient.ckd_treatment_type || null
+        // Home monitoring - combined from tracking tables and legacy fields
+        home_monitoring_device: monitoring_device || null,
+        home_monitoring_active: is_monitored || false,
+        monitoring_frequency: monitoring_frequency,
+        // Treatment tracking - combined from tracking tables and legacy fields
+        ckd_treatment_active: is_treated,
+        ckd_treatment_type: patient.ckd_treatment_type || null,
+        // Additional tracking data for frontend
+        is_treated: is_treated,
+        is_monitored: is_monitored
       }
     });
 
