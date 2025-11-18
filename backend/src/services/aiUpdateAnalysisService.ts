@@ -107,6 +107,7 @@ export class AIUpdateAnalysisService {
 
   /**
    * Determines if changes are clinically significant
+   * Uses sensitive thresholds appropriate for CKD monitoring
    */
   private hasSignificantChanges(
     changes: Record<string, { absolute: number; percentage: number }>,
@@ -114,45 +115,73 @@ export class AIUpdateAnalysisService {
     current: LabValues
   ): boolean {
     // Check for significant changes in key metrics
+    // Note: Thresholds lowered to catch gradual but clinically important changes
 
-    // eGFR: >5 ml/min/1.73m² change or >10% change
-    if (changes.egfr && (Math.abs(changes.egfr.absolute) > 5 || Math.abs(changes.egfr.percentage) > 10)) {
+    // eGFR: >2 ml/min/1.73m² change or >3% change
+    // Even small declines (2-3 units) are clinically significant in CKD monitoring
+    if (changes.egfr && (Math.abs(changes.egfr.absolute) > 2 || Math.abs(changes.egfr.percentage) > 3)) {
+      console.log(`[AI Analysis] Significant eGFR change detected: ${changes.egfr.absolute.toFixed(1)} units (${changes.egfr.percentage.toFixed(1)}%)`);
       return true;
     }
 
-    // uACR: >30% change or crossing albuminuria categories
-    if (changes.uacr && Math.abs(changes.uacr.percentage) > 30) {
+    // uACR: >15% change or crossing albuminuria categories
+    // Proteinuria changes are important markers of kidney disease progression
+    if (changes.uacr && Math.abs(changes.uacr.percentage) > 15) {
+      console.log(`[AI Analysis] Significant uACR change detected: ${changes.uacr.percentage.toFixed(1)}%`);
       return true;
     }
 
-    // Check albuminuria category crossing
+    // Check albuminuria category crossing (A1, A2, A3)
     if (previous.uacr !== undefined && current.uacr !== undefined) {
       const prevCategory = this.getAlbuminuriaCategory(previous.uacr);
       const currCategory = this.getAlbuminuriaCategory(current.uacr);
       if (prevCategory !== currCategory) {
+        console.log(`[AI Analysis] Albuminuria category change: ${prevCategory} → ${currCategory}`);
         return true;
       }
     }
 
-    // Creatinine: >20% change
-    if (changes.creatinine && Math.abs(changes.creatinine.percentage) > 20) {
+    // Creatinine: >10% change
+    // Lower threshold for creatinine as it's a key indicator
+    if (changes.creatinine && Math.abs(changes.creatinine.percentage) > 10) {
+      console.log(`[AI Analysis] Significant creatinine change: ${changes.creatinine.percentage.toFixed(1)}%`);
       return true;
     }
 
-    // Blood pressure: significant hypertension changes
+    // Blood pressure: significant hypertension or changes >10 mmHg
     if (current.systolic_bp && (current.systolic_bp > 160 || current.systolic_bp < 90)) {
+      console.log(`[AI Analysis] Abnormal blood pressure: ${current.systolic_bp} mmHg`);
+      return true;
+    }
+    if (changes.systolic_bp && Math.abs(changes.systolic_bp.absolute) > 10) {
+      console.log(`[AI Analysis] Significant BP change: ${changes.systolic_bp.absolute.toFixed(1)} mmHg`);
       return true;
     }
 
-    // HbA1c: >0.5% change or poor control
-    if (changes.hba1c && (Math.abs(changes.hba1c.absolute) > 0.5 || (current.hba1c && current.hba1c > 8))) {
+    // HbA1c: >0.3% change or poor control
+    // Important for diabetic CKD patients
+    if (changes.hba1c && (Math.abs(changes.hba1c.absolute) > 0.3 || (current.hba1c && current.hba1c > 8))) {
+      console.log(`[AI Analysis] Significant HbA1c change or poor control`);
       return true;
     }
 
-    // Hemoglobin: anemia concerns
+    // Hemoglobin: anemia concerns or >5% change
+    // Anemia is common in CKD and requires monitoring
     if (current.hemoglobin && current.hemoglobin < 10) {
+      console.log(`[AI Analysis] Anemia detected: ${current.hemoglobin} g/dL`);
       return true;
     }
+    if (changes.hemoglobin && Math.abs(changes.hemoglobin.percentage) > 5) {
+      console.log(`[AI Analysis] Significant hemoglobin change: ${changes.hemoglobin.percentage.toFixed(1)}%`);
+      return true;
+    }
+
+    // If no significant changes detected, log for debugging
+    console.log(`[AI Analysis] No significant changes detected - largest changes:`, {
+      egfr: changes.egfr ? `${changes.egfr.absolute.toFixed(1)} units` : 'none',
+      uacr: changes.uacr ? `${changes.uacr.percentage.toFixed(1)}%` : 'none',
+      creatinine: changes.creatinine ? `${changes.creatinine.percentage.toFixed(1)}%` : 'none'
+    });
 
     return false;
   }
