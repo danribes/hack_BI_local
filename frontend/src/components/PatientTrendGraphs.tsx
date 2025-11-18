@@ -48,11 +48,47 @@ export const PatientTrendGraphs: React.FC<PatientTrendGraphsProps> = ({ observat
   // Convert to array and sort by month
   const timeSeriesData = Object.values(groupedByMonth).sort((a: any, b: any) => a.month - b.month);
 
+  // Helper function to filter data for unchanged values
+  // If all values are identical, show only the most recent point
+  const getFilteredData = (dataKey: string) => {
+    const validPoints = timeSeriesData.filter((d: any) => d[dataKey] !== undefined && d[dataKey] !== null);
+
+    if (validPoints.length === 0) return timeSeriesData;
+
+    // Check if all values are identical
+    const firstValue = validPoints[0][dataKey];
+    const allIdentical = validPoints.every((d: any) => d[dataKey] === firstValue);
+
+    // If all values are identical, return only the most recent point
+    if (allIdentical && validPoints.length > 1) {
+      // Return data with only the latest point for this metric
+      const latestPoint = validPoints[validPoints.length - 1];
+      return timeSeriesData.map(d => {
+        if (d.month === latestPoint.month) {
+          return d; // Keep the latest point
+        }
+        // Remove this dataKey from other points
+        const { [dataKey]: _, ...rest } = d;
+        return rest;
+      });
+    }
+
+    return timeSeriesData;
+  };
+
   // Helper function to determine if we should show connecting lines
-  // Only show lines if there are 2+ data points
+  // Only show lines if there are 2+ data points with different values
   const shouldShowLine = (dataKey: string) => {
     const validPoints = timeSeriesData.filter((d: any) => d[dataKey] !== undefined && d[dataKey] !== null);
-    return validPoints.length >= 2;
+
+    if (validPoints.length < 2) return false;
+
+    // Check if all values are identical
+    const firstValue = validPoints[0][dataKey];
+    const allIdentical = validPoints.every((d: any) => d[dataKey] === firstValue);
+
+    // Don't show line if all values are the same
+    return !allIdentical;
   };
 
   // Custom tooltip
@@ -116,7 +152,7 @@ export const PatientTrendGraphs: React.FC<PatientTrendGraphsProps> = ({ observat
               </span>
             </h3>
             <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={timeSeriesData}>
+              <LineChart data={getFilteredData('eGFR')}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                 <XAxis
                   dataKey="date"
@@ -158,7 +194,7 @@ export const PatientTrendGraphs: React.FC<PatientTrendGraphsProps> = ({ observat
               </span>
             </h3>
             <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={timeSeriesData}>
+              <LineChart data={getFilteredData('uACR')}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                 <XAxis
                   dataKey="date"
@@ -200,7 +236,7 @@ export const PatientTrendGraphs: React.FC<PatientTrendGraphsProps> = ({ observat
               </span>
             </h3>
             <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={timeSeriesData}>
+              <LineChart data={getFilteredData('blood_pressure_systolic')}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                 <XAxis
                   dataKey="date"
@@ -253,7 +289,7 @@ export const PatientTrendGraphs: React.FC<PatientTrendGraphsProps> = ({ observat
               </span>
             </h3>
             <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={timeSeriesData}>
+              <LineChart data={getFilteredData('HbA1c')}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                 <XAxis
                   dataKey="date"
