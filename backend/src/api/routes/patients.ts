@@ -537,12 +537,86 @@ router.get('/statistics', async (_req: Request, res: Response): Promise<any> => 
       }
     });
 
+    // Get health state change statistics
+    const healthStateChangeStats: any = {
+      days_7: { total: 0, improved: 0, worsened: 0 },
+      days_30: { total: 0, improved: 0, worsened: 0 },
+      days_90: { total: 0, improved: 0, worsened: 0 }
+    };
+
+    // Query for 7 days
+    const stats7DaysResult = await pool.query(`
+      SELECT
+        change_type,
+        COUNT(DISTINCT patient_id) as count
+      FROM patient_health_state_comments
+      WHERE created_at >= NOW() - INTERVAL '7 days'
+        AND visibility = 'visible'
+        AND change_type IN ('improved', 'worsened', 'stable')
+      GROUP BY change_type
+    `);
+
+    stats7DaysResult.rows.forEach((row: any) => {
+      const count = parseInt(row.count);
+      healthStateChangeStats.days_7.total += count;
+      if (row.change_type === 'improved') {
+        healthStateChangeStats.days_7.improved = count;
+      } else if (row.change_type === 'worsened') {
+        healthStateChangeStats.days_7.worsened = count;
+      }
+    });
+
+    // Query for 30 days
+    const stats30DaysResult = await pool.query(`
+      SELECT
+        change_type,
+        COUNT(DISTINCT patient_id) as count
+      FROM patient_health_state_comments
+      WHERE created_at >= NOW() - INTERVAL '30 days'
+        AND visibility = 'visible'
+        AND change_type IN ('improved', 'worsened', 'stable')
+      GROUP BY change_type
+    `);
+
+    stats30DaysResult.rows.forEach((row: any) => {
+      const count = parseInt(row.count);
+      healthStateChangeStats.days_30.total += count;
+      if (row.change_type === 'improved') {
+        healthStateChangeStats.days_30.improved = count;
+      } else if (row.change_type === 'worsened') {
+        healthStateChangeStats.days_30.worsened = count;
+      }
+    });
+
+    // Query for 90 days
+    const stats90DaysResult = await pool.query(`
+      SELECT
+        change_type,
+        COUNT(DISTINCT patient_id) as count
+      FROM patient_health_state_comments
+      WHERE created_at >= NOW() - INTERVAL '90 days'
+        AND visibility = 'visible'
+        AND change_type IN ('improved', 'worsened', 'stable')
+      GROUP BY change_type
+    `);
+
+    stats90DaysResult.rows.forEach((row: any) => {
+      const count = parseInt(row.count);
+      healthStateChangeStats.days_90.total += count;
+      if (row.change_type === 'improved') {
+        healthStateChangeStats.days_90.improved = count;
+      } else if (row.change_type === 'worsened') {
+        healthStateChangeStats.days_90.worsened = count;
+      }
+    });
+
     res.json({
       status: 'success',
       statistics: {
         total_patients: ckdStats.total + nonCkdStats.total,
         ckd: ckdStats,
-        non_ckd: nonCkdStats
+        non_ckd: nonCkdStats,
+        health_state_changes: healthStateChangeStats
       }
     });
 
