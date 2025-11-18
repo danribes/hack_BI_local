@@ -26,6 +26,8 @@ interface PatientContext {
   previousHealthState?: string;
   treatmentActive: boolean;
   treatmentType?: string;
+  monitoringActive: boolean;
+  monitoringDevice?: string;
   cycleNumber: number;
   previousCycleNumber?: number;
   // KDIGO clinical recommendations
@@ -265,6 +267,7 @@ export class AIUpdateAnalysisService {
 - Previous Health State: ${context.previousHealthState || 'Unknown'}
 - Risk Level: ${context.riskLevel || 'Unknown'}
 - Treatment Status: ${context.treatmentActive ? `Active (${context.treatmentType || 'Unknown'})` : 'NOT ON TREATMENT'}
+- Monitoring Status: ${context.monitoringActive ? `Active${context.monitoringDevice ? ` (${context.monitoringDevice})` : ''}` : 'NOT ON MONITORING'}
 - Clinical Recommendations: ${recommendationsText}
 - Cycle: ${context.previousCycleNumber || 'N/A'} → ${context.cycleNumber}
 
@@ -292,31 +295,52 @@ IMPORTANT: Even if changes are minimal or the patient is stable, still provide a
 
 **CRITICAL CLINICAL GUIDELINES:**
 
-1. **Treatment Initiation Logic:**
-   - If patient is NOT ON TREATMENT and has CKD (especially Stage 3 or higher), ALWAYS recommend initiating appropriate CKD treatment
-   - If patient shows WORSENING kidney function (declining eGFR, rising uACR) and NOT ON TREATMENT, this is URGENT - recommend immediate treatment initiation
-   - NEVER say "maintain current treatment plan" or "continue current treatment" when treatment status is "NOT ON TREATMENT"
-   - If NOT ON TREATMENT, use phrases like "initiate treatment", "start therapy", "begin pharmacological intervention"
+**FIRST AND MOST IMPORTANT: ALWAYS CHECK THE "Treatment Status" AND "Monitoring Status" FIELDS ABOVE BEFORE MAKING ANY RECOMMENDATIONS!**
 
-2. **Treatment Adequacy Assessment:**
-   - If patient IS on treatment but condition is WORSENING, recommend treatment intensification or adjustment
-   - If patient IS on treatment and STABLE/IMPROVING, acknowledge treatment effectiveness
+1. **Status Verification (CHECK THIS FIRST!):**
+   - Look at "Treatment Status:" field in Patient Context section
+     * If it says "Active (...)" → Patient IS currently on treatment
+     * If it says "NOT ON TREATMENT" → Patient is NOT currently on treatment
+   - Look at "Monitoring Status:" field in Patient Context section
+     * If it says "Active (...)" → Patient IS currently being monitored
+     * If it says "NOT ON MONITORING" → Patient is NOT currently being monitored
+   - These fields are the ONLY source of truth for treatment/monitoring status - use them!
 
-3. **Severity Assessment:**
+2. **For Patients CURRENTLY ON TREATMENT (Treatment Status: Active):**
+   - NEVER recommend "initiating treatment" - they're already being treated!
+   - If STABLE/IMPROVING: Acknowledge treatment effectiveness, recommend continuing current regimen
+   - If WORSENING: Recommend treatment optimization, dose adjustment, or adding additional agents
+   - Use phrases: "continue current treatment", "optimize current therapy", "adjust current regimen", "maintain current management"
+
+3. **For Patients NOT ON TREATMENT (Treatment Status: NOT ON TREATMENT):**
+   - If CKD Stage 3 or higher: ALWAYS recommend initiating appropriate CKD treatment
+   - If showing WORSENING kidney function: URGENT - recommend immediate treatment initiation
+   - Use phrases: "initiate treatment", "start therapy", "begin pharmacological intervention"
+   - Reference the Clinical Recommendations field for specific medication recommendations
+
+4. **Severity Assessment:**
    - Stage 4 CKD (G4) or higher without treatment = CRITICAL severity, HIGH concern
-   - Declining eGFR without treatment = WARNING or CRITICAL severity
-   - Rising albuminuria without treatment = WARNING severity
+   - Declining eGFR in untreated patient = WARNING or CRITICAL severity
+   - Worsening in treated patient = WARNING severity (treatment needs optimization)
    - Any progression to higher risk category = at least WARNING severity
 
-4. **Actionable Recommendations:**
-   - Be SPECIFIC: Instead of "continue monitoring", say "Initiate RAS inhibitor therapy" or "Start SGLT2 inhibitor"
-   - Reference the Clinical Recommendations field when treatment is indicated but not started
-   - For deteriorating patients, prioritize treatment initiation over monitoring
+5. **Actionable Recommendations:**
+   - Be SPECIFIC based on treatment status
+   - For TREATED patients: "Continue RAS inhibitor", "Optimize SGLT2i dosing", "Monitor treatment response"
+   - For UNTREATED patients: "Initiate RAS inhibitor therapy", "Start SGLT2 inhibitor"
+   - Always verify treatment status before suggesting any treatment-related action
 
-5. **Health State Changes:**
+6. **Health State Changes:**
    - Worsening health state (G3b→G4, A1→A2, etc.) = clear deterioration, needs intervention
-   - "Stable" only means no category changes, but patient still needs treatment if indicated
-   - Even "stable" severe CKD without treatment requires urgent action
+   - For TREATED patients with deterioration: recommend treatment adjustment
+   - For UNTREATED patients with deterioration: recommend urgent treatment initiation
+
+7. **Monitoring Status Considerations:**
+   - Check "Monitoring Status:" field before recommending monitoring
+   - If "Active (...)" → Patient IS being monitored, acknowledge this
+   - If "NOT ON MONITORING" and high-risk/CKD → Recommend initiating home monitoring
+   - For MONITORED patients: "Continue current monitoring protocol"
+   - For UNMONITORED patients: "Initiate home monitoring" or "Start regular monitoring"
 
 Return ONLY the JSON response, no additional text.`;
   }

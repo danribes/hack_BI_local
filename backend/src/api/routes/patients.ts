@@ -1026,8 +1026,9 @@ router.post('/:id/update-records', async (req: Request, res: Response): Promise<
 
     const kdigoClassification = classifyKDIGO(egfr, uacr);
 
-    // Determine treatment status and progression direction
+    // Determine treatment and monitoring status
     const isTreated = patient.ckd_treatment_active || false;
+    const isMonitored = patient.home_monitoring_active || false;
     const hasCKD = kdigoClassification.has_ckd;
 
     // Import Anthropic client
@@ -1290,6 +1291,8 @@ Provide ONLY the JSON object, nothing else.`;
         previousHealthState: previousHealthState || undefined,
         treatmentActive: isTreated,
         treatmentType: patient.ckd_treatment_type,
+        monitoringActive: isMonitored,
+        monitoringDevice: patient.home_monitoring_device,
         cycleNumber: nextMonthNumber,
         previousCycleNumber: nextMonthNumber - 1,
         // Include KDIGO clinical recommendations to guide AI analysis
