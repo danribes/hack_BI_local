@@ -398,16 +398,32 @@ Return ONLY the JSON response, no additional text.`;
 
       const currentData = healthStateQuery.rows[0];
 
-      // Handle case where patient data is not found
+      // Handle case where patient data is not found or kdigo_classification is null
       if (!currentData) {
-        console.warn(`[AI Update] Patient ${patientId} not found in database, using default values`);
+        console.warn(`[AI Update] Patient ${patientId} not found in database`);
       }
 
-      const isCkdPatient = currentData?.is_ckd === 'true' || currentData?.is_ckd === true;
+      // Extract and validate health state (max 10 chars)
+      let healthStateTo = currentData?.current_health_state || 'Unknown';
+      if (healthStateTo && healthStateTo.length > 10) {
+        console.warn(`[AI Update] health_state too long (${healthStateTo.length} chars), truncating:`, healthStateTo);
+        healthStateTo = healthStateTo.substring(0, 10);
+      }
+
+      // Extract and validate risk level (max 20 chars)
+      let riskLevelTo = currentData?.current_risk_level || 'low';
+      if (riskLevelTo && riskLevelTo.length > 20) {
+        console.warn(`[AI Update] risk_level too long (${riskLevelTo.length} chars), truncating:`, riskLevelTo);
+        riskLevelTo = riskLevelTo.substring(0, 20);
+      }
+
+      // Safely extract is_ckd
+      const isCkdPatient = currentData?.is_ckd === 'true' || currentData?.is_ckd === true || false;
 
       // Determine change_type based on lab values
       let changeType: string | null = null;
-      if (previousLabValues.egfr && newLabValues.egfr) {
+      if (previousLabValues.egfr !== undefined && previousLabValues.egfr !== null &&
+          newLabValues.egfr !== undefined && newLabValues.egfr !== null) {
         const egfrChange = newLabValues.egfr - previousLabValues.egfr;
         if (egfrChange > 0) {
           changeType = 'improved'; // eGFR increase is improvement
@@ -416,7 +432,8 @@ Return ONLY the JSON response, no additional text.`;
         } else {
           changeType = 'stable';
         }
-      } else if (previousLabValues.uacr && newLabValues.uacr) {
+      } else if (previousLabValues.uacr !== undefined && previousLabValues.uacr !== null &&
+                 newLabValues.uacr !== undefined && newLabValues.uacr !== null) {
         const uacrChange = newLabValues.uacr - previousLabValues.uacr;
         if (uacrChange < 0) {
           changeType = 'improved'; // uACR decrease is improvement
@@ -428,6 +445,33 @@ Return ONLY the JSON response, no additional text.`;
       } else {
         changeType = 'initial';
       }
+
+      // Validate severity
+      const validSeverities = ['info', 'warning', 'critical'];
+      const severity = validSeverities.includes(analysis.severity) ? analysis.severity : 'info';
+
+      // Validate comment text
+      const commentText = analysis.commentText || 'AI-generated update analysis';
+
+      // Validate clinical summary
+      const clinicalSummary = analysis.clinicalSummary || '';
+
+      // Validate recommended actions (ensure it's an array)
+      const recommendedActions = Array.isArray(analysis.recommendedActions) ? analysis.recommendedActions : [];
+
+      console.log('[AI Update] Creating comment with values:', {
+        patientId,
+        healthStateTo,
+        riskLevelTo,
+        changeType,
+        isCkdPatient,
+        severity,
+        cycleNumber,
+        egfr_from: previousLabValues.egfr,
+        egfr_to: newLabValues.egfr,
+        uacr_from: previousLabValues.uacr,
+        uacr_to: newLabValues.uacr
+      });
 
       const result = await this.pool.query(
         `INSERT INTO patient_health_state_comments (
@@ -455,31 +499,42 @@ Return ONLY the JSON response, no additional text.`;
         RETURNING id`,
         [
           patientId,
-          analysis.commentText,
-          'ai_generated', // Use valid comment_type
-          currentData?.current_health_state || 'Unknown',
-          currentData?.current_risk_level || 'Unknown',
+          commentText,
+          'ai_generated',
+          healthStateTo,
+          riskLevelTo,
           changeType,
           isCkdPatient,
-          analysis.clinicalSummary,
-          analysis.recommendedActions,
-          analysis.severity,
+          clinicalSummary,
+          recommendedActions,
+          severity,
           cycleNumber,
-          previousLabValues.egfr || null,
-          newLabValues.egfr || null,
-          newLabValues.egfr && previousLabValues.egfr ? newLabValues.egfr - previousLabValues.egfr : null,
-          previousLabValues.uacr || null,
-          newLabValues.uacr || null,
-          newLabValues.uacr && previousLabValues.uacr ? newLabValues.uacr - previousLabValues.uacr : null,
+          previousLabValues.egfr !== undefined && previousLabValues.egfr !== null ? previousLabValues.egfr : null,
+          newLabValues.egfr !== undefined && newLabValues.egfr !== null ? newLabValues.egfr : null,
+          (newLabValues.egfr !== undefined && newLabValues.egfr !== null &&
+           previousLabValues.egfr !== undefined && previousLabValues.egfr !== null)
+            ? newLabValues.egfr - previousLabValues.egfr : null,
+          previousLabValues.uacr !== undefined && previousLabValues.uacr !== null ? previousLabValues.uacr : null,
+          newLabValues.uacr !== undefined && newLabValues.uacr !== null ? newLabValues.uacr : null,
+          (newLabValues.uacr !== undefined && newLabValues.uacr !== null &&
+           previousLabValues.uacr !== undefined && previousLabValues.uacr !== null)
+            ? newLabValues.uacr - previousLabValues.uacr : null,
           'AI Analysis System',
           'ai',
           'visible'
         ]
       );
 
+      console.log('[AI Update] Comment created successfully, ID:', result.rows[0].id);
       return result.rows[0].id;
     } catch (error) {
-      console.error('Error creating AI update comment:', error);
+      console.error('[AI Update] Error creating AI update comment:', error);
+      if (error instanceof Error) {
+        console.error('[AI Update] Error details:', {
+          message: error.message,
+          stack: error.stack
+        });
+      }
       throw error;
     }
   }
