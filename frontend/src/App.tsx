@@ -1137,7 +1137,7 @@ function App() {
                                   )}
                                 </div>
                                 <span className="text-xs text-gray-500">
-                                  {formatDate(comment.created_at)} - Cycle {comment.cycle_number}
+                                  {formatDate(comment.created_at)}{comment.cycle_number ? ` - Cycle ${comment.cycle_number}` : ''}
                                 </span>
                               </div>
 
@@ -1161,7 +1161,7 @@ function App() {
                                     <div className="bg-white border border-gray-200 rounded p-2">
                                       <div className="text-xs text-gray-600">eGFR Change</div>
                                       <div className={`text-sm font-semibold ${comment.egfr_change < 0 ? 'text-red-600' : 'text-green-600'}`}>
-                                        {comment.egfr_from?.toFixed(1) || 'N/A'} → {comment.egfr_to?.toFixed(1) || 'N/A'} ({comment.egfr_change > 0 ? '+' : ''}{comment.egfr_change.toFixed(1)})
+                                        {comment.egfr_from?.toFixed(1) || 'N/A'} → {comment.egfr_to?.toFixed(1) || 'N/A'} ({comment.egfr_change > 0 ? '+' : ''}{comment.egfr_change?.toFixed(1) || '0.0'})
                                       </div>
                                     </div>
                                   )}
@@ -1169,7 +1169,7 @@ function App() {
                                     <div className="bg-white border border-gray-200 rounded p-2">
                                       <div className="text-xs text-gray-600">uACR Change</div>
                                       <div className={`text-sm font-semibold ${comment.uacr_change > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                                        {comment.uacr_from?.toFixed(1) || 'N/A'} → {comment.uacr_to?.toFixed(1) || 'N/A'} ({comment.uacr_change > 0 ? '+' : ''}{comment.uacr_change.toFixed(1)})
+                                        {comment.uacr_from?.toFixed(1) || 'N/A'} → {comment.uacr_to?.toFixed(1) || 'N/A'} ({comment.uacr_change > 0 ? '+' : ''}{comment.uacr_change?.toFixed(1) || '0.0'})
                                       </div>
                                     </div>
                                   )}
