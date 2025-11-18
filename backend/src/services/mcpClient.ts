@@ -91,6 +91,34 @@ export class MCPClient {
   }
 
   /**
+   * MASTER ORCHESTRATOR: Comprehensive CKD Analysis
+   *
+   * Single entry point for complete patient assessment.
+   * Runs deterministic pipeline:
+   *   1. Clinical calculation (eGFR, KDIGO staging)
+   *   2. Risk stratification (KDIGO heatmap → risk color)
+   *   3. Protocol adherence check (monitoring intervals vs actual dates)
+   *   4. Medication safety assessment (Jardiance, RAS inhibitors)
+   *   5. Adherence analysis (refill gaps, overdue tests)
+   *   6. Treatment opportunity identification
+   *
+   * Returns comprehensive report with patient_summary, critical_alerts, and action_plan.
+   * USE THIS FIRST for patient assessments instead of calling multiple individual tools.
+   */
+  async comprehensiveCKDAnalysis(patientId: string): Promise<any> {
+    if (!this.client || !this.isConnected) {
+      throw new Error('MCP client not connected');
+    }
+
+    const result = await this.client.callTool({
+      name: 'comprehensive_ckd_analysis',
+      arguments: { patient_id: patientId },
+    });
+
+    return this.parseToolResult(result);
+  }
+
+  /**
    * PHASE 1: Assess pre-diagnosis CKD risk
    * Use when patient lacks recent eGFR/uACR labs
    */

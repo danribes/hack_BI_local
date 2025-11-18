@@ -15,6 +15,9 @@ import { classifyKDIGO } from './tools/phase2KDIGOClassification.js';
 import { assessTreatmentOptions } from './tools/phase3TreatmentDecision.js';
 import { monitorAdherence } from './tools/phase4AdherenceMonitoring.js';
 
+// Import Orchestrator Tool (Master Pipeline)
+import { comprehensiveCKDAnalysis } from './tools/comprehensiveCKDAnalysis.js';
+
 // Import Clinical Calculation Tools (CKD-EPI 2021, KFRE)
 import { calculateEGFR } from './tools/calculateEGFR.js';
 import { predictKidneyFailureRisk } from './tools/predictKidneyFailureRisk.js';
@@ -45,6 +48,23 @@ import { searchGuidelines } from './tools/guidelines.js';
 
 // Define available tools
 const TOOLS: Tool[] = [
+  // ==================== MASTER ORCHESTRATOR TOOL ====================
+  {
+    name: 'comprehensive_ckd_analysis',
+    description:
+      'MASTER ORCHESTRATOR: Single entry point for complete CKD assessment. Runs deterministic pipeline: (1) Clinical calc (eGFR, staging), (2) Risk stratification (KDIGO heatmap → risk color), (3) Protocol check (monitoring intervals vs actual dates), (4) Medication safety (Jardiance, RAS inhibitors), (5) Adherence check (refill gaps, overdue tests), (6) Opportunity analysis (should start treatment?). Returns comprehensive report with patient_summary, critical_alerts, and action_plan. USE THIS FIRST for patient assessments.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        patient_id: {
+          type: 'string',
+          description: 'Patient identifier (UUID)',
+        },
+      },
+      required: ['patient_id'],
+    },
+  },
+
   // ==================== PHASE 1: PRE-DIAGNOSIS RISK ASSESSMENT ====================
   {
     name: 'assess_pre_diagnosis_risk',
@@ -355,6 +375,19 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
   try {
     switch (name) {
+      // ========== MASTER ORCHESTRATOR TOOL ==========
+      case 'comprehensive_ckd_analysis': {
+        const result = await comprehensiveCKDAnalysis(args as any);
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify(result, null, 2),
+            },
+          ],
+        };
+      }
+
       // ========== PHASE-BASED TOOLS ==========
       case 'assess_pre_diagnosis_risk': {
         const result = await assessPreDiagnosisRisk(args as any);
@@ -565,6 +598,7 @@ async function main() {
 
   console.error('\n✓ MCP Server running');
   console.error('\n📋 Available Tools:');
+  console.error('  🎯 ORCHESTRATOR: comprehensive_ckd_analysis (USE THIS FIRST!)');
   console.error('  PHASE 1: assess_pre_diagnosis_risk');
   console.error('  PHASE 2: classify_kdigo');
   console.error('  PHASE 3: assess_treatment_options');
