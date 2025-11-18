@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { getPool } from '../../config/database';
 import { classifyKDIGO, getRiskCategoryLabel } from '../../utils/kdigo';
 import { HealthStateCommentService } from '../../services/healthStateCommentService';
+import { AIUpdateAnalysisService } from '../../services/aiUpdateAnalysisService';
 
 const router = Router();
 
@@ -875,6 +876,87 @@ Provide ONLY the JSON object, nothing else.`;
       }
     }
 
+    // Generate AI-powered update analysis comment
+    let aiCommentId = null;
+    try {
+      console.log(`[Patient Update] Generating AI analysis for patient ${id}...`);
+      const aiAnalysisService = new AIUpdateAnalysisService(pool);
+
+      // Prepare previous lab values from the latest observations before this update
+      const previousLabValues = {
+        egfr,
+        uacr,
+        creatinine: latestObs.find(obs => obs.observation_type === 'serum_creatinine')?.value_numeric,
+        bun: latestObs.find(obs => obs.observation_type === 'BUN')?.value_numeric,
+        systolic_bp: latestObs.find(obs => obs.observation_type === 'blood_pressure_systolic')?.value_numeric,
+        diastolic_bp: latestObs.find(obs => obs.observation_type === 'blood_pressure_diastolic')?.value_numeric,
+        hba1c: latestObs.find(obs => obs.observation_type === 'HbA1c')?.value_numeric,
+        glucose: latestObs.find(obs => obs.observation_type === 'glucose')?.value_numeric,
+        hemoglobin: latestObs.find(obs => obs.observation_type === 'hemoglobin')?.value_numeric,
+        heart_rate: latestObs.find(obs => obs.observation_type === 'heart_rate')?.value_numeric,
+        oxygen_saturation: latestObs.find(obs => obs.observation_type === 'oxygen_saturation')?.value_numeric,
+      };
+
+      // Prepare new lab values
+      const newLabValues = {
+        egfr: generatedValues.eGFR,
+        uacr: generatedValues.uACR,
+        creatinine: generatedValues.serum_creatinine,
+        bun: generatedValues.BUN,
+        systolic_bp: generatedValues.blood_pressure_systolic,
+        diastolic_bp: generatedValues.blood_pressure_diastolic,
+        hba1c: generatedValues.HbA1c,
+        glucose: generatedValues.glucose,
+        hemoglobin: generatedValues.hemoglobin,
+        heart_rate: generatedValues.heart_rate,
+        oxygen_saturation: generatedValues.oxygen_saturation,
+      };
+
+      // Calculate patient age
+      const birthDate = new Date(patient.date_of_birth);
+      const age = Math.floor((new Date().getTime() - birthDate.getTime()) / (365.25 * 24 * 60 * 60 * 1000));
+
+      // Prepare patient context
+      const patientContext = {
+        patientId: id,
+        firstName: patient.first_name,
+        lastName: patient.last_name,
+        age,
+        isCkd: hasCKD,
+        currentHealthState: newHealthState,
+        previousHealthState,
+        treatmentActive: isTreated,
+        treatmentType: patient.ckd_treatment_type,
+        cycleNumber: nextMonthNumber,
+        previousCycleNumber: nextMonthNumber - 1,
+      };
+
+      // Call AI analysis service
+      const aiAnalysis = await aiAnalysisService.analyzePatientUpdate(
+        patientContext,
+        previousLabValues,
+        newLabValues
+      );
+
+      // Create comment if there are significant changes
+      if (aiAnalysis.hasSignificantChanges) {
+        aiCommentId = await aiAnalysisService.createAIUpdateComment(
+          id,
+          aiAnalysis,
+          nextMonthNumber,
+          previousLabValues,
+          newLabValues
+        );
+
+        console.log(`✓ AI update analysis comment created: ${aiCommentId}`);
+      } else {
+        console.log(`[Patient Update] No significant changes detected, skipping AI comment`);
+      }
+    } catch (aiError) {
+      console.error('[Patient Update] Error generating AI update analysis:', aiError);
+      // Don't fail the update if AI analysis fails
+    }
+
     res.json({
       status: 'success',
       message: `Generated cycle ${nextMonthNumber} for patient`,
@@ -885,7 +967,8 @@ Provide ONLY the JSON object, nothing else.`;
       health_state_changed: previousHealthState !== newHealthState,
       previous_health_state: previousHealthState,
       new_health_state: newHealthState,
-      comment_id: commentId
+      comment_id: commentId,
+      ai_comment_id: aiCommentId
     });
 
   } catch (error) {

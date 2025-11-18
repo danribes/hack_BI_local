@@ -80,23 +80,23 @@ interface HealthStateComment {
   comment_text: string;
   comment_type: string;
   health_state_from: string | null;
-  health_state_to: string;
+  health_state_to: string | null;
   risk_level_from: string | null;
-  risk_level_to: string;
-  change_type: string;
+  risk_level_to: string | null;
+  change_type: string | null;
   is_ckd_patient: boolean;
   severity_from: string | null;
   severity_to: string | null;
   cycle_number: number;
   egfr_from: number | null;
-  egfr_to: number;
+  egfr_to: number | null;
   egfr_change: number | null;
   uacr_from: number | null;
-  uacr_to: number;
+  uacr_to: number | null;
   uacr_change: number | null;
-  clinical_summary: string;
-  recommended_actions: string[];
-  mitigation_measures: string[];
+  clinical_summary: string | null;
+  recommended_actions: string[] | null;
+  mitigation_measures: string[] | null;
   acknowledgment_text: string | null;
   severity: string;
   created_at: string;
@@ -1092,13 +1092,16 @@ function App() {
                     ) : (
                       <div className="space-y-4">
                         {healthStateComments.map((comment) => {
-                          const changeTypeColor =
+                          // Special handling for AI update analysis comments
+                          const isAIUpdateAnalysis = comment.comment_type === 'ai_update_analysis';
+
+                          const changeTypeColor = isAIUpdateAnalysis ? 'border-purple-300 bg-purple-50' :
                             comment.change_type === 'worsened' ? 'border-red-300 bg-red-50' :
                             comment.change_type === 'improved' ? 'border-green-300 bg-green-50' :
                             comment.change_type === 'initial' ? 'border-blue-300 bg-blue-50' :
                             'border-gray-300 bg-gray-50';
 
-                          const changeTypeIcon =
+                          const changeTypeIcon = isAIUpdateAnalysis ? '🤖' :
                             comment.change_type === 'worsened' ? '⚠️' :
                             comment.change_type === 'improved' ? '✓' :
                             comment.change_type === 'initial' ? 'ℹ️' :
@@ -1108,6 +1111,9 @@ function App() {
                             comment.severity === 'critical' ? 'text-red-700' :
                             comment.severity === 'warning' ? 'text-orange-700' :
                             'text-blue-700';
+
+                          const displayLabel = isAIUpdateAnalysis ? 'AI Analysis' :
+                            comment.change_type || 'Update';
 
                           return (
                             <div
@@ -1119,7 +1125,7 @@ function App() {
                                 <div className="flex items-center gap-2">
                                   <span className="text-lg">{changeTypeIcon}</span>
                                   <span className={`font-semibold text-sm uppercase tracking-wide ${severityColor}`}>
-                                    {comment.change_type}
+                                    {displayLabel}
                                   </span>
                                   {comment.health_state_from && (
                                     <span className="text-sm text-gray-600">
