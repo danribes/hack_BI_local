@@ -167,6 +167,94 @@ export class MCPClient {
   }
 
   /**
+   * CLINICAL: Calculate eGFR using CKD-EPI 2021 formula
+   * Use for on-the-fly eGFR calculation from creatinine values
+   */
+  async calculateEGFR(
+    patientId: string,
+    creatinineMgdl?: number
+  ): Promise<any> {
+    if (!this.client || !this.isConnected) {
+      throw new Error('MCP client not connected');
+    }
+
+    const result = await this.client.callTool({
+      name: 'calculate_egfr',
+      arguments: {
+        patient_id: patientId,
+        creatinine_mgdl: creatinineMgdl,
+      },
+    });
+
+    return this.parseToolResult(result);
+  }
+
+  /**
+   * CLINICAL: Predict kidney failure risk using KFRE
+   * Returns 2-year and 5-year risk of dialysis/transplant
+   */
+  async predictKidneyFailureRisk(
+    patientId: string,
+    timeHorizon: 2 | 5 = 5
+  ): Promise<any> {
+    if (!this.client || !this.isConnected) {
+      throw new Error('MCP client not connected');
+    }
+
+    const result = await this.client.callTool({
+      name: 'predict_kidney_failure_risk',
+      arguments: {
+        patient_id: patientId,
+        time_horizon: timeHorizon,
+      },
+    });
+
+    return this.parseToolResult(result);
+  }
+
+  /**
+   * CLINICAL: Check adherence to screening protocols
+   * Identifies missing or overdue screening tests
+   */
+  async checkScreeningProtocol(patientId: string): Promise<any> {
+    if (!this.client || !this.isConnected) {
+      throw new Error('MCP client not connected');
+    }
+
+    const result = await this.client.callTool({
+      name: 'check_screening_protocol',
+      arguments: {
+        patient_id: patientId,
+      },
+    });
+
+    return this.parseToolResult(result);
+  }
+
+  /**
+   * CLINICAL: Assess medication safety based on kidney function
+   * Returns dose adjustments, contraindications, and nephrotoxic risks
+   */
+  async assessMedicationSafety(
+    patientId: string,
+    medicationName?: string
+  ): Promise<any> {
+    if (!this.client || !this.isConnected) {
+      throw new Error('MCP client not connected');
+    }
+
+    const result = await this.client.callTool({
+      name: 'assess_medication_safety',
+      arguments: {
+        patient_id: patientId,
+        medication_name: medicationName,
+      },
+    });
+
+    return this.parseToolResult(result);
+  }
+
+  /**
    * Legacy: Get comprehensive patient data
    */
   async getPatientData(

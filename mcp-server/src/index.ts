@@ -15,6 +15,12 @@ import { classifyKDIGO } from './tools/phase2KDIGOClassification.js';
 import { assessTreatmentOptions } from './tools/phase3TreatmentDecision.js';
 import { monitorAdherence } from './tools/phase4AdherenceMonitoring.js';
 
+// Import Clinical Calculation Tools (CKD-EPI 2021, KFRE)
+import { calculateEGFR } from './tools/calculateEGFR.js';
+import { predictKidneyFailureRisk } from './tools/predictKidneyFailureRisk.js';
+import { checkScreeningProtocol } from './tools/checkScreeningProtocol.js';
+import { assessMedicationSafety } from './tools/assessMedicationSafety.js';
+
 // Import Legacy Tools (kept for backwards compatibility)
 import { getPatientData } from './tools/patientData.js';
 import { queryLabResults } from './tools/labResults.js';
@@ -109,6 +115,84 @@ const TOOLS: Tool[] = [
         measurement_period_days: {
           type: 'number',
           description: 'Period for MPR calculation in days (default: 90)',
+        },
+      },
+      required: ['patient_id'],
+    },
+  },
+
+  // ==================== CLINICAL CALCULATION TOOLS ====================
+  {
+    name: 'calculate_egfr',
+    description:
+      'Calculate eGFR using CKD-EPI 2021 formula (race-free). Computes kidney function from creatinine, age, and sex. Use this for on-the-fly eGFR calculation or when database values need validation.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        patient_id: {
+          type: 'string',
+          description: 'Patient identifier (UUID)',
+        },
+        creatinine_mgdl: {
+          type: 'number',
+          description: 'Serum creatinine in mg/dL (optional - will use latest from DB if not provided)',
+        },
+      },
+      required: ['patient_id'],
+    },
+  },
+
+  {
+    name: 'predict_kidney_failure_risk',
+    description:
+      'Predict kidney failure risk using KFRE (Kidney Failure Risk Equation). Calculates 2-year and 5-year risk of requiring dialysis or transplant. Use for CKD Stage 3-5 patients to guide treatment intensity and nephrology referral.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        patient_id: {
+          type: 'string',
+          description: 'Patient identifier',
+        },
+        time_horizon: {
+          type: 'number',
+          enum: [2, 5],
+          description: 'Prediction timeframe in years (default: 5)',
+        },
+      },
+      required: ['patient_id'],
+    },
+  },
+
+  {
+    name: 'check_screening_protocol',
+    description:
+      'Check adherence to CKD screening protocols based on KDIGO 2024 guidelines. Identifies missing tests (eGFR, uACR, HbA1c) for high-risk patients (DM/HTN) and CKD patients. Returns overdue screening tests with urgency levels.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        patient_id: {
+          type: 'string',
+          description: 'Patient identifier',
+        },
+      },
+      required: ['patient_id'],
+    },
+  },
+
+  {
+    name: 'assess_medication_safety',
+    description:
+      'Assess medication safety based on current kidney function. Identifies medications requiring dose reduction (e.g., gabapentin, metformin), contraindications (e.g., NSAIDs in CKD), and nephrotoxic exposures. Returns specific dosing recommendations.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        patient_id: {
+          type: 'string',
+          description: 'Patient identifier',
+        },
+        medication_name: {
+          type: 'string',
+          description: 'Optional: Check specific medication (e.g., "Metformin", "Gabapentin")',
         },
       },
       required: ['patient_id'],
@@ -295,6 +379,55 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         };
       }
 
+      // ========== CLINICAL CALCULATION TOOLS ==========
+      case 'calculate_egfr': {
+        const result = await calculateEGFR(args as any);
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify(result, null, 2),
+            },
+          ],
+        };
+      }
+
+      case 'predict_kidney_failure_risk': {
+        const result = await predictKidneyFailureRisk(args as any);
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify(result, null, 2),
+            },
+          ],
+        };
+      }
+
+      case 'check_screening_protocol': {
+        const result = await checkScreeningProtocol(args as any);
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify(result, null, 2),
+            },
+          ],
+        };
+      }
+
+      case 'assess_medication_safety': {
+        const result = await assessMedicationSafety(args as any);
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify(result, null, 2),
+            },
+          ],
+        };
+      }
+
       // ========== LEGACY TOOLS ==========
       case 'get_patient_data': {
         const result = await getPatientData(args as any);
@@ -399,6 +532,7 @@ async function main() {
   console.error('  PHASE 2: classify_kdigo');
   console.error('  PHASE 3: assess_treatment_options');
   console.error('  PHASE 4: monitor_adherence');
+  console.error('  CLINICAL: calculate_egfr, predict_kidney_failure_risk, check_screening_protocol, assess_medication_safety');
   console.error('  LEGACY: get_patient_data, query_lab_results, get_population_stats, search_guidelines');
   console.error('\n========================================\n');
 }
