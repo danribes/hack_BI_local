@@ -749,7 +749,20 @@ export class HealthStateCommentService {
       `;
 
       const result = await this.db.query(query, [patientId, limit]);
-      return result.rows;
+
+      // Ensure array fields are properly formatted as JavaScript arrays
+      // PostgreSQL arrays should be automatically parsed, but we'll ensure they're always arrays
+      const comments = result.rows.map(comment => ({
+        ...comment,
+        recommended_actions: Array.isArray(comment.recommended_actions)
+          ? comment.recommended_actions
+          : (comment.recommended_actions ? [comment.recommended_actions] : []),
+        mitigation_measures: Array.isArray(comment.mitigation_measures)
+          ? comment.mitigation_measures
+          : (comment.mitigation_measures ? [comment.mitigation_measures] : [])
+      }));
+
+      return comments;
     } catch (error) {
       console.error('Error fetching comments for patient:', error);
       return [];
