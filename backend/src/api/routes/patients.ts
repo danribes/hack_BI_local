@@ -251,12 +251,35 @@ router.get('/with-health-state-changes', async (req: Request, res: Response): Pr
         (SELECT change_type FROM patient_health_state_comments
          WHERE patient_id = p.id AND visibility = 'visible'
          ORDER BY created_at DESC LIMIT 1) as latest_change_type,
+        (SELECT severity FROM patient_health_state_comments
+         WHERE patient_id = p.id AND visibility = 'visible'
+         ORDER BY created_at DESC LIMIT 1) as latest_change_severity,
         (SELECT created_at FROM patient_health_state_comments
          WHERE patient_id = p.id AND visibility = 'visible'
          ORDER BY created_at DESC LIMIT 1) as latest_change_date,
         (SELECT health_state_to FROM patient_health_state_comments
          WHERE patient_id = p.id AND visibility = 'visible'
-         ORDER BY created_at DESC LIMIT 1) as current_health_state
+         ORDER BY created_at DESC LIMIT 1) as current_health_state,
+        (SELECT comment_text FROM patient_health_state_comments
+         WHERE patient_id = p.id AND visibility = 'visible'
+         ORDER BY created_at DESC LIMIT 1) as latest_comment_text,
+        (SELECT clinical_summary FROM patient_health_state_comments
+         WHERE patient_id = p.id AND visibility = 'visible'
+         ORDER BY created_at DESC LIMIT 1) as latest_comment_clinical_summary,
+        (SELECT recommended_actions FROM patient_health_state_comments
+         WHERE patient_id = p.id AND visibility = 'visible'
+         ORDER BY created_at DESC LIMIT 1) as latest_comment_recommended_actions,
+        (SELECT cycle_number FROM patient_health_state_comments
+         WHERE patient_id = p.id AND visibility = 'visible'
+         ORDER BY created_at DESC LIMIT 1) as latest_comment_cycle,
+        -- Legacy fields
+        p.home_monitoring_device,
+        p.home_monitoring_active,
+        p.ckd_treatment_active,
+        p.ckd_treatment_type,
+        -- Monitoring and treatment device fields
+        cpd.monitoring_device as ckd_monitoring_device,
+        npd.monitoring_device as non_ckd_monitoring_device
       FROM patients p
       LEFT JOIN ckd_patient_data cpd ON p.id = cpd.patient_id
       LEFT JOIN non_ckd_patient_data npd ON p.id = npd.patient_id
@@ -266,14 +289,84 @@ router.get('/with-health-state-changes', async (req: Request, res: Response): Pr
                 ORDER BY created_at DESC LIMIT 1) DESC
     `, queryParams);
 
+    // Process patients to add kdigo_classification, risk_category, evolution_summary, and latest_comment
+    const patientsWithRisk = result.rows.map(patient => {
+      const egfr = patient.latest_egfr || 90;
+      const uacr = patient.latest_uacr || 15;
+
+      const kdigo = classifyKDIGO(egfr, uacr);
+      const risk_category = getRiskCategoryLabel(kdigo);
+
+      // Use data from tracking tables if available, otherwise fall back to legacy fields
+      const is_monitored = kdigo.has_ckd
+        ? (patient.ckd_is_monitored !== null ? patient.ckd_is_monitored : patient.home_monitoring_active)
+        : (patient.non_ckd_is_monitored !== null ? patient.non_ckd_is_monitored : patient.home_monitoring_active);
+
+      const monitoring_device = kdigo.has_ckd
+        ? (patient.ckd_monitoring_device || patient.home_monitoring_device)
+        : (patient.non_ckd_monitoring_device || patient.home_monitoring_device);
+
+      // Generate summarized comment for list view (max 100 chars)
+      let comment_summary = null;
+      if (patient.latest_comment_text) {
+        // Remove emojis and special characters, extract key info
+        const cleanText = patient.latest_comment_text.replace(/[⚠️✓]/g, '').trim();
+        // Take first sentence or up to 100 characters
+        const firstSentence = cleanText.split('.')[0];
+        comment_summary = firstSentence.length > 100
+          ? firstSentence.substring(0, 97) + '...'
+          : firstSentence;
+      }
+
+      // Generate evolution_summary for patient list badge display
+      let evolution_summary = null;
+      if (patient.latest_change_type) {
+        const changeType = patient.latest_change_type;
+        const severity = patient.latest_change_severity;
+
+        // Create concise evolution summary based on change type and severity
+        if (changeType === 'worsened' || changeType === 'worsening') {
+          evolution_summary = severity === 'critical' ? 'Critical - Worsening' : 'Worsening';
+        } else if (changeType === 'improved' || changeType === 'improving') {
+          evolution_summary = 'Improving';
+        } else if (changeType === 'stable') {
+          evolution_summary = 'Stable';
+        } else if (changeType === 'initial') {
+          evolution_summary = 'Initial Assessment';
+        }
+      }
+
+      return {
+        ...patient,
+        kdigo_classification: kdigo,
+        risk_category,
+        // Simplified tracking data
+        is_monitored,
+        monitoring_device,
+        is_treated: kdigo.has_ckd ? (patient.ckd_is_treated || patient.ckd_treatment_active) : false,
+        // Evolution summary for patient list
+        evolution_summary,
+        // Latest comment summary for list view
+        latest_comment: patient.latest_comment_text ? {
+          summary: comment_summary,
+          change_type: patient.latest_change_type,
+          severity: patient.latest_change_severity,
+          date: patient.latest_change_date,
+          cycle: patient.latest_comment_cycle,
+          clinical_summary: patient.latest_comment_clinical_summary,
+          recommended_actions: patient.latest_comment_recommended_actions
+        } : null
+      };
+    });
+
     res.json({
       status: 'success',
       filters_applied: {
         days_back: days,
         change_type: changeType
       },
-      count: result.rows.length,
-      patients: result.rows
+      count: patientsWithRisk.length,
+      patients: patientsWithRisk
     });
 
   } catch (error) {
