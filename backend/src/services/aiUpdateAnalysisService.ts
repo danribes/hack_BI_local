@@ -385,11 +385,53 @@ Return ONLY the JSON response, no additional text.`;
     }
 
     try {
+      // Fetch current and previous patient health states
+      const healthStateQuery = await this.pool.query(
+        `SELECT
+          kdigo_classification->>'health_state' as current_health_state,
+          kdigo_classification->>'risk_level' as current_risk_level,
+          kdigo_classification->'has_ckd' as is_ckd
+        FROM patients
+        WHERE id = $1`,
+        [patientId]
+      );
+
+      const currentData = healthStateQuery.rows[0];
+      const isCkdPatient = currentData?.is_ckd === true || currentData?.is_ckd === 'true';
+
+      // Determine change_type based on lab values
+      let changeType: string | null = null;
+      if (previousLabValues.egfr && newLabValues.egfr) {
+        const egfrChange = newLabValues.egfr - previousLabValues.egfr;
+        if (egfrChange > 0) {
+          changeType = 'improved'; // eGFR increase is improvement
+        } else if (egfrChange < -3) { // Significant decline
+          changeType = 'worsened';
+        } else {
+          changeType = 'stable';
+        }
+      } else if (previousLabValues.uacr && newLabValues.uacr) {
+        const uacrChange = newLabValues.uacr - previousLabValues.uacr;
+        if (uacrChange < 0) {
+          changeType = 'improved'; // uACR decrease is improvement
+        } else if (uacrChange > 30) { // Significant increase
+          changeType = 'worsened';
+        } else {
+          changeType = 'stable';
+        }
+      } else {
+        changeType = 'initial';
+      }
+
       const result = await this.pool.query(
         `INSERT INTO patient_health_state_comments (
           patient_id,
           comment_text,
           comment_type,
+          health_state_to,
+          risk_level_to,
+          change_type,
+          is_ckd_patient,
           clinical_summary,
           recommended_actions,
           severity,
@@ -403,12 +445,16 @@ Return ONLY the JSON response, no additional text.`;
           created_by,
           created_by_type,
           visibility
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
         RETURNING id`,
         [
           patientId,
           analysis.commentText,
-          'ai_update_analysis', // New comment type
+          'ai_generated', // Use valid comment_type
+          currentData?.current_health_state || 'Unknown',
+          currentData?.current_risk_level || 'Unknown',
+          changeType,
+          isCkdPatient,
           analysis.clinicalSummary,
           analysis.recommendedActions,
           analysis.severity,
@@ -420,7 +466,7 @@ Return ONLY the JSON response, no additional text.`;
           newLabValues.uacr || null,
           newLabValues.uacr && previousLabValues.uacr ? newLabValues.uacr - previousLabValues.uacr : null,
           'AI Analysis System',
-          'system',
+          'ai',
           true
         ]
       );

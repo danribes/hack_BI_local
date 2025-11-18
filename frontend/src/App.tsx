@@ -1096,7 +1096,7 @@ function App() {
                         {healthStateComments.filter(comment => comment && comment.id).map((comment) => {
                           try {
                             // Special handling for AI update analysis comments
-                            const isAIUpdateAnalysis = comment.comment_type === 'ai_update_analysis';
+                            const isAIUpdateAnalysis = comment.comment_type === 'ai_update_analysis' || comment.comment_type === 'ai_generated';
 
                             const changeTypeColor = isAIUpdateAnalysis ? 'border-purple-300 bg-purple-50' :
                               comment.change_type === 'worsened' ? 'border-red-300 bg-red-50' :

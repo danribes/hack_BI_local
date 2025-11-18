@@ -638,7 +638,10 @@ export class HealthStateCommentService {
         FROM patient_health_state_comments
         WHERE created_at >= NOW() - INTERVAL '${daysBack} days'
           AND visibility = 'visible'
-          AND change_type IN ('improved', 'worsened')
+          AND (
+            change_type IN ('improved', 'worsened', 'stable')
+            OR comment_type = 'ai_generated'
+          )
         ORDER BY patient_id
       `;
 
