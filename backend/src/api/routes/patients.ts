@@ -1081,7 +1081,7 @@ Provide ONLY the JSON object, nothing else.`;
       const birthDate = new Date(patient.date_of_birth);
       const age = Math.floor((new Date().getTime() - birthDate.getTime()) / (365.25 * 24 * 60 * 60 * 1000));
 
-      // Prepare patient context
+      // Prepare patient context with KDIGO clinical recommendations
       const patientContext = {
         patientId: id,
         firstName: patient.first_name,
@@ -1094,6 +1094,13 @@ Provide ONLY the JSON object, nothing else.`;
         treatmentType: patient.ckd_treatment_type,
         cycleNumber: nextMonthNumber,
         previousCycleNumber: nextMonthNumber - 1,
+        // Include KDIGO clinical recommendations to guide AI analysis
+        recommendRasInhibitor: newKdigoClassification.recommend_ras_inhibitor,
+        recommendSglt2i: newKdigoClassification.recommend_sglt2i,
+        requiresNephrologyReferral: newKdigoClassification.requires_nephrology_referral,
+        riskLevel: newKdigoClassification.risk_level,
+        gfrCategory: newKdigoClassification.gfr_category,
+        albuminuriaCategory: newKdigoClassification.albuminuria_category,
       };
 
       // Call AI analysis service
@@ -1117,12 +1124,20 @@ Provide ONLY the JSON object, nothing else.`;
       } else {
         // Create a basic update summary comment even if no significant changes
         console.log(`[Patient Update] No significant changes detected, creating basic update comment`);
+
+        // Determine appropriate recommendation based on treatment status
+        const recommendedAction = isTreated
+          ? 'Continue current management plan'
+          : (hasCKD && newKdigoClassification.ckd_stage && newKdigoClassification.ckd_stage >= 3)
+            ? 'Consider initiating CKD treatment per clinical guidelines'
+            : 'Continue monitoring';
+
         const basicComment = {
           hasSignificantChanges: true, // Force creation
           commentText: `Lab values updated for cycle ${nextMonthNumber}. No significant changes detected.`,
-          clinicalSummary: `Routine lab update. Values remain stable within expected range.`,
+          clinicalSummary: `Routine lab update. Values remain stable within expected range. ${!isTreated && hasCKD ? 'Patient not currently on CKD treatment.' : ''}`,
           keyChanges: [`Cycle ${nextMonthNumber} completed`],
-          recommendedActions: ['Continue current management plan'],
+          recommendedActions: [recommendedAction],
           severity: 'info' as const,
           concernLevel: 'none' as const
         };
