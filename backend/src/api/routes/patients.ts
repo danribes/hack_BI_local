@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { getPool } from '../../config/database';
-import { classifyKDIGO, getRiskCategoryLabel } from '../../utils/kdigo';
+import { classifyKDIGO, getRiskCategoryLabel, getCKDSeverity } from '../../utils/kdigo';
 import { HealthStateCommentService } from '../../services/healthStateCommentService';
 import { AIUpdateAnalysisService } from '../../services/aiUpdateAnalysisService';
 
@@ -968,6 +968,41 @@ Provide ONLY the JSON object, nothing else.`;
 
     // Calculate new health state after inserting observations
     const newKdigoClassification = classifyKDIGO(generatedValues.eGFR, generatedValues.uACR);
+
+    // Update patient data tables with new health state
+    if (newKdigoClassification.has_ckd) {
+      await pool.query(`
+        UPDATE ckd_patient_data
+        SET kdigo_health_state = $1,
+            kdigo_gfr_category = $2,
+            kdigo_albuminuria_category = $3,
+            ckd_severity = $4,
+            ckd_stage = $5,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE patient_id = $6
+      `, [
+        newKdigoClassification.health_state,
+        newKdigoClassification.gfr_category,
+        newKdigoClassification.albuminuria_category,
+        getCKDSeverity(newKdigoClassification.ckd_stage),
+        newKdigoClassification.ckd_stage,
+        id
+      ]);
+      console.log(`✓ Updated ckd_patient_data with new health state: ${newKdigoClassification.health_state}`);
+    } else {
+      await pool.query(`
+        UPDATE non_ckd_patient_data
+        SET kdigo_health_state = $1,
+            risk_level = $2,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE patient_id = $3
+      `, [
+        newKdigoClassification.health_state,
+        newKdigoClassification.risk_level === 'very_high' ? 'high' : newKdigoClassification.risk_level,
+        id
+      ]);
+      console.log(`✓ Updated non_ckd_patient_data with new health state: ${newKdigoClassification.health_state}`);
+    }
     const newHealthState = newKdigoClassification.health_state;
     const newRiskLevel = newKdigoClassification.risk_level;
 
@@ -1080,7 +1115,27 @@ Provide ONLY the JSON object, nothing else.`;
 
         console.log(`✓ AI update analysis comment created: ${aiCommentId}`);
       } else {
-        console.log(`[Patient Update] No significant changes detected, skipping AI comment`);
+        // Create a basic update summary comment even if no significant changes
+        console.log(`[Patient Update] No significant changes detected, creating basic update comment`);
+        const basicComment = {
+          hasSignificantChanges: true, // Force creation
+          commentText: `Lab values updated for cycle ${nextMonthNumber}. No significant changes detected.`,
+          clinicalSummary: `Routine lab update. Values remain stable within expected range.`,
+          keyChanges: [`Cycle ${nextMonthNumber} completed`],
+          recommendedActions: ['Continue current management plan'],
+          severity: 'info' as const,
+          concernLevel: 'none' as const
+        };
+
+        aiCommentId = await aiAnalysisService.createAIUpdateComment(
+          id,
+          basicComment,
+          nextMonthNumber,
+          previousLabValues,
+          newLabValues
+        );
+
+        console.log(`✓ Basic update comment created: ${aiCommentId}`);
       }
     } catch (aiError) {
       console.error('[Patient Update] Error generating AI update analysis:', aiError);
