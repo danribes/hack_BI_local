@@ -45,6 +45,16 @@ interface Patient {
   ckd_treatment_active?: boolean;
   ckd_treatment_type?: string | null;
   evolution_summary?: string;
+  // Latest comment for patient list
+  latest_comment?: {
+    summary: string;
+    change_type: string;
+    severity: string;
+    date: string;
+    cycle: number;
+    clinical_summary?: string;
+    recommended_actions?: string[];
+  } | null;
 }
 
 interface Observation {
@@ -2481,6 +2491,49 @@ function App() {
                         </svg>
                       </div>
                     </div>
+
+                    {/* Clinical Summary and Recommended Actions - Only for worsened or critical patients */}
+                    {patient.latest_comment && (patient.latest_comment.change_type === 'worsened' || patient.latest_comment.severity === 'critical') && (
+                      <div className="mt-3 pt-3 border-t border-gray-200">
+                        {patient.latest_comment.clinical_summary && (
+                          <div className="mb-3">
+                            <div className="flex items-start">
+                              <svg className="h-5 w-5 text-amber-500 mr-2 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                              </svg>
+                              <div className="flex-1">
+                                <span className="text-xs font-semibold text-amber-700 uppercase">Reason for Concern:</span>
+                                <p className="text-sm text-gray-700 mt-1">{patient.latest_comment.clinical_summary}</p>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {patient.latest_comment.recommended_actions && patient.latest_comment.recommended_actions.length > 0 && (
+                          <div>
+                            <div className="flex items-start">
+                              <svg className="h-5 w-5 text-blue-500 mr-2 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                              </svg>
+                              <div className="flex-1">
+                                <span className="text-xs font-semibold text-blue-700 uppercase">Imminent Actions:</span>
+                                <ul className="mt-1 space-y-1">
+                                  {patient.latest_comment.recommended_actions.slice(0, 3).map((action, idx) => (
+                                    <li key={idx} className="text-sm text-gray-700 flex items-start">
+                                      <span className="text-blue-500 mr-2">•</span>
+                                      <span>{action}</span>
+                                    </li>
+                                  ))}
+                                </ul>
+                                {patient.latest_comment.recommended_actions.length > 3 && (
+                                  <p className="text-xs text-gray-500 mt-1 italic">Click to view {patient.latest_comment.recommended_actions.length - 3} more action{patient.latest_comment.recommended_actions.length - 3 > 1 ? 's' : ''}...</p>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                   ))
                 ) : (

@@ -261,8 +261,18 @@ export class HealthStateCommentService {
       severity = 'info';
     } else {
       // Stable - minimal change
-      comment_text = `Health state remains ${data.to_health_state} (${data.to_risk_level} risk). Continue current management plan.`;
-      clinical_summary = 'Health state stable with no significant changes.';
+      const egfr_change = data.egfr_from ? data.egfr_to - data.egfr_from : 0;
+      const uacr_change = data.uacr_from ? data.uacr_to - data.uacr_from : 0;
+
+      comment_text = `Health state remains ${data.to_health_state} (${data.to_risk_level} risk). `;
+
+      // Add current values to comment text
+      if (data.egfr_from && data.uacr_from) {
+        comment_text += `eGFR: ${data.egfr_from.toFixed(1)} → ${data.egfr_to.toFixed(1)} mL/min/1.73m² (${egfr_change >= 0 ? '+' : ''}${egfr_change.toFixed(1)}), uACR: ${data.uacr_from.toFixed(1)} → ${data.uacr_to.toFixed(1)} mg/g (${uacr_change >= 0 ? '+' : ''}${uacr_change.toFixed(1)}). `;
+      }
+
+      comment_text += `Continue current management plan.`;
+      clinical_summary = `Health state stable with no significant changes. Current values: eGFR ${data.egfr_to.toFixed(1)} mL/min/1.73m², uACR ${data.uacr_to.toFixed(1)} mg/g.`;
       recommended_actions = ['Continue current monitoring schedule', 'Maintain current treatment plan'];
     }
 
@@ -514,6 +524,15 @@ export class HealthStateCommentService {
         comment_text += `CKD severity progressed from ${from_severity} to ${to_severity}. `;
       }
 
+      // Add values to comment text
+      if (egfr_change < 0 && uacr_change > 0) {
+        comment_text += `eGFR declined from ${data.egfr_from?.toFixed(1)} to ${data.egfr_to.toFixed(1)} mL/min/1.73m² (${Math.abs(egfr_change).toFixed(1)} decrease) and uACR increased from ${data.uacr_from?.toFixed(1)} to ${data.uacr_to.toFixed(1)} mg/g (+${uacr_change.toFixed(1)}). `;
+      } else if (egfr_change < 0) {
+        comment_text += `eGFR declined from ${data.egfr_from?.toFixed(1)} to ${data.egfr_to.toFixed(1)} mL/min/1.73m² (${Math.abs(egfr_change).toFixed(1)} decrease). `;
+      } else if (uacr_change > 0) {
+        comment_text += `uACR increased from ${data.uacr_from?.toFixed(1)} to ${data.uacr_to.toFixed(1)} mg/g (+${uacr_change.toFixed(1)}). `;
+      }
+
       clinical_summary = `Patient's kidney function has declined. `;
 
       if (egfr_change < 0) {
@@ -527,7 +546,16 @@ export class HealthStateCommentService {
       clinical_summary += `Current risk level: ${data.to_risk_level}. ${toClassification.ckd_stage_name}.`;
     } else {
       comment_text = `⚠️ Health state worsened from ${data.from_health_state} to ${data.to_health_state}. ` +
-        `Risk level increased from ${data.from_risk_level} to ${data.to_risk_level}.`;
+        `Risk level increased from ${data.from_risk_level} to ${data.to_risk_level}. `;
+
+      // Add values to comment text
+      if (egfr_change < 0 && uacr_change > 0) {
+        comment_text += `eGFR: ${data.egfr_from?.toFixed(1)} → ${data.egfr_to.toFixed(1)} mL/min/1.73m² (${Math.abs(egfr_change).toFixed(1)} decrease), uACR: ${data.uacr_from?.toFixed(1)} → ${data.uacr_to.toFixed(1)} mg/g (+${uacr_change.toFixed(1)}).`;
+      } else if (egfr_change < 0) {
+        comment_text += `eGFR: ${data.egfr_from?.toFixed(1)} → ${data.egfr_to.toFixed(1)} mL/min/1.73m² (${Math.abs(egfr_change).toFixed(1)} decrease).`;
+      } else if (uacr_change > 0) {
+        comment_text += `uACR: ${data.uacr_from?.toFixed(1)} → ${data.uacr_to.toFixed(1)} mg/g (+${uacr_change.toFixed(1)}).`;
+      }
 
       clinical_summary = `Patient's kidney function markers have deteriorated. `;
 
@@ -584,6 +612,15 @@ export class HealthStateCommentService {
         comment_text += `CKD severity improved from ${from_severity} to ${to_severity}. `;
       }
 
+      // Add values to comment text
+      if (egfr_change > 0 && uacr_change < 0) {
+        comment_text += `eGFR improved from ${data.egfr_from?.toFixed(1)} to ${data.egfr_to.toFixed(1)} mL/min/1.73m² (+${egfr_change.toFixed(1)}) and uACR decreased from ${data.uacr_from?.toFixed(1)} to ${data.uacr_to.toFixed(1)} mg/g (${Math.abs(uacr_change).toFixed(1)} reduction). `;
+      } else if (egfr_change > 0) {
+        comment_text += `eGFR improved from ${data.egfr_from?.toFixed(1)} to ${data.egfr_to.toFixed(1)} mL/min/1.73m² (+${egfr_change.toFixed(1)}). `;
+      } else if (uacr_change < 0) {
+        comment_text += `uACR decreased from ${data.uacr_from?.toFixed(1)} to ${data.uacr_to.toFixed(1)} mg/g (${Math.abs(uacr_change).toFixed(1)} reduction). `;
+      }
+
       clinical_summary = `Patient showing improvement in kidney function markers. `;
 
       if (egfr_change > 0) {
@@ -600,7 +637,16 @@ export class HealthStateCommentService {
         `Continue current treatment plan and lifestyle modifications to maintain this positive trend.`;
     } else {
       comment_text = `✓ Positive change: Health state improved from ${data.from_health_state} to ${data.to_health_state}. ` +
-        `Risk level decreased from ${data.from_risk_level} to ${data.to_risk_level}.`;
+        `Risk level decreased from ${data.from_risk_level} to ${data.to_risk_level}. `;
+
+      // Add values to comment text
+      if (egfr_change > 0 && uacr_change < 0) {
+        comment_text += `eGFR: ${data.egfr_from?.toFixed(1)} → ${data.egfr_to.toFixed(1)} mL/min/1.73m² (+${egfr_change.toFixed(1)}), uACR: ${data.uacr_from?.toFixed(1)} → ${data.uacr_to.toFixed(1)} mg/g (${Math.abs(uacr_change).toFixed(1)} reduction).`;
+      } else if (egfr_change > 0) {
+        comment_text += `eGFR: ${data.egfr_from?.toFixed(1)} → ${data.egfr_to.toFixed(1)} mL/min/1.73m² (+${egfr_change.toFixed(1)}).`;
+      } else if (uacr_change < 0) {
+        comment_text += `uACR: ${data.uacr_from?.toFixed(1)} → ${data.uacr_to.toFixed(1)} mg/g (${Math.abs(uacr_change).toFixed(1)} reduction).`;
+      }
 
       clinical_summary = `Patient showing improvement in kidney function markers. `;
 

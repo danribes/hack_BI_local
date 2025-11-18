@@ -348,7 +348,13 @@ router.get('/', async (_req: Request, res: Response): Promise<any> => {
          ORDER BY created_at DESC LIMIT 1) as latest_comment_date,
         (SELECT cycle_number FROM patient_health_state_comments
          WHERE patient_id = p.id AND visibility = 'visible'
-         ORDER BY created_at DESC LIMIT 1) as latest_comment_cycle
+         ORDER BY created_at DESC LIMIT 1) as latest_comment_cycle,
+        (SELECT clinical_summary FROM patient_health_state_comments
+         WHERE patient_id = p.id AND visibility = 'visible'
+         ORDER BY created_at DESC LIMIT 1) as latest_comment_clinical_summary,
+        (SELECT recommended_actions FROM patient_health_state_comments
+         WHERE patient_id = p.id AND visibility = 'visible'
+         ORDER BY created_at DESC LIMIT 1) as latest_comment_recommended_actions
       FROM patients p
       LEFT JOIN ckd_patient_data cpd ON p.id = cpd.patient_id
       LEFT JOIN non_ckd_patient_data npd ON p.id = npd.patient_id
@@ -418,7 +424,9 @@ router.get('/', async (_req: Request, res: Response): Promise<any> => {
           change_type: patient.latest_comment_change_type,
           severity: patient.latest_comment_severity,
           date: patient.latest_comment_date,
-          cycle: patient.latest_comment_cycle
+          cycle: patient.latest_comment_cycle,
+          clinical_summary: patient.latest_comment_clinical_summary,
+          recommended_actions: patient.latest_comment_recommended_actions
         } : null
       };
     });
