@@ -701,47 +701,30 @@ router.post('/:id/update-records', async (req: Request, res: Response): Promise<
 
     let nextMonthNumber = (maxMonthResult.rows[0]?.max_month || 0) + 1;
 
-    // Handle observation limit: Keep only 12 months of data
-    // If we've reached month 13, we need to clean up old data
+    // Handle observation limit: Reset all data after 12 cycles
+    // If we've reached month 13, delete everything and start fresh from month 1
     if (nextMonthNumber > 12) {
-      console.log(`[Patient Update] Month ${nextMonthNumber} exceeds limit, cleaning up old observations...`);
+      console.log(`[Patient Update] Month ${nextMonthNumber} exceeds limit of 12, resetting patient data...`);
+      console.log(`[Patient Update] This will delete ALL observations (months 1-12) and ALL comments`);
 
-      // Delete the oldest month of observations (month 1)
-      // This maintains a rolling 12-month window
-      await pool.query(`
+      // Delete ALL observations for this patient (complete reset)
+      const deleteObsResult = await pool.query(`
         DELETE FROM observations
         WHERE patient_id = $1
-        AND month_number = 1
       `, [id]);
+      console.log(`✓ Deleted ${deleteObsResult.rowCount} observations`);
 
-      // Shift all month numbers down by 1 (month 2 becomes 1, month 3 becomes 2, etc.)
-      await pool.query(`
-        UPDATE observations
-        SET month_number = month_number - 1
+      // Delete ALL health state comments for this patient (complete reset)
+      const deleteCommentsResult = await pool.query(`
+        DELETE FROM patient_health_state_comments
         WHERE patient_id = $1
-        AND month_number > 1
       `, [id]);
+      console.log(`✓ Deleted ${deleteCommentsResult.rowCount} comments`);
 
-      // New observations will be inserted as month 12
-      nextMonthNumber = 12;
+      // Reset to month 1 (starting a brand new 12-month cycle)
+      nextMonthNumber = 1;
 
-      console.log(`✓ Cleaned up observations, oldest month removed, all months shifted down`);
-
-      // Also archive old health state comments to prevent accumulation
-      // Keep only the most recent 50 comments visible
-      await pool.query(`
-        UPDATE patient_health_state_comments
-        SET visibility = 'archived'
-        WHERE patient_id = $1
-        AND id NOT IN (
-          SELECT id FROM patient_health_state_comments
-          WHERE patient_id = $1
-          ORDER BY created_at DESC
-          LIMIT 50
-        )
-      `, [id]);
-
-      console.log(`✓ Archived old comments, keeping only 50 most recent visible`);
+      console.log(`✓ Patient data reset complete, starting new cycle from month 1`);
     }
 
     // Calculate KDIGO classification
