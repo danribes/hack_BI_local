@@ -1043,24 +1043,25 @@ Provide ONLY the JSON object, nothing else.`;
     // Skip AI analysis after reset since there's no previous data to compare
     let aiCommentId = null;
     if (!wasReset) {
-      try {
-        console.log(`[Patient Update] Generating AI analysis for patient ${id}...`);
-        const aiAnalysisService = new AIUpdateAnalysisService(pool);
+      console.log(`[Patient Update] Generating AI analysis for patient ${id}...`);
 
-        // Prepare previous lab values from the latest observations before this update
-        const previousLabValues = {
-          egfr,
-          uacr,
-          creatinine: latestObs.find(obs => obs.observation_type === 'serum_creatinine')?.value_numeric,
-          bun: latestObs.find(obs => obs.observation_type === 'BUN')?.value_numeric,
-          systolic_bp: latestObs.find(obs => obs.observation_type === 'blood_pressure_systolic')?.value_numeric,
-          diastolic_bp: latestObs.find(obs => obs.observation_type === 'blood_pressure_diastolic')?.value_numeric,
-          hba1c: latestObs.find(obs => obs.observation_type === 'HbA1c')?.value_numeric,
-          glucose: latestObs.find(obs => obs.observation_type === 'glucose')?.value_numeric,
-          hemoglobin: latestObs.find(obs => obs.observation_type === 'hemoglobin')?.value_numeric,
-          heart_rate: latestObs.find(obs => obs.observation_type === 'heart_rate')?.value_numeric,
-          oxygen_saturation: latestObs.find(obs => obs.observation_type === 'oxygen_saturation')?.value_numeric,
-        };
+      // Declare these outside try block so they're accessible in catch block
+      const aiAnalysisService = new AIUpdateAnalysisService(pool);
+
+      // Prepare previous lab values from the latest observations before this update
+      const previousLabValues = {
+        egfr,
+        uacr,
+        creatinine: latestObs.find(obs => obs.observation_type === 'serum_creatinine')?.value_numeric,
+        bun: latestObs.find(obs => obs.observation_type === 'BUN')?.value_numeric,
+        systolic_bp: latestObs.find(obs => obs.observation_type === 'blood_pressure_systolic')?.value_numeric,
+        diastolic_bp: latestObs.find(obs => obs.observation_type === 'blood_pressure_diastolic')?.value_numeric,
+        hba1c: latestObs.find(obs => obs.observation_type === 'HbA1c')?.value_numeric,
+        glucose: latestObs.find(obs => obs.observation_type === 'glucose')?.value_numeric,
+        hemoglobin: latestObs.find(obs => obs.observation_type === 'hemoglobin')?.value_numeric,
+        heart_rate: latestObs.find(obs => obs.observation_type === 'heart_rate')?.value_numeric,
+        oxygen_saturation: latestObs.find(obs => obs.observation_type === 'oxygen_saturation')?.value_numeric,
+      };
 
       // Prepare new lab values
       const newLabValues = {
@@ -1076,6 +1077,8 @@ Provide ONLY the JSON object, nothing else.`;
         heart_rate: generatedValues.heart_rate,
         oxygen_saturation: generatedValues.oxygen_saturation,
       };
+
+      try {
 
       // Calculate patient age
       const birthDate = new Date(patient.date_of_birth);
