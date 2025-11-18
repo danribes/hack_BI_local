@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { Pool } from 'pg';
+import { classifyKDIGO } from '../utils/kdigo';
 
 interface LabValues {
   egfr?: number;
@@ -117,16 +118,16 @@ export class AIUpdateAnalysisService {
     // Check for significant changes in key metrics
     // Note: Thresholds lowered to catch gradual but clinically important changes
 
-    // eGFR: >2 ml/min/1.73m² change or >3% change
-    // Even small declines (2-3 units) are clinically significant in CKD monitoring
-    if (changes.egfr && (Math.abs(changes.egfr.absolute) > 2 || Math.abs(changes.egfr.percentage) > 3)) {
+    // eGFR: >=1.5 ml/min/1.73m² change or >2% change
+    // Even small declines (1.5-3 units) are clinically significant in CKD monitoring
+    if (changes.egfr && (Math.abs(changes.egfr.absolute) >= 1.5 || Math.abs(changes.egfr.percentage) > 2)) {
       console.log(`[AI Analysis] Significant eGFR change detected: ${changes.egfr.absolute.toFixed(1)} units (${changes.egfr.percentage.toFixed(1)}%)`);
       return true;
     }
 
-    // uACR: >15% change or crossing albuminuria categories
+    // uACR: >10% change or crossing albuminuria categories
     // Proteinuria changes are important markers of kidney disease progression
-    if (changes.uacr && Math.abs(changes.uacr.percentage) > 15) {
+    if (changes.uacr && Math.abs(changes.uacr.percentage) > 10) {
       console.log(`[AI Analysis] Significant uACR change detected: ${changes.uacr.percentage.toFixed(1)}%`);
       return true;
     }
@@ -414,40 +415,29 @@ Return ONLY the JSON response, no additional text.`;
     }
 
     try {
-      // Fetch current and previous patient health states
-      const healthStateQuery = await this.pool.query(
-        `SELECT
-          kdigo_classification->>'health_state' as current_health_state,
-          kdigo_classification->>'risk_level' as current_risk_level,
-          kdigo_classification->>'has_ckd' as is_ckd
-        FROM patients
-        WHERE id = $1`,
-        [patientId]
+      // Calculate KDIGO classification from the new lab values instead of querying the database
+      // (kdigo_classification is computed on-the-fly, not stored in the patients table)
+      const currentKdigo = classifyKDIGO(
+        newLabValues.egfr || 90,
+        newLabValues.uacr || 15
       );
 
-      const currentData = healthStateQuery.rows[0];
-
-      // Handle case where patient data is not found or kdigo_classification is null
-      if (!currentData) {
-        console.warn(`[AI Update] Patient ${patientId} not found in database`);
-      }
-
       // Extract and validate health state (max 10 chars)
-      let healthStateTo = currentData?.current_health_state || 'Unknown';
+      let healthStateTo = currentKdigo.health_state || 'Unknown';
       if (healthStateTo && healthStateTo.length > 10) {
         console.warn(`[AI Update] health_state too long (${healthStateTo.length} chars), truncating:`, healthStateTo);
         healthStateTo = healthStateTo.substring(0, 10);
       }
 
       // Extract and validate risk level (max 20 chars)
-      let riskLevelTo = currentData?.current_risk_level || 'low';
+      let riskLevelTo = currentKdigo.risk_level || 'low';
       if (riskLevelTo && riskLevelTo.length > 20) {
         console.warn(`[AI Update] risk_level too long (${riskLevelTo.length} chars), truncating:`, riskLevelTo);
         riskLevelTo = riskLevelTo.substring(0, 20);
       }
 
-      // Safely extract is_ckd
-      const isCkdPatient = currentData?.is_ckd === 'true' || currentData?.is_ckd === true || false;
+      // Determine if patient has CKD from classification
+      const isCkdPatient = currentKdigo.has_ckd || false;
 
       // Determine change_type based on lab values
       let changeType: string | null = null;
