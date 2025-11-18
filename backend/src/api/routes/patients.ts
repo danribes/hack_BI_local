@@ -384,6 +384,24 @@ router.get('/', async (_req: Request, res: Response): Promise<any> => {
           : firstSentence;
       }
 
+      // Generate evolution_summary for patient list badge display
+      let evolution_summary = null;
+      if (patient.latest_comment_change_type) {
+        const changeType = patient.latest_comment_change_type;
+        const severity = patient.latest_comment_severity;
+
+        // Create concise evolution summary based on change type and severity
+        if (changeType === 'worsened' || changeType === 'worsening') {
+          evolution_summary = severity === 'critical' ? 'Critical - Worsening' : 'Worsening';
+        } else if (changeType === 'improved' || changeType === 'improving') {
+          evolution_summary = 'Improving';
+        } else if (changeType === 'stable') {
+          evolution_summary = 'Stable';
+        } else if (changeType === 'initial') {
+          evolution_summary = 'Initial Assessment';
+        }
+      }
+
       return {
         ...patient,
         kdigo_classification: kdigo,
@@ -392,6 +410,8 @@ router.get('/', async (_req: Request, res: Response): Promise<any> => {
         is_monitored,
         monitoring_device,
         is_treated: kdigo.has_ckd ? (patient.ckd_is_treated || patient.ckd_treatment_active) : false,
+        // Evolution summary for patient list
+        evolution_summary,
         // Latest comment summary for list view
         latest_comment: patient.latest_comment_text ? {
           summary: comment_summary,

@@ -1823,4 +1823,75 @@ router.post('/fix-duplicate-names', async (_req: Request, res: Response): Promis
   }
 });
 
+/**
+ * POST /api/init/deduplicate-observations
+ * Remove duplicate observations (same patient, type, and month_number)
+ * Keeps the most recent observation and removes older duplicates
+ */
+router.post('/deduplicate-observations', async (_req: Request, res: Response): Promise<any> => {
+  try {
+    const pool = getPool();
+
+    console.log('[Init] Starting observation deduplication...');
+
+    // Step 1: Ensure NULL month_number values are set to 1
+    const updateNullResult = await pool.query(`
+      UPDATE observations
+      SET month_number = 1
+      WHERE month_number IS NULL
+    `);
+    console.log(`✓ Updated ${updateNullResult.rowCount} observations with NULL month_number to 1`);
+
+    // Step 2: Find and remove duplicate observations
+    // Keep the most recent observation (by id) when duplicates exist
+    const deduplicateResult = await pool.query(`
+      DELETE FROM observations
+      WHERE id IN (
+        SELECT id
+        FROM (
+          SELECT id,
+                 ROW_NUMBER() OVER (
+                   PARTITION BY patient_id, observation_type, month_number
+                   ORDER BY observation_date DESC, id DESC
+                 ) as rn
+          FROM observations
+        ) t
+        WHERE t.rn > 1
+      )
+    `);
+
+    const deletedCount = deduplicateResult.rowCount || 0;
+    console.log(`✓ Removed ${deletedCount} duplicate observations`);
+
+    // Step 3: Verify deduplication
+    const verifyResult = await pool.query(`
+      SELECT COUNT(*) as duplicate_count
+      FROM (
+        SELECT patient_id, observation_type, month_number, COUNT(*) as cnt
+        FROM observations
+        GROUP BY patient_id, observation_type, month_number
+        HAVING COUNT(*) > 1
+      ) t
+    `);
+
+    const remainingDuplicates = parseInt(verifyResult.rows[0].duplicate_count);
+
+    res.json({
+      status: 'success',
+      message: 'Observation deduplication completed',
+      null_month_numbers_updated: updateNullResult.rowCount,
+      duplicates_removed: deletedCount,
+      remaining_duplicates: remainingDuplicates
+    });
+
+  } catch (error) {
+    console.error('[Init API] Error deduplicating observations:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to deduplicate observations',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
 export default router;
