@@ -48,33 +48,80 @@ export const PatientTrendGraphs: React.FC<PatientTrendGraphsProps> = ({ observat
   // Convert to array and sort by month
   const timeSeriesData = Object.values(groupedByMonth).sort((a: any, b: any) => a.month - b.month);
 
-  // Helper function to check if all values for a metric are identical
-  const allValuesIdentical = (dataKey: string) => {
+  // Helper function to check if a metric has multiple distinct timepoints
+  const hasMultipleTimepoints = (dataKey: string) => {
     const validPoints = timeSeriesData.filter((d: any) => d[dataKey] !== undefined && d[dataKey] !== null);
-
-    if (validPoints.length <= 1) return false;
-
-    const firstValue = validPoints[0][dataKey];
-    return validPoints.every((d: any) => Math.abs(d[dataKey] - firstValue) < 0.01); // Use tolerance for floating point
+    return validPoints.length > 1;
   };
 
-  // Helper function to filter data - show only latest point if all values are identical
-  const getChartData = (dataKeys: string[]) => {
-    // Check if ALL specified metrics have identical values
-    const allMetricsIdentical = dataKeys.every(key => allValuesIdentical(key));
-
-    if (allMetricsIdentical) {
-      // Return only the latest time point
-      return [timeSeriesData[timeSeriesData.length - 1]];
+  // Helper function to get the latest value for a metric
+  const getLatestValue = (dataKey: string) => {
+    for (let i = timeSeriesData.length - 1; i >= 0; i--) {
+      if (timeSeriesData[i][dataKey] !== undefined && timeSeriesData[i][dataKey] !== null) {
+        return {
+          value: timeSeriesData[i][dataKey],
+          date: timeSeriesData[i].date
+        };
+      }
     }
-
-    return timeSeriesData;
+    return null;
   };
 
-  // Helper function to determine if we should show connecting lines
-  const shouldShowLine = (dataKey: string) => {
-    return !allValuesIdentical(dataKey);
-  };
+  // Component to render static value cell when no updates exist
+  const StaticValueCell = ({
+    label,
+    value,
+    unit,
+    date,
+    icon,
+    normalRange,
+    isGood
+  }: {
+    label: string;
+    value: number;
+    unit: string;
+    date: string;
+    icon: string;
+    normalRange: string;
+    isGood: boolean;
+  }) => (
+    <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-lg border-2 border-gray-200 p-6">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-lg font-bold text-gray-900 flex items-center">
+          <span className="mr-2">{icon}</span>
+          {label}
+        </h3>
+        <span className="text-xs font-medium text-gray-500 bg-white px-3 py-1 rounded-full border border-gray-300">
+          No updates yet
+        </span>
+      </div>
+
+      <div className="flex items-baseline justify-center my-6">
+        <span className={`text-6xl font-bold ${isGood ? 'text-green-600' : 'text-orange-600'}`}>
+          {value.toFixed(1)}
+        </span>
+        <span className="text-2xl font-semibold text-gray-500 ml-2">
+          {unit}
+        </span>
+      </div>
+
+      <div className="mt-4 pt-4 border-t border-gray-300 space-y-2">
+        <div className="flex justify-between text-sm">
+          <span className="text-gray-600">Baseline Date:</span>
+          <span className="font-semibold text-gray-900">{date}</span>
+        </div>
+        <div className="flex justify-between text-sm">
+          <span className="text-gray-600">Normal Range:</span>
+          <span className="font-semibold text-gray-900">{normalRange}</span>
+        </div>
+        <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-md">
+          <p className="text-xs text-blue-800">
+            <span className="font-semibold">📊 Trending:</span> Graph will appear once follow-up results are recorded
+          </p>
+        </div>
+      </div>
+    </div>
+  );
 
   // Custom tooltip
   const CustomTooltip = ({ active, payload, label }: any) => {
@@ -129,178 +176,273 @@ export const PatientTrendGraphs: React.FC<PatientTrendGraphsProps> = ({ observat
         {/* eGFR Trend */}
         {timeSeriesData.some((d: any) => d.eGFR) && (
           <div>
-            <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center">
-              <span className="mr-2">📊</span>
-              Kidney Function (eGFR)
-              <span className="ml-3 text-sm font-normal text-gray-600">
-                Higher is better • Target: &gt;60 mL/min/1.73m²
-              </span>
-            </h3>
-            <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={getChartData(['eGFR'])}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                <XAxis
-                  dataKey="date"
-                  tick={{ fill: '#6b7280', fontSize: 12 }}
-                />
-                <YAxis
-                  label={{ value: 'mL/min/1.73m²', angle: -90, position: 'insideLeft', style: { fill: '#6b7280' } }}
-                  tick={{ fill: '#6b7280', fontSize: 12 }}
-                  domain={[0, 'auto']}
-                />
-                <Tooltip content={<CustomTooltip />} />
-                <Legend />
-                {/* Reference zones */}
-                <ReferenceLine y={60} stroke="#10b981" strokeDasharray="3 3" label={{ value: 'Normal (>60)', fill: '#10b981', fontSize: 11 }} />
-                <ReferenceLine y={30} stroke="#f59e0b" strokeDasharray="3 3" label={{ value: 'Severe (<30)', fill: '#f59e0b', fontSize: 11 }} />
-                <Line
-                  type="linear"
-                  dataKey="eGFR"
-                  stroke={isTreated ? "#10b981" : "#ef4444"}
-                  strokeWidth={shouldShowLine("eGFR") ? 3 : 0}
-                  dot={{ fill: isTreated ? "#10b981" : "#ef4444", r: 6 }}
-                  name="eGFR"
-                  unit="mL/min/1.73m²"
-                  connectNulls={false}
-                />
-              </LineChart>
-            </ResponsiveContainer>
+            {!hasMultipleTimepoints('eGFR') ? (
+              // Show static value cell when no updates exist
+              <StaticValueCell
+                label="Kidney Function (eGFR)"
+                value={getLatestValue('eGFR')!.value}
+                unit="mL/min/1.73m²"
+                date={getLatestValue('eGFR')!.date}
+                icon="📊"
+                normalRange=">60 mL/min/1.73m²"
+                isGood={getLatestValue('eGFR')!.value >= 60}
+              />
+            ) : (
+              // Show graph when multiple timepoints exist
+              <>
+                <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center">
+                  <span className="mr-2">📊</span>
+                  Kidney Function (eGFR)
+                  <span className="ml-3 text-sm font-normal text-gray-600">
+                    Higher is better • Target: &gt;60 mL/min/1.73m²
+                  </span>
+                </h3>
+                <ResponsiveContainer width="100%" height={300}>
+                  <LineChart data={timeSeriesData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                    <XAxis
+                      dataKey="date"
+                      tick={{ fill: '#6b7280', fontSize: 12 }}
+                    />
+                    <YAxis
+                      label={{ value: 'mL/min/1.73m²', angle: -90, position: 'insideLeft', style: { fill: '#6b7280' } }}
+                      tick={{ fill: '#6b7280', fontSize: 12 }}
+                      domain={[0, 'auto']}
+                    />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Legend />
+                    {/* Reference zones */}
+                    <ReferenceLine y={60} stroke="#10b981" strokeDasharray="3 3" label={{ value: 'Normal (>60)', fill: '#10b981', fontSize: 11 }} />
+                    <ReferenceLine y={30} stroke="#f59e0b" strokeDasharray="3 3" label={{ value: 'Severe (<30)', fill: '#f59e0b', fontSize: 11 }} />
+                    <Line
+                      type="linear"
+                      dataKey="eGFR"
+                      stroke={isTreated ? "#10b981" : "#ef4444"}
+                      strokeWidth={3}
+                      dot={{ fill: isTreated ? "#10b981" : "#ef4444", r: 6 }}
+                      name="eGFR"
+                      unit="mL/min/1.73m²"
+                      connectNulls={false}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </>
+            )}
           </div>
         )}
 
         {/* uACR Trend */}
         {timeSeriesData.some((d: any) => d.uACR) && (
           <div>
-            <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center">
-              <span className="mr-2">🔬</span>
-              Protein in Urine (uACR)
-              <span className="ml-3 text-sm font-normal text-gray-600">
-                Lower is better • Normal: &lt;30 mg/g
-              </span>
-            </h3>
-            <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={getChartData(['uACR'])}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                <XAxis
-                  dataKey="date"
-                  tick={{ fill: '#6b7280', fontSize: 12 }}
-                />
-                <YAxis
-                  label={{ value: 'mg/g', angle: -90, position: 'insideLeft', style: { fill: '#6b7280' } }}
-                  tick={{ fill: '#6b7280', fontSize: 12 }}
-                  domain={[0, 'auto']}
-                />
-                <Tooltip content={<CustomTooltip />} />
-                <Legend />
-                {/* Reference zones */}
-                <ReferenceLine y={30} stroke="#10b981" strokeDasharray="3 3" label={{ value: 'Normal (<30)', fill: '#10b981', fontSize: 11 }} />
-                <ReferenceLine y={300} stroke="#ef4444" strokeDasharray="3 3" label={{ value: 'Severe (>300)', fill: '#ef4444', fontSize: 11 }} />
-                <Line
-                  type="linear"
-                  dataKey="uACR"
-                  stroke={isTreated ? "#10b981" : "#ef4444"}
-                  strokeWidth={shouldShowLine("uACR") ? 3 : 0}
-                  dot={{ fill: isTreated ? "#10b981" : "#ef4444", r: 6 }}
-                  name="uACR"
-                  unit="mg/g"
-                  connectNulls={false}
-                />
-              </LineChart>
-            </ResponsiveContainer>
+            {!hasMultipleTimepoints('uACR') ? (
+              // Show static value cell when no updates exist
+              <StaticValueCell
+                label="Protein in Urine (uACR)"
+                value={getLatestValue('uACR')!.value}
+                unit="mg/g"
+                date={getLatestValue('uACR')!.date}
+                icon="🔬"
+                normalRange="<30 mg/g"
+                isGood={getLatestValue('uACR')!.value < 30}
+              />
+            ) : (
+              // Show graph when multiple timepoints exist
+              <>
+                <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center">
+                  <span className="mr-2">🔬</span>
+                  Protein in Urine (uACR)
+                  <span className="ml-3 text-sm font-normal text-gray-600">
+                    Lower is better • Normal: &lt;30 mg/g
+                  </span>
+                </h3>
+                <ResponsiveContainer width="100%" height={300}>
+                  <LineChart data={timeSeriesData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                    <XAxis
+                      dataKey="date"
+                      tick={{ fill: '#6b7280', fontSize: 12 }}
+                    />
+                    <YAxis
+                      label={{ value: 'mg/g', angle: -90, position: 'insideLeft', style: { fill: '#6b7280' } }}
+                      tick={{ fill: '#6b7280', fontSize: 12 }}
+                      domain={[0, 'auto']}
+                    />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Legend />
+                    {/* Reference zones */}
+                    <ReferenceLine y={30} stroke="#10b981" strokeDasharray="3 3" label={{ value: 'Normal (<30)', fill: '#10b981', fontSize: 11 }} />
+                    <ReferenceLine y={300} stroke="#ef4444" strokeDasharray="3 3" label={{ value: 'Severe (>300)', fill: '#ef4444', fontSize: 11 }} />
+                    <Line
+                      type="linear"
+                      dataKey="uACR"
+                      stroke={isTreated ? "#10b981" : "#ef4444"}
+                      strokeWidth={3}
+                      dot={{ fill: isTreated ? "#10b981" : "#ef4444", r: 6 }}
+                      name="uACR"
+                      unit="mg/g"
+                      connectNulls={false}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </>
+            )}
           </div>
         )}
 
         {/* Blood Pressure Trend */}
         {timeSeriesData.some((d: any) => d.blood_pressure_systolic) && (
           <div>
-            <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center">
-              <span className="mr-2">❤️</span>
-              Blood Pressure
-              <span className="ml-3 text-sm font-normal text-gray-600">
-                Target: &lt;130/80 mmHg for CKD patients
-              </span>
-            </h3>
-            <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={getChartData(['blood_pressure_systolic', 'blood_pressure_diastolic'])}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                <XAxis
-                  dataKey="date"
-                  tick={{ fill: '#6b7280', fontSize: 12 }}
-                />
-                <YAxis
-                  label={{ value: 'mmHg', angle: -90, position: 'insideLeft', style: { fill: '#6b7280' } }}
-                  tick={{ fill: '#6b7280', fontSize: 12 }}
-                  domain={[60, 180]}
-                />
-                <Tooltip content={<CustomTooltip />} />
-                <Legend />
-                {/* Reference lines */}
-                <ReferenceLine y={130} stroke="#10b981" strokeDasharray="3 3" label={{ value: 'Target Systolic (130)', fill: '#10b981', fontSize: 11 }} />
-                <ReferenceLine y={80} stroke="#10b981" strokeDasharray="3 3" label={{ value: 'Target Diastolic (80)', fill: '#10b981', fontSize: 11 }} />
-                <Line
-                  type="linear"
-                  dataKey="blood_pressure_systolic"
-                  stroke="#ef4444"
-                  strokeWidth={shouldShowLine("blood_pressure_systolic") ? 3 : 0}
-                  dot={{ fill: "#ef4444", r: 6 }}
-                  name="Systolic"
-                  unit="mmHg"
-                  connectNulls={false}
-                />
-                <Line
-                  type="linear"
-                  dataKey="blood_pressure_diastolic"
-                  stroke="#3b82f6"
-                  strokeWidth={shouldShowLine("blood_pressure_diastolic") ? 3 : 0}
-                  strokeDasharray={shouldShowLine("blood_pressure_diastolic") ? "5 5" : "0"}
-                  dot={{ fill: "#3b82f6", r: 6 }}
-                  name="Diastolic"
-                  unit="mmHg"
-                  connectNulls={false}
-                />
-              </LineChart>
-            </ResponsiveContainer>
+            {!hasMultipleTimepoints('blood_pressure_systolic') ? (
+              // Show static value cell for blood pressure when no updates exist
+              <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-lg border-2 border-gray-200 p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-bold text-gray-900 flex items-center">
+                    <span className="mr-2">❤️</span>
+                    Blood Pressure
+                  </h3>
+                  <span className="text-xs font-medium text-gray-500 bg-white px-3 py-1 rounded-full border border-gray-300">
+                    No updates yet
+                  </span>
+                </div>
+
+                <div className="flex items-baseline justify-center my-6">
+                  <span className="text-6xl font-bold text-red-600">
+                    {getLatestValue('blood_pressure_systolic')!.value.toFixed(0)}
+                  </span>
+                  <span className="text-4xl font-bold text-gray-400 mx-3">/</span>
+                  <span className="text-6xl font-bold text-blue-600">
+                    {getLatestValue('blood_pressure_diastolic')!.value.toFixed(0)}
+                  </span>
+                  <span className="text-2xl font-semibold text-gray-500 ml-2">
+                    mmHg
+                  </span>
+                </div>
+
+                <div className="mt-4 pt-4 border-t border-gray-300 space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">Baseline Date:</span>
+                    <span className="font-semibold text-gray-900">{getLatestValue('blood_pressure_systolic')!.date}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">Target Range:</span>
+                    <span className="font-semibold text-gray-900">&lt;130/80 mmHg</span>
+                  </div>
+                  <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-md">
+                    <p className="text-xs text-blue-800">
+                      <span className="font-semibold">📊 Trending:</span> Graph will appear once follow-up results are recorded
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              // Show graph when multiple timepoints exist
+              <>
+                <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center">
+                  <span className="mr-2">❤️</span>
+                  Blood Pressure
+                  <span className="ml-3 text-sm font-normal text-gray-600">
+                    Target: &lt;130/80 mmHg for CKD patients
+                  </span>
+                </h3>
+                <ResponsiveContainer width="100%" height={300}>
+                  <LineChart data={timeSeriesData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                    <XAxis
+                      dataKey="date"
+                      tick={{ fill: '#6b7280', fontSize: 12 }}
+                    />
+                    <YAxis
+                      label={{ value: 'mmHg', angle: -90, position: 'insideLeft', style: { fill: '#6b7280' } }}
+                      tick={{ fill: '#6b7280', fontSize: 12 }}
+                      domain={[60, 180]}
+                    />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Legend />
+                    {/* Reference lines */}
+                    <ReferenceLine y={130} stroke="#10b981" strokeDasharray="3 3" label={{ value: 'Target Systolic (130)', fill: '#10b981', fontSize: 11 }} />
+                    <ReferenceLine y={80} stroke="#10b981" strokeDasharray="3 3" label={{ value: 'Target Diastolic (80)', fill: '#10b981', fontSize: 11 }} />
+                    <Line
+                      type="linear"
+                      dataKey="blood_pressure_systolic"
+                      stroke="#ef4444"
+                      strokeWidth={3}
+                      dot={{ fill: "#ef4444", r: 6 }}
+                      name="Systolic"
+                      unit="mmHg"
+                      connectNulls={false}
+                    />
+                    <Line
+                      type="linear"
+                      dataKey="blood_pressure_diastolic"
+                      stroke="#3b82f6"
+                      strokeWidth={3}
+                      strokeDasharray="5 5"
+                      dot={{ fill: "#3b82f6", r: 6 }}
+                      name="Diastolic"
+                      unit="mmHg"
+                      connectNulls={false}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </>
+            )}
           </div>
         )}
 
         {/* HbA1c Trend (for diabetic patients) */}
         {timeSeriesData.some((d: any) => d.HbA1c) && (
           <div>
-            <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center">
-              <span className="mr-2">🩸</span>
-              Diabetes Control (HbA1c)
-              <span className="ml-3 text-sm font-normal text-gray-600">
-                Target: &lt;7% for most patients
-              </span>
-            </h3>
-            <ResponsiveContainer width="100%" height={300}>
-              <LineChart data={getChartData(['HbA1c'])}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                <XAxis
-                  dataKey="date"
-                  tick={{ fill: '#6b7280', fontSize: 12 }}
-                />
-                <YAxis
-                  label={{ value: '%', angle: -90, position: 'insideLeft', style: { fill: '#6b7280' } }}
-                  tick={{ fill: '#6b7280', fontSize: 12 }}
-                  domain={[4, 'auto']}
-                />
-                <Tooltip content={<CustomTooltip />} />
-                <Legend />
-                {/* Reference line */}
-                <ReferenceLine y={7} stroke="#10b981" strokeDasharray="3 3" label={{ value: 'Target (<7%)', fill: '#10b981', fontSize: 11 }} />
-                <Line
-                  type="linear"
-                  dataKey="HbA1c"
-                  stroke={isTreated ? "#8b5cf6" : "#f97316"}
-                  strokeWidth={shouldShowLine("HbA1c") ? 3 : 0}
-                  dot={{ fill: isTreated ? "#8b5cf6" : "#f97316", r: 6 }}
-                  name="HbA1c"
-                  unit="%"
-                  connectNulls={false}
-                />
-              </LineChart>
-            </ResponsiveContainer>
+            {!hasMultipleTimepoints('HbA1c') ? (
+              // Show static value cell when no updates exist
+              <StaticValueCell
+                label="Diabetes Control (HbA1c)"
+                value={getLatestValue('HbA1c')!.value}
+                unit="%"
+                date={getLatestValue('HbA1c')!.date}
+                icon="🩸"
+                normalRange="<7%"
+                isGood={getLatestValue('HbA1c')!.value < 7}
+              />
+            ) : (
+              // Show graph when multiple timepoints exist
+              <>
+                <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center">
+                  <span className="mr-2">🩸</span>
+                  Diabetes Control (HbA1c)
+                  <span className="ml-3 text-sm font-normal text-gray-600">
+                    Target: &lt;7% for most patients
+                  </span>
+                </h3>
+                <ResponsiveContainer width="100%" height={300}>
+                  <LineChart data={timeSeriesData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                    <XAxis
+                      dataKey="date"
+                      tick={{ fill: '#6b7280', fontSize: 12 }}
+                    />
+                    <YAxis
+                      label={{ value: '%', angle: -90, position: 'insideLeft', style: { fill: '#6b7280' } }}
+                      tick={{ fill: '#6b7280', fontSize: 12 }}
+                      domain={[4, 'auto']}
+                    />
+                    <Tooltip content={<CustomTooltip />} />
+                    <Legend />
+                    {/* Reference line */}
+                    <ReferenceLine y={7} stroke="#10b981" strokeDasharray="3 3" label={{ value: 'Target (<7%)', fill: '#10b981', fontSize: 11 }} />
+                    <Line
+                      type="linear"
+                      dataKey="HbA1c"
+                      stroke={isTreated ? "#8b5cf6" : "#f97316"}
+                      strokeWidth={3}
+                      dot={{ fill: isTreated ? "#8b5cf6" : "#f97316", r: 6 }}
+                      name="HbA1c"
+                      unit="%"
+                      connectNulls={false}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </>
+            )}
           </div>
         )}
       </div>
