@@ -28,6 +28,13 @@ interface PatientContext {
   treatmentType?: string;
   cycleNumber: number;
   previousCycleNumber?: number;
+  // KDIGO clinical recommendations
+  recommendRasInhibitor?: boolean;
+  recommendSglt2i?: boolean;
+  requiresNephrologyReferral?: boolean;
+  riskLevel?: 'low' | 'moderate' | 'high' | 'very_high';
+  gfrCategory?: string;
+  albuminuriaCategory?: string;
 }
 
 interface AIAnalysisResult {
@@ -241,15 +248,33 @@ export class AIUpdateAnalysisService {
     current: LabValues,
     changes: Record<string, { absolute: number; percentage: number }>
   ): string {
+    // Build clinical recommendations summary
+    const clinicalRecommendations: string[] = [];
+    if (context.recommendRasInhibitor) {
+      clinicalRecommendations.push('RAS Inhibitor (ACE-I/ARB) recommended');
+    }
+    if (context.recommendSglt2i) {
+      clinicalRecommendations.push('SGLT2 Inhibitor recommended');
+    }
+    if (context.requiresNephrologyReferral) {
+      clinicalRecommendations.push('Nephrology referral required');
+    }
+
+    const recommendationsText = clinicalRecommendations.length > 0
+      ? clinicalRecommendations.join(', ')
+      : 'Standard monitoring';
+
     return `You are an expert nephrologist analyzing patient lab value changes. Generate a concise clinical analysis of the following patient update.
 
 **Patient Context:**
 - Name: ${context.firstName} ${context.lastName}
 - Age: ${context.age}
 - Patient Type: ${context.isCkd ? 'CKD Patient' : 'At-Risk Patient'}
-- Current Health State: ${context.currentHealthState || 'Unknown'}
+- Current Health State: ${context.currentHealthState || 'Unknown'} (${context.gfrCategory || 'Unknown'}/${context.albuminuriaCategory || 'Unknown'})
 - Previous Health State: ${context.previousHealthState || 'Unknown'}
-- Treatment Status: ${context.treatmentActive ? `Active (${context.treatmentType || 'Unknown'})` : 'Not on CKD treatment'}
+- Risk Level: ${context.riskLevel || 'Unknown'}
+- Treatment Status: ${context.treatmentActive ? `Active (${context.treatmentType || 'Unknown'})` : 'NOT ON TREATMENT'}
+- Clinical Recommendations: ${recommendationsText}
 - Cycle: ${context.previousCycleNumber || 'N/A'} → ${context.cycleNumber}
 
 **Previous Lab Values (Cycle ${context.previousCycleNumber || 'N/A'}):**
@@ -273,13 +298,33 @@ Analyze these changes and provide a structured response in the following JSON fo
   "concernLevel": "none|mild|moderate|high"
 }
 
-**Guidelines:**
-1. Focus on clinically significant changes
-2. Consider trends in the context of treatment status
-3. Provide actionable recommendations
-4. Use clear, professional medical language
-5. Severity: "info" for stable/improving, "warning" for concerning changes, "critical" for urgent issues
-6. Concern level based on clinical urgency and risk
+**CRITICAL CLINICAL GUIDELINES:**
+
+1. **Treatment Initiation Logic:**
+   - If patient is NOT ON TREATMENT and has CKD (especially Stage 3 or higher), ALWAYS recommend initiating appropriate CKD treatment
+   - If patient shows WORSENING kidney function (declining eGFR, rising uACR) and NOT ON TREATMENT, this is URGENT - recommend immediate treatment initiation
+   - NEVER say "maintain current treatment plan" or "continue current treatment" when treatment status is "NOT ON TREATMENT"
+   - If NOT ON TREATMENT, use phrases like "initiate treatment", "start therapy", "begin pharmacological intervention"
+
+2. **Treatment Adequacy Assessment:**
+   - If patient IS on treatment but condition is WORSENING, recommend treatment intensification or adjustment
+   - If patient IS on treatment and STABLE/IMPROVING, acknowledge treatment effectiveness
+
+3. **Severity Assessment:**
+   - Stage 4 CKD (G4) or higher without treatment = CRITICAL severity, HIGH concern
+   - Declining eGFR without treatment = WARNING or CRITICAL severity
+   - Rising albuminuria without treatment = WARNING severity
+   - Any progression to higher risk category = at least WARNING severity
+
+4. **Actionable Recommendations:**
+   - Be SPECIFIC: Instead of "continue monitoring", say "Initiate RAS inhibitor therapy" or "Start SGLT2 inhibitor"
+   - Reference the Clinical Recommendations field when treatment is indicated but not started
+   - For deteriorating patients, prioritize treatment initiation over monitoring
+
+5. **Health State Changes:**
+   - Worsening health state (G3b→G4, A1→A2, etc.) = clear deterioration, needs intervention
+   - "Stable" only means no category changes, but patient still needs treatment if indicated
+   - Even "stable" severe CKD without treatment requires urgent action
 
 Return ONLY the JSON response, no additional text.`;
   }
