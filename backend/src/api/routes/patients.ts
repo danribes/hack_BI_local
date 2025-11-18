@@ -21,6 +21,8 @@ const router = Router();
  *   - is_treated: boolean ('true' or 'false') - CKD patients only
  *   - monitoring_frequency: 'weekly' | 'biweekly' | 'monthly' | 'quarterly' | 'biannually' | 'annually'
  *   - treatment_name: string (e.g., 'Jardiance')
+ *   - has_recent_updates: boolean ('true' or 'false') - patients with recent comments/updates
+ *   - update_days: number (default: 30) - number of days to look back for recent updates
  */
 router.get('/filter', async (req: Request, res: Response): Promise<any> => {
   try {
@@ -33,7 +35,9 @@ router.get('/filter', async (req: Request, res: Response): Promise<any> => {
       is_monitored,
       is_treated,
       monitoring_frequency,
-      treatment_name
+      treatment_name,
+      has_recent_updates,
+      update_days
     } = req.query;
 
     // Build dynamic query based on provided filters
@@ -117,6 +121,19 @@ router.get('/filter', async (req: Request, res: Response): Promise<any> => {
       // This allows combining with other filters later if needed
     }
 
+    // Filter for patients with recent updates (comments)
+    if (has_recent_updates === 'true') {
+      const daysBack = update_days ? parseInt(update_days as string) : 30;
+      whereConditions.push(`
+        EXISTS (
+          SELECT 1 FROM patient_health_state_comments phsc
+          WHERE phsc.patient_id = p.id
+          AND phsc.visibility = 'visible'
+          AND phsc.created_at >= NOW() - INTERVAL '${daysBack} days'
+        )
+      `);
+    }
+
     // Build final query
     let finalQuery = baseQuery + fromClause;
     if (whereConditions.length > 0) {
@@ -137,7 +154,9 @@ router.get('/filter', async (req: Request, res: Response): Promise<any> => {
         is_monitored: is_monitored || 'not_specified',
         is_treated: is_treated || 'not_specified',
         monitoring_frequency: monitoring_frequency || 'not_specified',
-        treatment_name: treatment_name || 'not_specified'
+        treatment_name: treatment_name || 'not_specified',
+        has_recent_updates: has_recent_updates || 'not_specified',
+        update_days: update_days || 'not_specified'
       },
       count: result.rows.length,
       patients: result.rows
@@ -313,7 +332,23 @@ router.get('/', async (_req: Request, res: Response): Promise<any> => {
         npd.kdigo_health_state as non_ckd_health_state,
         npd.is_monitored as non_ckd_is_monitored,
         npd.monitoring_device as non_ckd_monitoring_device,
-        npd.monitoring_frequency as non_ckd_monitoring_frequency
+        npd.monitoring_frequency as non_ckd_monitoring_frequency,
+        -- Latest health state comment (for patient list summary)
+        (SELECT comment_text FROM patient_health_state_comments
+         WHERE patient_id = p.id AND visibility = 'visible'
+         ORDER BY created_at DESC LIMIT 1) as latest_comment_text,
+        (SELECT change_type FROM patient_health_state_comments
+         WHERE patient_id = p.id AND visibility = 'visible'
+         ORDER BY created_at DESC LIMIT 1) as latest_comment_change_type,
+        (SELECT severity FROM patient_health_state_comments
+         WHERE patient_id = p.id AND visibility = 'visible'
+         ORDER BY created_at DESC LIMIT 1) as latest_comment_severity,
+        (SELECT created_at FROM patient_health_state_comments
+         WHERE patient_id = p.id AND visibility = 'visible'
+         ORDER BY created_at DESC LIMIT 1) as latest_comment_date,
+        (SELECT cycle_number FROM patient_health_state_comments
+         WHERE patient_id = p.id AND visibility = 'visible'
+         ORDER BY created_at DESC LIMIT 1) as latest_comment_cycle
       FROM patients p
       LEFT JOIN ckd_patient_data cpd ON p.id = cpd.patient_id
       LEFT JOIN non_ckd_patient_data npd ON p.id = npd.patient_id
@@ -337,6 +372,18 @@ router.get('/', async (_req: Request, res: Response): Promise<any> => {
         ? (patient.ckd_monitoring_device || patient.home_monitoring_device)
         : (patient.non_ckd_monitoring_device || patient.home_monitoring_device);
 
+      // Generate summarized comment for list view (max 100 chars)
+      let comment_summary = null;
+      if (patient.latest_comment_text) {
+        // Remove emojis and special characters, extract key info
+        const cleanText = patient.latest_comment_text.replace(/[⚠️✓]/g, '').trim();
+        // Take first sentence or up to 100 characters
+        const firstSentence = cleanText.split('.')[0];
+        comment_summary = firstSentence.length > 100
+          ? firstSentence.substring(0, 97) + '...'
+          : firstSentence;
+      }
+
       return {
         ...patient,
         kdigo_classification: kdigo,
@@ -344,7 +391,15 @@ router.get('/', async (_req: Request, res: Response): Promise<any> => {
         // Simplified tracking data
         is_monitored,
         monitoring_device,
-        is_treated: kdigo.has_ckd ? (patient.ckd_is_treated || patient.ckd_treatment_active) : false
+        is_treated: kdigo.has_ckd ? (patient.ckd_is_treated || patient.ckd_treatment_active) : false,
+        // Latest comment summary for list view
+        latest_comment: patient.latest_comment_text ? {
+          summary: comment_summary,
+          change_type: patient.latest_comment_change_type,
+          severity: patient.latest_comment_severity,
+          date: patient.latest_comment_date,
+          cycle: patient.latest_comment_cycle
+        } : null
       };
     });
 
