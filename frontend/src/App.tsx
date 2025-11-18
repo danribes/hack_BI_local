@@ -183,6 +183,7 @@ function App() {
   const [populating, setPopulating] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [updatingPatient, setUpdatingPatient] = useState(false);
+  const [resettingPatient, setResettingPatient] = useState(false);
 
   // Filter states
   const [activeFilters, setActiveFilters] = useState<{
@@ -506,6 +507,67 @@ function App() {
     }
   };
 
+  const resetPatientRecords = async () => {
+    if (!selectedPatient) return;
+
+    // Confirm before resetting
+    const confirmed = window.confirm(
+      'Are you sure you want to reset this patient\'s records? This will remove all generated data and keep only the original data.'
+    );
+
+    if (!confirmed) return;
+
+    try {
+      setResettingPatient(true);
+      setError(null);
+
+      console.log('[RESET] Starting patient records reset for:', selectedPatient.id);
+
+      const response = await fetch(`${API_URL}/api/patients/${selectedPatient.id}/reset-records`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to reset patient records: ${response.status}`);
+      }
+
+      const data = await response.json();
+      console.log('[RESET] Reset response:', data);
+
+      // Refresh patient details to show reset data
+      console.log('[RESET] Fetching reset patient details...');
+      await fetchPatientDetail(selectedPatient.id);
+      console.log('[RESET] Patient details refreshed successfully');
+
+      // Refresh health state comments (should be empty after reset)
+      console.log('[RESET] Refreshing comments...');
+      await fetchHealthStateComments(selectedPatient.id);
+
+      // Refresh patient list
+      console.log('[RESET] Refreshing patient list...');
+      if (activeFilters.patientType !== 'all' || activeFilters.ckdSeverity || activeFilters.nonCkdRisk) {
+        await fetchFilteredPatients();
+      } else {
+        await fetchPatients();
+      }
+      console.log('[RESET] Patient list refreshed successfully');
+
+      // Show success message
+      alert(`Successfully reset patient records. Deleted ${data.deleted_observations} generated observations and ${data.deleted_comments} health state comments.`);
+
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to reset patient records');
+      console.error('[RESET] Error resetting patient records:', err);
+      alert('Failed to reset patient records. Please try again.');
+    } finally {
+      setResettingPatient(false);
+      console.log('[RESET] Reset process completed');
+    }
+  };
+
   const populateDatabase = async () => {
     try {
       setPopulating(true);
@@ -756,32 +818,61 @@ function App() {
               Back to Patient List
             </button>
 
-            <button
-              onClick={updatePatientRecords}
-              disabled={updatingPatient}
-              className={`flex items-center px-6 py-3 rounded-lg font-semibold text-white shadow-lg transition-all transform hover:scale-105 ${
-                updatingPatient
-                  ? 'bg-gray-400 cursor-not-allowed'
-                  : 'bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700'
-              }`}
-            >
-              {updatingPatient ? (
-                <>
-                  <svg className="animate-spin h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  Generating Update...
-                </>
-              ) : (
-                <>
-                  <svg className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                  </svg>
-                  Update Patient Records
-                </>
-              )}
-            </button>
+            <div className="flex gap-4">
+              <button
+                onClick={updatePatientRecords}
+                disabled={updatingPatient || resettingPatient}
+                className={`flex items-center px-6 py-3 rounded-lg font-semibold text-white shadow-lg transition-all transform hover:scale-105 ${
+                  updatingPatient || resettingPatient
+                    ? 'bg-gray-400 cursor-not-allowed'
+                    : 'bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700'
+                }`}
+              >
+                {updatingPatient ? (
+                  <>
+                    <svg className="animate-spin h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Generating Update...
+                  </>
+                ) : (
+                  <>
+                    <svg className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                    </svg>
+                    Update Patient Records
+                  </>
+                )}
+              </button>
+
+              <button
+                onClick={resetPatientRecords}
+                disabled={updatingPatient || resettingPatient}
+                className={`flex items-center px-6 py-3 rounded-lg font-semibold text-white shadow-lg transition-all transform hover:scale-105 ${
+                  updatingPatient || resettingPatient
+                    ? 'bg-gray-400 cursor-not-allowed'
+                    : 'bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800'
+                }`}
+              >
+                {resettingPatient ? (
+                  <>
+                    <svg className="animate-spin h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Resetting...
+                  </>
+                ) : (
+                  <>
+                    <svg className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                    Reset to Original
+                  </>
+                )}
+              </button>
+            </div>
           </div>
 
           {error && !loadingDetail && (

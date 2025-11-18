@@ -1249,4 +1249,58 @@ router.post('/:id/comments/:commentId/archive', async (req: Request, res: Respon
   }
 });
 
+/**
+ * POST /api/patients/:id/reset-records
+ * Reset patient records by removing all generated data, keeping only original data (month 1)
+ */
+router.post('/:id/reset-records', async (req: Request, res: Response): Promise<any> => {
+  try {
+    const { id } = req.params;
+    const pool = getPool();
+
+    // Check if patient exists
+    const patientResult = await pool.query(`
+      SELECT id FROM patients WHERE id = $1
+    `, [id]);
+
+    if (patientResult.rows.length === 0) {
+      return res.status(404).json({
+        status: 'error',
+        message: 'Patient not found'
+      });
+    }
+
+    // Delete all observations with month_number > 1 (keeping only original data)
+    const deleteObsResult = await pool.query(`
+      DELETE FROM observations
+      WHERE patient_id = $1 AND month_number > 1
+    `, [id]);
+
+    // Delete all health state comments for this patient
+    const deleteCommentsResult = await pool.query(`
+      DELETE FROM patient_health_state_comments
+      WHERE patient_id = $1
+    `, [id]);
+
+    console.log(`[Patient Reset] Reset patient ${id}:`);
+    console.log(`  - Deleted ${deleteObsResult.rowCount} generated observations (month > 1)`);
+    console.log(`  - Deleted ${deleteCommentsResult.rowCount} health state comments`);
+
+    res.json({
+      status: 'success',
+      message: 'Patient records reset successfully',
+      deleted_observations: deleteObsResult.rowCount,
+      deleted_comments: deleteCommentsResult.rowCount
+    });
+
+  } catch (error) {
+    console.error('[Patients API] Error resetting patient records:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to reset patient records',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
 export default router;
