@@ -323,8 +323,8 @@ Return ONLY the JSON response, no additional text.`;
    */
   private generateFallbackAnalysis(
     context: PatientContext,
-    previous: LabValues,
-    current: LabValues,
+    _previous: LabValues,
+    _current: LabValues,
     changes: Record<string, { absolute: number; percentage: number }>
   ): AIAnalysisResult {
     const keyChanges: string[] = [];
@@ -347,8 +347,11 @@ Return ONLY the JSON response, no additional text.`;
       const change = changes.uacr;
       if (change.percentage > 50) {
         keyChanges.push(`Albuminuria increased by ${change.percentage.toFixed(0)}%`);
-        if (severity !== 'critical') {
+        // Escalate severity if not already critical
+        if (severity === 'info') {
           severity = 'warning';
+        } else if (severity === 'warning') {
+          severity = 'critical';
         }
         concernLevel = 'high';
       } else if (change.percentage < -30) {
