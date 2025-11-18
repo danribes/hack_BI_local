@@ -701,6 +701,9 @@ router.post('/:id/update-records', async (req: Request, res: Response): Promise<
 
     let nextMonthNumber = (maxMonthResult.rows[0]?.max_month || 0) + 1;
 
+    // Track if we performed a reset (needed to handle previous values correctly)
+    let wasReset = false;
+
     // Handle observation limit: Reset all data after 12 cycles
     // If we've reached month 13, delete everything and start fresh from month 1
     if (nextMonthNumber > 12) {
@@ -723,6 +726,7 @@ router.post('/:id/update-records', async (req: Request, res: Response): Promise<
 
       // Reset to month 1 (starting a brand new 12-month cycle)
       nextMonthNumber = 1;
+      wasReset = true;
 
       console.log(`✓ Patient data reset complete, starting new cycle from month 1`);
     }
@@ -840,8 +844,9 @@ Provide ONLY the JSON object, nothing else.`;
     newDate.setMonth(newDate.getMonth() + 1);
 
     // Calculate previous health state for comparison
-    const previousHealthState = kdigoClassification.health_state;
-    const previousRiskLevel = kdigoClassification.risk_level;
+    // After a reset, there is no previous state
+    const previousHealthState = wasReset ? null : kdigoClassification.health_state;
+    const previousRiskLevel = wasReset ? null : kdigoClassification.risk_level;
 
     // Insert new observations into database
     const observationsToInsert = [
@@ -875,9 +880,14 @@ Provide ONLY the JSON object, nothing else.`;
     const newRiskLevel = newKdigoClassification.risk_level;
 
     // Check if health state changed and generate comment
+    // After reset, always create an initial comment (no previous state)
     let commentId = null;
-    if (previousHealthState !== newHealthState) {
-      console.log(`[Patient Update] Health state changed for patient ${id}: ${previousHealthState} -> ${newHealthState}`);
+    if (wasReset || previousHealthState !== newHealthState) {
+      if (wasReset) {
+        console.log(`[Patient Update] Creating initial comment after reset for patient ${id}`);
+      } else {
+        console.log(`[Patient Update] Health state changed for patient ${id}: ${previousHealthState} -> ${newHealthState}`);
+      }
 
       try {
         const commentService = new HealthStateCommentService(pool);
@@ -887,9 +897,9 @@ Provide ONLY the JSON object, nothing else.`;
           to_health_state: newHealthState,
           from_risk_level: previousRiskLevel,
           to_risk_level: newRiskLevel,
-          egfr_from: egfr,
+          egfr_from: wasReset ? null : egfr,
           egfr_to: generatedValues.eGFR,
-          uacr_from: uacr,
+          uacr_from: wasReset ? null : uacr,
           uacr_to: generatedValues.uACR,
           cycle_number: nextMonthNumber,
           is_ckd_patient: newKdigoClassification.has_ckd
@@ -903,25 +913,27 @@ Provide ONLY the JSON object, nothing else.`;
     }
 
     // Generate AI-powered update analysis comment
+    // Skip AI analysis after reset since there's no previous data to compare
     let aiCommentId = null;
-    try {
-      console.log(`[Patient Update] Generating AI analysis for patient ${id}...`);
-      const aiAnalysisService = new AIUpdateAnalysisService(pool);
+    if (!wasReset) {
+      try {
+        console.log(`[Patient Update] Generating AI analysis for patient ${id}...`);
+        const aiAnalysisService = new AIUpdateAnalysisService(pool);
 
-      // Prepare previous lab values from the latest observations before this update
-      const previousLabValues = {
-        egfr,
-        uacr,
-        creatinine: latestObs.find(obs => obs.observation_type === 'serum_creatinine')?.value_numeric,
-        bun: latestObs.find(obs => obs.observation_type === 'BUN')?.value_numeric,
-        systolic_bp: latestObs.find(obs => obs.observation_type === 'blood_pressure_systolic')?.value_numeric,
-        diastolic_bp: latestObs.find(obs => obs.observation_type === 'blood_pressure_diastolic')?.value_numeric,
-        hba1c: latestObs.find(obs => obs.observation_type === 'HbA1c')?.value_numeric,
-        glucose: latestObs.find(obs => obs.observation_type === 'glucose')?.value_numeric,
-        hemoglobin: latestObs.find(obs => obs.observation_type === 'hemoglobin')?.value_numeric,
-        heart_rate: latestObs.find(obs => obs.observation_type === 'heart_rate')?.value_numeric,
-        oxygen_saturation: latestObs.find(obs => obs.observation_type === 'oxygen_saturation')?.value_numeric,
-      };
+        // Prepare previous lab values from the latest observations before this update
+        const previousLabValues = {
+          egfr,
+          uacr,
+          creatinine: latestObs.find(obs => obs.observation_type === 'serum_creatinine')?.value_numeric,
+          bun: latestObs.find(obs => obs.observation_type === 'BUN')?.value_numeric,
+          systolic_bp: latestObs.find(obs => obs.observation_type === 'blood_pressure_systolic')?.value_numeric,
+          diastolic_bp: latestObs.find(obs => obs.observation_type === 'blood_pressure_diastolic')?.value_numeric,
+          hba1c: latestObs.find(obs => obs.observation_type === 'HbA1c')?.value_numeric,
+          glucose: latestObs.find(obs => obs.observation_type === 'glucose')?.value_numeric,
+          hemoglobin: latestObs.find(obs => obs.observation_type === 'hemoglobin')?.value_numeric,
+          heart_rate: latestObs.find(obs => obs.observation_type === 'heart_rate')?.value_numeric,
+          oxygen_saturation: latestObs.find(obs => obs.observation_type === 'oxygen_saturation')?.value_numeric,
+        };
 
       // Prepare new lab values
       const newLabValues = {
@@ -950,7 +962,7 @@ Provide ONLY the JSON object, nothing else.`;
         age,
         isCkd: hasCKD,
         currentHealthState: newHealthState,
-        previousHealthState,
+        previousHealthState: previousHealthState || undefined,
         treatmentActive: isTreated,
         treatmentType: patient.ckd_treatment_type,
         cycleNumber: nextMonthNumber,
@@ -982,6 +994,9 @@ Provide ONLY the JSON object, nothing else.`;
       console.error('[Patient Update] Error generating AI update analysis:', aiError);
       // Don't fail the update if AI analysis fails
     }
+  } else {
+    console.log(`[Patient Update] Skipping AI analysis after reset (no previous data to compare)`);
+  }
 
     res.json({
       status: 'success',
