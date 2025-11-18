@@ -16,9 +16,9 @@ interface PatientTrendGraphsProps {
 }
 
 export const PatientTrendGraphs: React.FC<PatientTrendGraphsProps> = ({ observations, isTreated }) => {
-  // Group observations by month/cycle
-  const groupedByMonth = observations.reduce((acc, obs) => {
-    // Skip observations without dates or with invalid dates
+  // Process observations to prevent duplicate calendar months
+  // Group by calendar month + year, keeping only the LATEST observation for each type
+  const processedObservations = observations.reduce((acc, obs) => {
     if (!obs.observation_date) {
       console.warn('[PatientTrendGraphs] Skipping observation without date:', obs);
       return acc;
@@ -30,27 +30,55 @@ export const PatientTrendGraphs: React.FC<PatientTrendGraphsProps> = ({ observat
       return acc;
     }
 
-    // Treat null/undefined/0 month_number as 1 (initial baseline)
-    // This ensures all initial observations are grouped together
-    const monthNum = obs.month_number || 1;
-    if (!acc[monthNum]) {
-      acc[monthNum] = {
-        month: monthNum,
-        date: observationDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' })
+    // Create a unique key based on calendar month/year AND observation type
+    // This ensures we only keep one value per type per calendar month
+    const monthYearKey = `${observationDate.getFullYear()}-${String(observationDate.getMonth() + 1).padStart(2, '0')}`;
+    const uniqueKey = `${monthYearKey}-${obs.observation_type}`;
+
+    // If this key doesn't exist OR this observation is more recent, update it
+    if (!acc[uniqueKey] || new Date(obs.observation_date) > new Date(acc[uniqueKey].observation_date)) {
+      acc[uniqueKey] = {
+        ...obs,
+        monthYearKey,
+        sortDate: observationDate.getTime()
       };
     }
-    if (obs.value_numeric !== undefined) {
-      acc[monthNum][obs.observation_type] = obs.value_numeric;
-    }
-    return acc;
-  }, {} as Record<number, any>);
 
-  // Convert to array and sort by month
-  const timeSeriesData = Object.values(groupedByMonth).sort((a: any, b: any) => a.month - b.month);
+    return acc;
+  }, {} as Record<string, any>);
+
+  // Group deduplicated observations by calendar month for chart display
+  const groupedByMonth = Object.values(processedObservations).reduce((acc, obs) => {
+    const monthYearKey = obs.monthYearKey;
+
+    if (!acc[monthYearKey]) {
+      const observationDate = new Date(obs.observation_date);
+      acc[monthYearKey] = {
+        monthYearKey,
+        date: observationDate.toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
+        sortDate: obs.sortDate
+      };
+    }
+
+    // Add the observation value to the appropriate column
+    if (obs.value_numeric !== undefined) {
+      acc[monthYearKey][obs.observation_type] = obs.value_numeric;
+    }
+
+    return acc;
+  }, {} as Record<string, any>);
+
+  // Convert to array and sort by actual date (not month_number)
+  const timeSeriesData = Object.values(groupedByMonth).sort((a: any, b: any) => a.sortDate - b.sortDate);
+
+  // Debug logging to verify data deduplication
+  console.log('[PatientTrendGraphs] Processed time series data:', timeSeriesData);
+  console.log('[PatientTrendGraphs] Number of unique calendar months:', timeSeriesData.length);
 
   // Helper function to check if a metric has multiple distinct timepoints
   const hasMultipleTimepoints = (dataKey: string) => {
     const validPoints = timeSeriesData.filter((d: any) => d[dataKey] !== undefined && d[dataKey] !== null);
+    console.log(`[PatientTrendGraphs] ${dataKey} has ${validPoints.length} timepoints:`, validPoints.map((p: any) => ({ date: p.date, value: p[dataKey] })));
     return validPoints.length > 1;
   };
 
