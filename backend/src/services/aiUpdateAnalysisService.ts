@@ -59,16 +59,22 @@ interface PatientContext {
   albuminuriaCategory?: string;
   // Phase 3 treatment recommendations
   phase3Recommendations?: Phase3TreatmentRecommendations;
-  // SCORED assessment (for non-CKD patients)
+  // SCORED assessment (for non-CKD patients) - detects current hidden disease
   scored_points?: number;
   scored_risk_level?: 'low' | 'high';
   scored_components?: string[];
+  // Framingham assessment (for non-CKD patients) - predicts future 10-year risk
+  framingham_risk_percentage?: number;
+  framingham_risk_level?: 'low' | 'moderate' | 'high';
+  framingham_components?: string[];
   // Demographics and comorbidities (for context)
   gender?: 'male' | 'female';
   has_hypertension?: boolean;
   has_diabetes?: boolean;
   has_cvd?: boolean;
   has_pvd?: boolean;
+  smoking_status?: 'never' | 'former' | 'current';
+  bmi?: number;
 }
 
 interface AIAnalysisResult {
@@ -460,6 +466,73 @@ export class AIUpdateAnalysisService {
       scoredSection += '    - If crossed: CRITICAL severity, urgent intervention\n';
     }
 
+    // Build Framingham risk assessment section for non-CKD patients
+    let framinghamSection = '';
+    if (!context.isCkd && context.framingham_risk_percentage !== undefined) {
+      framinghamSection = '\n**Framingham 10-Year CKD Risk Prediction (For Non-CKD Patients):**\n';
+      framinghamSection += `- 10-Year Risk: ${context.framingham_risk_percentage}% (${context.framingham_risk_level} risk)\n`;
+
+      if (context.framingham_components && context.framingham_components.length > 0) {
+        framinghamSection += `- Risk Components:\n`;
+        context.framingham_components.forEach(comp => {
+          framinghamSection += `  • ${comp}\n`;
+        });
+      }
+
+      // Clinical interpretation based on risk level
+      if (context.framingham_risk_level === 'high') {
+        framinghamSection += `\n- **Clinical Interpretation:** >20% 10-year risk = **HIGH likelihood** of developing CKD\n`;
+        framinghamSection += `- **Action Required:** Aggressive preventive intervention NOW to "flatten the curve" of future kidney decline\n`;
+        framinghamSection += `- **Preventive Strategies:**\n`;
+        framinghamSection += `  • Consider SGLT2 inhibitors (kidney-protective even before CKD diagnosis)\n`;
+        framinghamSection += `  • Consider GLP-1 agonists if diabetic/obese\n`;
+        framinghamSection += `  • Strict BP control (<130/80 mmHg)\n`;
+        framinghamSection += `  • Intensive glucose management (HbA1c <7% if diabetic)\n`;
+        framinghamSection += `  • Increase monitoring frequency (every 3-6 months)\n`;
+      } else if (context.framingham_risk_level === 'moderate') {
+        framinghamSection += `\n- **Clinical Interpretation:** 10-20% 10-year risk = Moderate risk requiring enhanced monitoring\n`;
+        framinghamSection += `- **Action Required:** Strict risk factor modification\n`;
+        framinghamSection += `- **Preventive Strategies:**\n`;
+        framinghamSection += `  • Optimize BP and glucose control\n`;
+        framinghamSection += `  • Address obesity if present (weight loss reduces risk)\n`;
+        framinghamSection += `  • Monitor every 6-12 months\n`;
+      } else {
+        framinghamSection += `\n- **Clinical Interpretation:** <10% 10-year risk = Low probability of future CKD\n`;
+        framinghamSection += `- **Action:** Routine annual screening, standard preventive care\n`;
+      }
+
+      // Specific risk factor targets
+      framinghamSection += '\n**Specific Preventive Targets:**\n';
+      if (context.has_diabetes) {
+        framinghamSection += `  • Diabetes control: HbA1c <7% (current control reduces future kidney damage by 40%)\n`;
+      }
+      if (context.has_hypertension) {
+        framinghamSection += `  • BP control: <130/80 mmHg (each 10 mmHg reduction = 15% lower CKD risk)\n`;
+      }
+      if (context.smoking_status === 'current') {
+        framinghamSection += `  • **Smoking cessation: CRITICAL** (current smoking doubles kidney disease risk)\n`;
+      }
+      if (context.bmi && context.bmi >= 30) {
+        framinghamSection += `  • Weight loss: Target BMI <30 (10% weight loss = 25% risk reduction)\n`;
+      }
+      if (context.has_cvd) {
+        framinghamSection += `  • Cardio-protective therapy: ACE-I/ARB, statins (reduce cardiorenal syndrome risk)\n`;
+      }
+    }
+
+    // Combine risk assessment sections
+    let riskAssessmentSection = '';
+    if (scoredSection || framinghamSection) {
+      riskAssessmentSection = '\n**Comprehensive Risk Assessment:**\n';
+      if (scoredSection && framinghamSection) {
+        riskAssessmentSection += '\nThis patient requires DUAL assessment:\n';
+        riskAssessmentSection += '1. **SCORED** (Current Hidden Disease): Answers "Do they ALREADY have undetected kidney damage?"\n';
+        riskAssessmentSection += '2. **Framingham** (Future Risk Prediction): Answers "What is their risk of DEVELOPING CKD in the next 10 years?"\n';
+      }
+      riskAssessmentSection += scoredSection;
+      riskAssessmentSection += framinghamSection;
+    }
+
     return `You are an expert nephrologist analyzing patient lab value changes. Generate a concise clinical analysis of the following patient update.
 
 **Patient Context:**
@@ -473,7 +546,7 @@ export class AIUpdateAnalysisService {
 - Monitoring Status: ${context.monitoringActive ? `Active${context.monitoringDevice ? ` (${context.monitoringDevice})` : ''}` : 'NOT ON MONITORING'}
 - Clinical Recommendations: ${recommendationsText}
 - Cycle: ${context.previousCycleNumber || 'N/A'} → ${context.cycleNumber}
-${phase3Section}${scoredSection}
+${phase3Section}${riskAssessmentSection}
 
 **Previous Lab Values (Cycle ${context.previousCycleNumber || 'N/A'}):**
 ${this.formatLabValues(previous)}

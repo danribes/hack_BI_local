@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { getPool } from '../../config/database';
-import { classifyKDIGO, classifyKDIGOWithSCORED, calculateSCORED, getRiskCategoryLabel, getCKDSeverity } from '../../utils/kdigo';
+import { classifyKDIGO, classifyKDIGOWithSCORED, calculateSCORED, calculateFramingham, getRiskCategoryLabel, getCKDSeverity } from '../../utils/kdigo';
 import { HealthStateCommentService } from '../../services/healthStateCommentService';
 import { AIUpdateAnalysisService } from '../../services/aiUpdateAnalysisService';
 
@@ -868,14 +868,33 @@ router.get('/:id', async (req: Request, res: Response): Promise<any> => {
     const birthDate = new Date(patient.date_of_birth);
     const age = Math.floor((new Date().getTime() - birthDate.getTime()) / (365.25 * 24 * 60 * 60 * 1000));
 
-    // Build demographics for SCORED assessment
+    // Calculate BMI from weight and height
+    let bmi: number | undefined;
+    if (patient.weight && patient.height) {
+      // BMI = weight (kg) / (height (m))^2
+      const heightInMeters = patient.height / 100; // Convert cm to meters
+      bmi = patient.weight / (heightInMeters * heightInMeters);
+    }
+
+    // Normalize smoking status
+    let smoking_status: 'never' | 'former' | 'current' | undefined;
+    if (patient.smoking_status) {
+      const status = patient.smoking_status.toLowerCase();
+      if (status === 'never') smoking_status = 'never';
+      else if (status === 'former' || status === 'ex-smoker') smoking_status = 'former';
+      else if (status === 'current' || status === 'smoker') smoking_status = 'current';
+    }
+
+    // Build demographics for SCORED and Framingham assessment
     const demographics = {
       age,
       gender: patient.gender.toLowerCase() as 'male' | 'female',
       has_hypertension: comorbidities.has_hypertension,
       has_diabetes: comorbidities.has_diabetes,
       has_cvd: comorbidities.has_heart_failure || comorbidities.has_cad || comorbidities.has_mi || comorbidities.has_stroke,
-      has_pvd: comorbidities.has_peripheral_vascular_disease
+      has_pvd: comorbidities.has_peripheral_vascular_disease,
+      smoking_status,
+      bmi
     };
 
     // Use SCORED-based classification for proper non-CKD risk assessment
@@ -1064,14 +1083,33 @@ router.post('/:id/update-records', async (req: Request, res: Response): Promise<
     const egfr = egfrObs?.value_numeric || 90;
     const uacr = uacrObs?.value_numeric || 15;
 
-    // Build demographics for SCORED assessment
+    // Calculate BMI from weight and height
+    let bmi: number | undefined;
+    if (patient.weight && patient.height) {
+      // BMI = weight (kg) / (height (m))^2
+      const heightInMeters = patient.height / 100; // Convert cm to meters
+      bmi = patient.weight / (heightInMeters * heightInMeters);
+    }
+
+    // Normalize smoking status
+    let smoking_status: 'never' | 'former' | 'current' | undefined;
+    if (patient.smoking_status) {
+      const status = patient.smoking_status.toLowerCase();
+      if (status === 'never') smoking_status = 'never';
+      else if (status === 'former' || status === 'ex-smoker') smoking_status = 'former';
+      else if (status === 'current' || status === 'smoker') smoking_status = 'current';
+    }
+
+    // Build demographics for SCORED and Framingham assessment
     const demographics = {
       age,
       gender: patient.gender.toLowerCase() as 'male' | 'female',
       has_hypertension: comorbidities.has_hypertension,
       has_diabetes: comorbidities.has_diabetes,
       has_cvd: comorbidities.has_heart_failure || comorbidities.has_cad || comorbidities.has_mi || comorbidities.has_stroke,
-      has_pvd: comorbidities.has_peripheral_vascular_disease
+      has_pvd: comorbidities.has_peripheral_vascular_disease,
+      smoking_status,
+      bmi
     };
 
     const kdigoClassification = classifyKDIGOWithSCORED(egfr, uacr, demographics);
@@ -1420,12 +1458,20 @@ Provide ONLY the JSON object, nothing else.`;
         scored_components: !hasCKD && newKdigoClassification.scored_points !== undefined
           ? calculateSCORED(demographics, generatedValues.uACR).components
           : undefined,
+        // Include Framingham assessment data for non-CKD patients
+        framingham_risk_percentage: !hasCKD ? newKdigoClassification.framingham_risk_percentage : undefined,
+        framingham_risk_level: !hasCKD ? newKdigoClassification.framingham_risk_level : undefined,
+        framingham_components: !hasCKD && newKdigoClassification.framingham_risk_percentage !== undefined
+          ? calculateFramingham(demographics, generatedValues.uACR).components
+          : undefined,
         // Include demographics and comorbidities for context
         gender: patient.gender.toLowerCase() as 'male' | 'female',
         has_hypertension: comorbidities.has_hypertension,
         has_diabetes: comorbidities.has_diabetes,
         has_cvd: comorbidities.has_heart_failure || comorbidities.has_cad || comorbidities.has_mi || comorbidities.has_stroke,
         has_pvd: comorbidities.has_peripheral_vascular_disease,
+        smoking_status,
+        bmi,
       };
 
       // Call AI analysis service - now always generates a comment

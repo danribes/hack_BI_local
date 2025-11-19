@@ -37,13 +37,17 @@ export interface KDIGOClassification {
   target_bp: string;
   monitoring_frequency: string;
 
-  // SCORED assessment (for non-CKD patients)
+  // SCORED assessment (for non-CKD patients) - detects current hidden disease
   scored_points?: number;
   scored_risk_level?: 'low' | 'high';
+
+  // Framingham assessment (for non-CKD patients) - predicts future 10-year risk
+  framingham_risk_percentage?: number;
+  framingham_risk_level?: 'low' | 'moderate' | 'high';
 }
 
 /**
- * Patient demographics for SCORED model
+ * Patient demographics for SCORED and Framingham models
  */
 export interface PatientDemographics {
   age: number;
@@ -52,6 +56,9 @@ export interface PatientDemographics {
   has_diabetes?: boolean;
   has_cvd?: boolean; // Cardiovascular disease (MI, stroke, heart failure)
   has_pvd?: boolean; // Peripheral vascular disease
+  // Additional fields for Framingham model
+  smoking_status?: 'never' | 'former' | 'current';
+  bmi?: number; // Body Mass Index
 }
 
 /**
@@ -130,6 +137,137 @@ export function calculateSCORED(demographics: PatientDemographics, uacr: number)
   const risk_level = points >= 4 ? 'high' : 'low';
 
   return { points, risk_level, components };
+}
+
+/**
+ * Calculate Framingham Kidney Disease Risk Score
+ * Predicts 10-year risk of developing CKD (eGFR < 60) in patients who currently have normal kidney function
+ *
+ * Reference: O'Seaghdha et al., Framingham CKD Risk Prediction Model
+ *
+ * This is a PROGNOSTIC tool (predicts future disease) vs SCORED which is a SCREENING tool (detects current hidden disease)
+ *
+ * Risk Factors:
+ * - Age (continuous - older = higher risk)
+ * - Sex (male slightly higher risk)
+ * - Diabetes (+significant risk)
+ * - Hypertension (+significant risk)
+ * - Cardiovascular Disease (+major risk multiplier)
+ * - Current Smoking (+moderate risk)
+ * - BMI (obesity increases risk)
+ * - Albuminuria (if known, major predictor)
+ *
+ * Risk Levels:
+ * - Low Risk (<10%): Standard preventive care
+ * - Moderate Risk (10-20%): Enhanced monitoring, stricter BP/glucose targets
+ * - High Risk (>20%): Aggressive intervention - high likelihood of developing CKD
+ */
+export function calculateFramingham(demographics: PatientDemographics, uacr?: number): {
+  risk_percentage: number;
+  risk_level: 'low' | 'moderate' | 'high';
+  components: string[];
+} {
+  const components: string[] = [];
+  let baselineRisk = 5; // Baseline 10-year risk percentage for healthy 50-year-old
+
+  // Age contribution (exponential with age)
+  // Age 40-49: ~5% baseline, 50-59: ~8%, 60-69: ~15%, 70+: ~25%
+  if (demographics.age < 40) {
+    baselineRisk = 3;
+    components.push('Age <40: Low baseline risk');
+  } else if (demographics.age < 50) {
+    baselineRisk = 5;
+    components.push('Age 40-49: Moderate baseline risk');
+  } else if (demographics.age < 60) {
+    baselineRisk = 8;
+    components.push('Age 50-59: Elevated baseline risk');
+  } else if (demographics.age < 70) {
+    baselineRisk = 15;
+    components.push('Age 60-69: High baseline risk');
+  } else {
+    baselineRisk = 25;
+    components.push('Age ≥70: Very high baseline risk');
+  }
+
+  let riskMultiplier = 1.0;
+
+  // Sex (males have slightly higher risk in some age groups)
+  if (demographics.gender === 'male' && demographics.age >= 50) {
+    riskMultiplier *= 1.15;
+    components.push('Male (age ≥50): +15% risk');
+  }
+
+  // Diabetes (major risk factor - approximately doubles risk)
+  if (demographics.has_diabetes) {
+    riskMultiplier *= 1.8;
+    components.push('Diabetes: +80% risk (major factor)');
+  }
+
+  // Hypertension (major risk factor - ~60% increase)
+  if (demographics.has_hypertension) {
+    riskMultiplier *= 1.6;
+    components.push('Hypertension: +60% risk (major factor)');
+  }
+
+  // Cardiovascular Disease (STRONGEST predictor - cardiorenal syndrome)
+  // CVD history approximately triples the risk
+  if (demographics.has_cvd) {
+    riskMultiplier *= 2.8;
+    components.push('Cardiovascular Disease: +180% risk (strongest predictor)');
+  }
+
+  // Current Smoking (~40% increase)
+  if (demographics.smoking_status === 'current') {
+    riskMultiplier *= 1.4;
+    components.push('Current Smoking: +40% risk');
+  } else if (demographics.smoking_status === 'former') {
+    riskMultiplier *= 1.15;
+    components.push('Former Smoking: +15% risk');
+  }
+
+  // BMI/Obesity (BMI >30 increases risk ~30-50%)
+  if (demographics.bmi && demographics.bmi >= 35) {
+    riskMultiplier *= 1.5;
+    components.push(`BMI ${demographics.bmi.toFixed(1)} (Class II/III Obesity): +50% risk`);
+  } else if (demographics.bmi && demographics.bmi >= 30) {
+    riskMultiplier *= 1.3;
+    components.push(`BMI ${demographics.bmi.toFixed(1)} (Obesity): +30% risk`);
+  } else if (demographics.bmi && demographics.bmi >= 25) {
+    riskMultiplier *= 1.1;
+    components.push(`BMI ${demographics.bmi.toFixed(1)} (Overweight): +10% risk`);
+  }
+
+  // Albuminuria (if available - VERY strong predictor, can triple risk)
+  if (uacr !== undefined && uacr >= 30) {
+    if (uacr >= 300) {
+      riskMultiplier *= 3.5;
+      components.push('Macroalbuminuria (uACR >300): +250% risk (critical)');
+    } else {
+      riskMultiplier *= 2.2;
+      components.push('Microalbuminuria (uACR 30-300): +120% risk (major warning sign)');
+    }
+  }
+
+  // Calculate final 10-year risk percentage
+  let risk_percentage = baselineRisk * riskMultiplier;
+
+  // Cap at realistic maximum (very few patients exceed 80% 10-year risk)
+  risk_percentage = Math.min(risk_percentage, 80);
+
+  // Round to 1 decimal place
+  risk_percentage = Math.round(risk_percentage * 10) / 10;
+
+  // Determine risk level based on validated thresholds
+  let risk_level: 'low' | 'moderate' | 'high';
+  if (risk_percentage < 10) {
+    risk_level = 'low';
+  } else if (risk_percentage <= 20) {
+    risk_level = 'moderate';
+  } else {
+    risk_level = 'high';
+  }
+
+  return { risk_percentage, risk_level, components };
 }
 
 /**
@@ -452,22 +590,34 @@ export function classifyKDIGOWithSCORED(
   let riskInfo: any;
   let scored_points: number | undefined;
   let scored_risk_level: 'low' | 'high' | undefined;
+  let framingham_risk_percentage: number | undefined;
+  let framingham_risk_level: 'low' | 'moderate' | 'high' | undefined;
 
   if (!ckdInfo.has_ckd && demographics) {
-    // Non-CKD patient WITH demographics - use SCORED model
+    // Non-CKD patient WITH demographics - calculate BOTH SCORED and Framingham
+
+    // SCORED: Detects current hidden disease
     const scoredResult = calculateSCORED(demographics, uacr);
     scored_points = scoredResult.points;
     scored_risk_level = scoredResult.risk_level;
 
+    // Framingham: Predicts future 10-year risk
+    const framinghamResult = calculateFramingham(demographics, uacr);
+    framingham_risk_percentage = framinghamResult.risk_percentage;
+    framingham_risk_level = framinghamResult.risk_level;
+
+    // Use SCORED for primary risk classification (default model for detection)
     const nonCKDRisk = getNonCKDRiskLevel(egfr, uacr, scoredResult.points);
     riskInfo = {
       risk_level: nonCKDRisk.risk_level,
       risk_color: nonCKDRisk.risk_color
     };
 
-    console.log(`[SCORED Assessment] Patient (Age ${demographics.age}, ${demographics.gender})`);
+    console.log(`[Risk Assessment] Patient (Age ${demographics.age}, ${demographics.gender})`);
     console.log(`  SCORED Points: ${scored_points} (${scored_risk_level} risk)`);
-    console.log(`  Components: ${scoredResult.components.join(', ')}`);
+    console.log(`  SCORED Components: ${scoredResult.components.join(', ')}`);
+    console.log(`  Framingham 10-Year Risk: ${framingham_risk_percentage}% (${framingham_risk_level} risk)`);
+    console.log(`  Framingham Components: ${framinghamResult.components.join('; ')}`);
     console.log(`  Final Risk: ${riskInfo.risk_level} (${riskInfo.risk_color})`);
     console.log(`  Reasoning: ${nonCKDRisk.reasoning.join('; ')}`);
   } else {
@@ -523,7 +673,9 @@ export function classifyKDIGOWithSCORED(
     target_bp,
     monitoring_frequency,
     scored_points,
-    scored_risk_level
+    scored_risk_level,
+    framingham_risk_percentage,
+    framingham_risk_level
   };
 }
 
