@@ -1165,39 +1165,101 @@ Provide ONLY the JSON object, nothing else.`;
     // Calculate new health state after inserting observations
     const newKdigoClassification = classifyKDIGO(generatedValues.eGFR, generatedValues.uACR);
 
+    // Detect CKD status transition (non-CKD → CKD or CKD → non-CKD)
+    const previousHasCKD = kdigoClassification.has_ckd;
+    const currentHasCKD = newKdigoClassification.has_ckd;
+    const hasTransitioned = previousHasCKD !== currentHasCKD;
+
+    if (hasTransitioned) {
+      console.log(`[Patient Update] 🔄 CKD STATUS TRANSITION DETECTED for patient ${id}`);
+      console.log(`  Previous: ${previousHasCKD ? 'CKD' : 'Non-CKD'} → Current: ${currentHasCKD ? 'CKD' : 'Non-CKD'}`);
+      console.log(`  Previous state: ${kdigoClassification.health_state} → Current state: ${newKdigoClassification.health_state}`);
+    }
+
     // Update patient data tables with new health state
-    if (newKdigoClassification.has_ckd) {
-      await pool.query(`
-        UPDATE ckd_patient_data
-        SET kdigo_health_state = $1,
-            kdigo_gfr_category = $2,
-            kdigo_albuminuria_category = $3,
-            ckd_severity = $4,
-            ckd_stage = $5,
-            updated_at = CURRENT_TIMESTAMP
-        WHERE patient_id = $6
-      `, [
-        newKdigoClassification.health_state,
-        newKdigoClassification.gfr_category,
-        newKdigoClassification.albuminuria_category,
-        getCKDSeverity(newKdigoClassification.ckd_stage),
-        newKdigoClassification.ckd_stage,
-        id
-      ]);
-      console.log(`✓ Updated ckd_patient_data with new health state: ${newKdigoClassification.health_state}`);
+    // Handle transitions between CKD and non-CKD status
+    if (currentHasCKD) {
+      if (hasTransitioned) {
+        // Transition: non-CKD → CKD
+        console.log(`[Patient Update] Moving patient from non_ckd_patient_data to ckd_patient_data`);
+
+        // Delete from non_ckd_patient_data
+        await pool.query(`DELETE FROM non_ckd_patient_data WHERE patient_id = $1`, [id]);
+
+        // Insert into ckd_patient_data
+        await pool.query(`
+          INSERT INTO ckd_patient_data (
+            patient_id, kdigo_health_state, kdigo_gfr_category,
+            kdigo_albuminuria_category, ckd_severity, ckd_stage,
+            is_treated, is_monitored
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        `, [
+          id,
+          newKdigoClassification.health_state,
+          newKdigoClassification.gfr_category,
+          newKdigoClassification.albuminuria_category,
+          getCKDSeverity(newKdigoClassification.ckd_stage),
+          newKdigoClassification.ckd_stage,
+          patient.ckd_treatment_active || false,
+          patient.home_monitoring_active || false
+        ]);
+        console.log(`✓ Created new ckd_patient_data entry for patient (transitioned to CKD)`);
+      } else {
+        // No transition - just update existing CKD record
+        await pool.query(`
+          UPDATE ckd_patient_data
+          SET kdigo_health_state = $1,
+              kdigo_gfr_category = $2,
+              kdigo_albuminuria_category = $3,
+              ckd_severity = $4,
+              ckd_stage = $5,
+              updated_at = CURRENT_TIMESTAMP
+          WHERE patient_id = $6
+        `, [
+          newKdigoClassification.health_state,
+          newKdigoClassification.gfr_category,
+          newKdigoClassification.albuminuria_category,
+          getCKDSeverity(newKdigoClassification.ckd_stage),
+          newKdigoClassification.ckd_stage,
+          id
+        ]);
+        console.log(`✓ Updated ckd_patient_data with new health state: ${newKdigoClassification.health_state}`);
+      }
     } else {
-      await pool.query(`
-        UPDATE non_ckd_patient_data
-        SET kdigo_health_state = $1,
-            risk_level = $2,
-            updated_at = CURRENT_TIMESTAMP
-        WHERE patient_id = $3
-      `, [
-        newKdigoClassification.health_state,
-        newKdigoClassification.risk_level === 'very_high' ? 'high' : newKdigoClassification.risk_level,
-        id
-      ]);
-      console.log(`✓ Updated non_ckd_patient_data with new health state: ${newKdigoClassification.health_state}`);
+      if (hasTransitioned) {
+        // Transition: CKD → non-CKD (rare but possible with treatment)
+        console.log(`[Patient Update] Moving patient from ckd_patient_data to non_ckd_patient_data`);
+
+        // Delete from ckd_patient_data
+        await pool.query(`DELETE FROM ckd_patient_data WHERE patient_id = $1`, [id]);
+
+        // Insert into non_ckd_patient_data
+        await pool.query(`
+          INSERT INTO non_ckd_patient_data (
+            patient_id, kdigo_health_state, risk_level, is_monitored
+          ) VALUES ($1, $2, $3, $4)
+        `, [
+          id,
+          newKdigoClassification.health_state,
+          newKdigoClassification.risk_level === 'very_high' ? 'high' : newKdigoClassification.risk_level,
+          patient.home_monitoring_active || false
+        ]);
+        console.log(`✓ Created new non_ckd_patient_data entry for patient (transitioned to non-CKD)`);
+      } else {
+        // No transition - just update existing non-CKD record
+        await pool.query(`
+          UPDATE non_ckd_patient_data
+          SET kdigo_health_state = $1,
+              risk_level = $2,
+              updated_at = CURRENT_TIMESTAMP
+          WHERE patient_id = $3
+        `, [
+          newKdigoClassification.health_state,
+          newKdigoClassification.risk_level === 'very_high' ? 'high' : newKdigoClassification.risk_level,
+          id
+        ]);
+        console.log(`✓ Updated non_ckd_patient_data with new health state: ${newKdigoClassification.health_state}`);
+      }
     }
     const newHealthState = newKdigoClassification.health_state;
     const newRiskLevel = newKdigoClassification.risk_level;
@@ -1584,6 +1646,203 @@ router.post('/reset-all', async (_req: Request, res: Response): Promise<any> => 
     res.status(500).json({
       status: 'error',
       message: 'Failed to reset all patient records',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+/**
+ * Fix misclassified patients
+ * POST /api/patients/fix-classifications
+ * Corrects patients who are in the wrong tracking table (ckd_patient_data vs non_ckd_patient_data)
+ * based on their current KDIGO classification
+ */
+router.post('/fix-classifications', async (_req: Request, res: Response): Promise<any> => {
+  try {
+    const pool = getPool();
+
+    console.log('[Fix Classifications] Starting patient classification correction...');
+
+    // Get all patients with their latest observations
+    const patientsResult = await pool.query(`
+      SELECT DISTINCT p.id, p.medical_record_number,
+             p.first_name, p.last_name,
+             p.ckd_treatment_active, p.home_monitoring_active
+      FROM patients p
+    `);
+
+    let fixedCount = 0;
+    let alreadyCorrectCount = 0;
+    const fixes: any[] = [];
+
+    for (const patient of patientsResult.rows) {
+      // Get latest eGFR and uACR for this patient
+      const latestObsResult = await pool.query(`
+        SELECT DISTINCT ON (observation_type)
+          observation_type,
+          value_numeric
+        FROM observations
+        WHERE patient_id = $1
+        ORDER BY observation_type, observation_date DESC
+      `, [patient.id]);
+
+      const latestObs = latestObsResult.rows;
+      const egfr = latestObs.find(obs => obs.observation_type === 'eGFR')?.value_numeric || 90;
+      const uacr = latestObs.find(obs => obs.observation_type === 'uACR')?.value_numeric || 15;
+
+      // Calculate current KDIGO classification
+      const kdigo = classifyKDIGO(egfr, uacr);
+
+      // Check which table the patient is currently in
+      const inCKDTable = await pool.query(
+        `SELECT 1 FROM ckd_patient_data WHERE patient_id = $1`,
+        [patient.id]
+      );
+      const inNonCKDTable = await pool.query(
+        `SELECT 1 FROM non_ckd_patient_data WHERE patient_id = $1`,
+        [patient.id]
+      );
+
+      const isInCKDTable = inCKDTable.rows.length > 0;
+      const isInNonCKDTable = inNonCKDTable.rows.length > 0;
+      const shouldBeInCKDTable = kdigo.has_ckd;
+
+      // Check if patient is in the wrong table
+      if (shouldBeInCKDTable && !isInCKDTable && isInNonCKDTable) {
+        // Patient has CKD but is in non_ckd_patient_data → Move to ckd_patient_data
+        console.log(`[Fix] Moving ${patient.medical_record_number} (${patient.first_name} ${patient.last_name}) from non-CKD to CKD table`);
+        console.log(`  Classification: ${kdigo.health_state} (eGFR: ${egfr}, uACR: ${uacr})`);
+
+        // Delete from non_ckd_patient_data
+        await pool.query(`DELETE FROM non_ckd_patient_data WHERE patient_id = $1`, [patient.id]);
+
+        // Insert into ckd_patient_data
+        await pool.query(`
+          INSERT INTO ckd_patient_data (
+            patient_id, kdigo_health_state, kdigo_gfr_category,
+            kdigo_albuminuria_category, ckd_severity, ckd_stage,
+            is_treated, is_monitored
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        `, [
+          patient.id,
+          kdigo.health_state,
+          kdigo.gfr_category,
+          kdigo.albuminuria_category,
+          getCKDSeverity(kdigo.ckd_stage),
+          kdigo.ckd_stage,
+          patient.ckd_treatment_active || false,
+          patient.home_monitoring_active || false
+        ]);
+
+        fixedCount++;
+        fixes.push({
+          mrn: patient.medical_record_number,
+          name: `${patient.first_name} ${patient.last_name}`,
+          direction: 'non-CKD → CKD',
+          health_state: kdigo.health_state,
+          egfr,
+          uacr
+        });
+
+      } else if (!shouldBeInCKDTable && isInCKDTable && !isInNonCKDTable) {
+        // Patient doesn't have CKD but is in ckd_patient_data → Move to non_ckd_patient_data
+        console.log(`[Fix] Moving ${patient.medical_record_number} (${patient.first_name} ${patient.last_name}) from CKD to non-CKD table`);
+        console.log(`  Classification: ${kdigo.health_state} (eGFR: ${egfr}, uACR: ${uacr})`);
+
+        // Delete from ckd_patient_data
+        await pool.query(`DELETE FROM ckd_patient_data WHERE patient_id = $1`, [patient.id]);
+
+        // Insert into non_ckd_patient_data
+        await pool.query(`
+          INSERT INTO non_ckd_patient_data (
+            patient_id, kdigo_health_state, risk_level, is_monitored
+          ) VALUES ($1, $2, $3, $4)
+        `, [
+          patient.id,
+          kdigo.health_state,
+          kdigo.risk_level === 'very_high' ? 'high' : kdigo.risk_level,
+          patient.home_monitoring_active || false
+        ]);
+
+        fixedCount++;
+        fixes.push({
+          mrn: patient.medical_record_number,
+          name: `${patient.first_name} ${patient.last_name}`,
+          direction: 'CKD → non-CKD',
+          health_state: kdigo.health_state,
+          egfr,
+          uacr
+        });
+
+      } else if (!isInCKDTable && !isInNonCKDTable) {
+        // Patient is in neither table - create entry in correct table
+        console.log(`[Fix] Creating entry for ${patient.medical_record_number} (not in any tracking table)`);
+
+        if (shouldBeInCKDTable) {
+          await pool.query(`
+            INSERT INTO ckd_patient_data (
+              patient_id, kdigo_health_state, kdigo_gfr_category,
+              kdigo_albuminuria_category, ckd_severity, ckd_stage,
+              is_treated, is_monitored
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+          `, [
+            patient.id,
+            kdigo.health_state,
+            kdigo.gfr_category,
+            kdigo.albuminuria_category,
+            getCKDSeverity(kdigo.ckd_stage),
+            kdigo.ckd_stage,
+            patient.ckd_treatment_active || false,
+            patient.home_monitoring_active || false
+          ]);
+        } else {
+          await pool.query(`
+            INSERT INTO non_ckd_patient_data (
+              patient_id, kdigo_health_state, risk_level, is_monitored
+            ) VALUES ($1, $2, $3, $4)
+          `, [
+            patient.id,
+            kdigo.health_state,
+            kdigo.risk_level === 'very_high' ? 'high' : kdigo.risk_level,
+            patient.home_monitoring_active || false
+          ]);
+        }
+
+        fixedCount++;
+        fixes.push({
+          mrn: patient.medical_record_number,
+          name: `${patient.first_name} ${patient.last_name}`,
+          direction: 'missing → ' + (shouldBeInCKDTable ? 'CKD' : 'non-CKD'),
+          health_state: kdigo.health_state,
+          egfr,
+          uacr
+        });
+
+      } else {
+        // Patient is correctly classified
+        alreadyCorrectCount++;
+      }
+    }
+
+    console.log(`[Fix Classifications] Completed:`);
+    console.log(`  - Fixed: ${fixedCount} patients`);
+    console.log(`  - Already correct: ${alreadyCorrectCount} patients`);
+    console.log(`  - Total processed: ${patientsResult.rows.length} patients`);
+
+    res.json({
+      status: 'success',
+      message: 'Patient classifications corrected successfully',
+      total_patients: patientsResult.rows.length,
+      fixed_count: fixedCount,
+      already_correct: alreadyCorrectCount,
+      fixes: fixes
+    });
+
+  } catch (error) {
+    console.error('[Fix Classifications] Error:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to fix patient classifications',
       error: error instanceof Error ? error.message : 'Unknown error'
     });
   }
