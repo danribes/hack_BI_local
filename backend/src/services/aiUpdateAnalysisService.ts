@@ -1,7 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { Pool } from 'pg';
 import { classifyKDIGO } from '../utils/kdigo';
-import { MCPClient } from './mcpClient';
+import { getMCPClient } from './mcpClient';
 
 interface LabValues {
   egfr?: number;
@@ -99,7 +99,6 @@ interface AIAnalysisResult {
 export class AIUpdateAnalysisService {
   private anthropic: Anthropic;
   private pool: Pool;
-  private mcpClient: MCPClient;
 
   constructor(pool: Pool) {
     this.pool = pool;
@@ -108,7 +107,6 @@ export class AIUpdateAnalysisService {
       throw new Error('ANTHROPIC_API_KEY environment variable is required');
     }
     this.anthropic = new Anthropic({ apiKey });
-    this.mcpClient = new MCPClient();
   }
 
   /**
@@ -161,13 +159,10 @@ export class AIUpdateAnalysisService {
    */
   private async fetchPhase3Recommendations(patientId: string): Promise<Phase3TreatmentRecommendations> {
     try {
-      // Ensure MCP client is connected
-      if (!this.mcpClient) {
-        console.warn('[AI Analysis] MCP client not initialized');
-        return {};
-      }
+      // Get properly connected MCP client
+      const mcpClient = await getMCPClient();
 
-      const result = await this.mcpClient.assessTreatmentOptions(patientId);
+      const result = await mcpClient.assessTreatmentOptions(patientId);
 
       if (!result) {
         console.warn('[AI Analysis] Phase 3 returned no recommendations');
