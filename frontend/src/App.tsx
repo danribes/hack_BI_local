@@ -351,7 +351,7 @@ function App() {
 
     setLoading(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/api/patients/reset-all`, {
+      const response = await fetch(`${API_URL}/api/patients/reset-all`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
