@@ -312,7 +312,23 @@ export class AIUpdateAnalysisService {
       });
 
       const responseText = message.content[0].type === 'text' ? message.content[0].text : '';
-      return this.parseAIResponse(responseText);
+      const result = this.parseAIResponse(responseText);
+
+      // Validate AI recommendations for consistency with treatment/monitoring status
+      const validation = this.validateAIRecommendations(context, result);
+
+      // If validation fails, add warning to clinical summary
+      if (!validation.valid) {
+        console.warn('⚠️  AI recommendations contain contradictions. Adding validation warnings to summary.');
+        result.clinicalSummary += '\n\n[VALIDATION WARNING: AI recommendations may contain inconsistencies. Please review treatment/monitoring status carefully.]';
+
+        // Log detailed errors for debugging
+        validation.errors.forEach(err => {
+          console.error(`  - ${err}`);
+        });
+      }
+
+      return result;
     } catch (error) {
       console.error('Error calling Claude AI for update analysis:', error);
       // Return a fallback analysis
@@ -423,7 +439,56 @@ IMPORTANT: Even if changes are minimal or the patient is stable, still provide a
 
 **CRITICAL CLINICAL GUIDELINES:**
 
-**FIRST AND MOST IMPORTANT: ALWAYS CHECK THE "Treatment Status", "Monitoring Status", AND "Phase 3 Treatment Decision Analysis" SECTIONS ABOVE BEFORE MAKING ANY RECOMMENDATIONS!**
+═══════════════════════════════════════════════════════════════════════════════
+🚨 MANDATORY STEP 1: STATUS VERIFICATION - DO THIS BEFORE ANYTHING ELSE! 🚨
+═══════════════════════════════════════════════════════════════════════════════
+
+BEFORE making ANY treatment or monitoring recommendation, you MUST:
+
+**A. READ THESE TWO FIELDS from "Patient Context" section above:**
+
+   "Treatment Status: ..." → [Will show "Active (...)" OR "NOT ON TREATMENT"]
+   "Monitoring Status: ..." → [Will show "Active (...)" OR "NOT ON MONITORING"]
+
+**B. DETERMINE CURRENT STATE (Required Internal Reasoning):**
+
+   My assessment:
+   - Patient treatment status: [Write "Active" OR "Not on Treatment"]
+   - Patient monitoring status: [Write "Active" OR "Not on Monitoring"]
+
+**C. APPLY CORRECT RECOMMENDATION LOGIC:**
+
+   IF Treatment Status contains "Active" OR shows medication names:
+      ✅ Patient IS on treatment
+      ✅ Use phrases: "Continue current treatment", "Optimize therapy", "Adjust regimen"
+      ❌ NEVER use: "Initiate treatment", "Start therapy", "Consider starting treatment"
+      ❌ NEVER say: "Patient not currently on treatment" (This is FALSE!)
+
+   IF Treatment Status says "NOT ON TREATMENT":
+      ✅ Patient is NOT on treatment
+      ✅ Use phrases: "Initiate RAS inhibitor", "Start SGLT2 inhibitor", "Begin treatment"
+      ❌ NEVER use: "Continue treatment", "Maintain therapy", "Optimize current regimen"
+
+   IF Monitoring Status contains "Active" OR shows device name:
+      ✅ Patient IS being monitored at home
+      ✅ Use phrases: "Continue home monitoring", "Maintain Minuteful Kidney testing"
+      ❌ NEVER use: "Initiate home monitoring", "Start Minuteful Kidney"
+
+   IF Monitoring Status says "NOT ON MONITORING":
+      ✅ Patient is NOT being monitored at home
+      ✅ Use phrases: "Initiate Minuteful Kidney monitoring", "Start at-home testing"
+      ❌ NEVER use: "Continue home monitoring", "Maintain current monitoring"
+
+**D. FINAL VALIDATION (Required Before Submitting Response):**
+
+   Ask yourself:
+   - "Does my treatment recommendation match the treatment status I identified?" [YES/NO]
+   - "Does my monitoring recommendation match the monitoring status I identified?" [YES/NO]
+   - "Did I accidentally recommend 'initiating' something that's already active?" [YES/NO]
+
+   If ANY answer is wrong, REVISE your recommendations immediately!
+
+═══════════════════════════════════════════════════════════════════════════════
 
 1. **Status Verification (CHECK THIS FIRST!):**
    - Look at "Treatment Status:" field in Patient Context section
@@ -672,6 +737,130 @@ Return ONLY the JSON response, no additional text.`;
       console.error('Response text:', responseText);
       throw error;
     }
+  }
+
+  /**
+   * Validates AI recommendations for consistency with treatment/monitoring status
+   * Prevents contradictory advice (e.g., "initiate treatment" for patients already on treatment)
+   */
+  private validateAIRecommendations(
+    context: PatientContext,
+    result: AIAnalysisResult
+  ): { valid: boolean; errors: string[] } {
+    const errors: string[] = [];
+    const allText = [
+      result.clinicalSummary,
+      ...result.recommendedActions
+    ].join(' ').toLowerCase();
+
+    // Check for treatment contradictions
+    if (context.treatmentActive) {
+      // Patient IS on treatment - should NOT recommend initiating
+      const hasInitiatePhrase =
+        /initiat(e|ing) (ckd )?treatment/i.test(allText) ||
+        /start(ing)? therapy/i.test(allText) ||
+        /consider starting (ckd )?treatment/i.test(allText) ||
+        /begin (ckd )?treatment/i.test(allText);
+
+      const saysNotOnTreatment =
+        /not (currently )?on (ckd )?treatment/i.test(allText) ||
+        /not (currently )?receiving treatment/i.test(allText);
+
+      if (hasInitiatePhrase) {
+        errors.push(
+          `CONTRADICTION: AI recommended initiating treatment for patient with Treatment Status: Active. ` +
+          `Patient is already on treatment (${context.treatmentType || 'Unknown'}). ` +
+          `AI should recommend "continue current treatment" or "optimize therapy" instead.`
+        );
+      }
+
+      if (saysNotOnTreatment) {
+        errors.push(
+          `CONTRADICTION: AI stated patient is "not on treatment" when Treatment Status: Active. ` +
+          `Patient IS on treatment (${context.treatmentType || 'Unknown'}).`
+        );
+      }
+    } else {
+      // Patient is NOT on treatment - should NOT recommend continuing
+      const hasContinuePhrase =
+        /continue (current )?(ckd )?treatment/i.test(allText) ||
+        /maintain (current )?therapy/i.test(allText) ||
+        /optimize (current )?therapy/i.test(allText) ||
+        /continue (current )?regimen/i.test(allText);
+
+      if (hasContinuePhrase) {
+        errors.push(
+          `CONTRADICTION: AI recommended continuing treatment for patient with Treatment Status: NOT ON TREATMENT. ` +
+          `Patient is not on treatment yet. AI should recommend "initiate treatment" instead.`
+        );
+      }
+    }
+
+    // Check for monitoring contradictions
+    if (context.monitoringActive) {
+      // Patient IS on monitoring - should NOT recommend initiating
+      const hasInitiateMonitoring =
+        /initiat(e|ing) (home )?monitoring/i.test(allText) ||
+        /start(ing)? minuteful kidney/i.test(allText) ||
+        /begin (home )?monitoring/i.test(allText);
+
+      if (hasInitiateMonitoring) {
+        errors.push(
+          `CONTRADICTION: AI recommended initiating monitoring for patient with Monitoring Status: Active. ` +
+          `Patient is already on home monitoring (${context.monitoringDevice || 'Unknown'}). ` +
+          `AI should recommend "continue home monitoring" instead.`
+        );
+      }
+    } else {
+      // Patient is NOT on monitoring - should NOT recommend continuing
+      const hasContinueMonitoring =
+        /continue (home )?monitoring/i.test(allText) ||
+        /maintain minuteful kidney/i.test(allText) ||
+        /continue (current )?testing/i.test(allText);
+
+      if (hasContinueMonitoring) {
+        errors.push(
+          `CONTRADICTION: AI recommended continuing monitoring for patient with Monitoring Status: NOT ON MONITORING. ` +
+          `Patient is not on home monitoring yet. AI should recommend "initiate Minuteful Kidney monitoring" instead.`
+        );
+      }
+    }
+
+    // Check for vague follow-up timing
+    const hasFollowUp = /follow.?up/i.test(allText);
+    const hasScheduled = /as scheduled/i.test(allText);
+    const hasSpecificTiming = /\d+\s*(month|week|year)/i.test(allText);
+
+    if (hasFollowUp && hasScheduled && !hasSpecificTiming) {
+      errors.push(
+        `VAGUE TIMING: AI used "follow up as scheduled" without specifying exact interval. ` +
+        `Should specify timeframe like "in 6 months" or "in 1-3 months" based on risk level.`
+      );
+    }
+
+    // Log validation results
+    if (errors.length > 0) {
+      console.error('❌ AI Recommendation Validation FAILED:');
+      console.error('Patient:', context.firstName, context.lastName, `(${context.currentHealthState})`);
+      console.error('Treatment Status:', context.treatmentActive ? `Active (${context.treatmentType})` : 'NOT ON TREATMENT');
+      console.error('Monitoring Status:', context.monitoringActive ? `Active (${context.monitoringDevice})` : 'NOT ON MONITORING');
+      console.error('Validation Errors:');
+      errors.forEach((err, idx) => {
+        console.error(`  ${idx + 1}. ${err}`);
+      });
+      console.error('AI Clinical Summary:', result.clinicalSummary);
+      console.error('AI Recommended Actions:', result.recommendedActions);
+    } else {
+      console.log('✅ AI Recommendation Validation PASSED');
+      console.log('Patient:', context.firstName, context.lastName, `(${context.currentHealthState})`);
+      console.log('Treatment Status:', context.treatmentActive ? `Active (${context.treatmentType})` : 'NOT ON TREATMENT');
+      console.log('Monitoring Status:', context.monitoringActive ? `Active (${context.monitoringDevice})` : 'NOT ON MONITORING');
+    }
+
+    return {
+      valid: errors.length === 0,
+      errors
+    };
   }
 
   /**
