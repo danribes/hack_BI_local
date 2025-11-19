@@ -144,12 +144,25 @@ export class AIUpdateAnalysisService {
       }
     }
 
-    // Always call Claude AI to analyze the changes, even for stable patients
-    // This ensures that every update receives an AI-powered assessment
+    // For transitions, ALWAYS generate detailed analysis even if lab changes are small
+    // For non-transitions, respect the calculated significance
+    const forceSignificant = patientContext.hasTransitioned || false;
+
+    // Call Claude AI to analyze the changes
+    // - For transitions: Always generate comprehensive analysis
+    // - For non-transitions with significant changes: Generate detailed analysis
+    // - For stable patients: Generate brief stability note
     const aiAnalysis = await this.generateAIAnalysis(patientContext, previousLabValues, newLabValues, changes);
 
-    // Mark that we always have something to comment on
-    aiAnalysis.hasSignificantChanges = true;
+    // Override hasSignificantChanges only for transitions (which are always clinically significant)
+    // Otherwise, respect the calculated value from hasSignificantChanges()
+    if (forceSignificant) {
+      aiAnalysis.hasSignificantChanges = true;
+      console.log(`[AI Analysis] Marked as significant due to CKD status transition`);
+    } else {
+      aiAnalysis.hasSignificantChanges = hasSignificantChanges;
+      console.log(`[AI Analysis] Significance based on lab changes: ${hasSignificantChanges}`);
+    }
 
     return aiAnalysis;
   }

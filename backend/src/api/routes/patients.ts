@@ -1689,23 +1689,28 @@ Provide ONLY the JSON object, nothing else.`;
         mcpPostUpdateError: mcpPostUpdateError || undefined,
       };
 
-      // Call AI analysis service - now always generates a comment
+      // Call AI analysis service
       const aiAnalysis = await aiAnalysisService.analyzePatientUpdate(
         patientContext,
         previousLabValues,
         newLabValues
       );
 
-      // Create AI-generated comment
-      aiCommentId = await aiAnalysisService.createAIUpdateComment(
-        id,
-        aiAnalysis,
-        nextMonthNumber,
-        previousLabValues,
-        newLabValues
-      );
+      // Only create AI-generated comment if there are significant changes OR a CKD transition
+      // This prevents unnecessary alerts for stable patients with no meaningful changes
+      if (aiAnalysis.hasSignificantChanges) {
+        aiCommentId = await aiAnalysisService.createAIUpdateComment(
+          id,
+          aiAnalysis,
+          nextMonthNumber,
+          previousLabValues,
+          newLabValues
+        );
 
-      console.log(`✓ AI update analysis comment created: ${aiCommentId}`);
+        console.log(`✓ AI update analysis comment created: ${aiCommentId}`);
+      } else {
+        console.log(`ℹ️  No AI comment created - patient stable with no significant changes`);
+      }
 
       // Send email notification if CKD status transition occurred
       if (hasTransitioned) {
