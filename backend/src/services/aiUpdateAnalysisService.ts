@@ -59,6 +59,16 @@ interface PatientContext {
   albuminuriaCategory?: string;
   // Phase 3 treatment recommendations
   phase3Recommendations?: Phase3TreatmentRecommendations;
+  // SCORED assessment (for non-CKD patients)
+  scored_points?: number;
+  scored_risk_level?: 'low' | 'high';
+  scored_components?: string[];
+  // Demographics and comorbidities (for context)
+  gender?: 'male' | 'female';
+  has_hypertension?: boolean;
+  has_diabetes?: boolean;
+  has_cvd?: boolean;
+  has_pvd?: boolean;
 }
 
 interface AIAnalysisResult {
@@ -400,12 +410,62 @@ export class AIUpdateAnalysisService {
       phase3Section += 'Phase 3 analysis not available for this patient.\n';
     }
 
+    // Build SCORED risk assessment section for non-CKD patients
+    let scoredSection = '';
+    if (!context.isCkd && context.scored_points !== undefined) {
+      scoredSection = '\n**SCORED Risk Assessment (For Non-CKD At-Risk Patients):**\n';
+      scoredSection += `- SCORED Points: ${context.scored_points} (${context.scored_risk_level} risk)\n`;
+
+      if (context.scored_components && context.scored_components.length > 0) {
+        scoredSection += `- Risk Components: ${context.scored_components.join(', ')}\n`;
+      }
+
+      if (context.scored_points >= 4) {
+        scoredSection += `- **Clinical Significance:** Score ≥4 indicates approximately **20% chance** this patient ALREADY has undetected CKD!\n`;
+        scoredSection += `- **Action Required:** Immediate comprehensive kidney screening if not recently done\n`;
+      } else {
+        scoredSection += `- Clinical Significance: Low probability of hidden kidney disease, routine annual screening appropriate\n`;
+      }
+
+      // Add comorbidity-specific guidance
+      scoredSection += '\n**Modifiable Risk Factors to Address:**\n';
+      const modifiableFactors: string[] = [];
+
+      if (context.has_hypertension) {
+        modifiableFactors.push('  • Hypertension: Target BP <130/80 mmHg (strict control protects kidneys)');
+      }
+      if (context.has_diabetes) {
+        modifiableFactors.push('  • Diabetes: Target HbA1c <7% (glycemic control slows kidney damage)');
+      }
+      if (context.has_cvd) {
+        modifiableFactors.push('  • Cardiovascular Disease: Cardio-protective medications reduce cardiorenal syndrome risk');
+      }
+      if (context.has_pvd) {
+        modifiableFactors.push('  • Peripheral Vascular Disease: Address systemic vascular health');
+      }
+
+      if (modifiableFactors.length > 0) {
+        scoredSection += modifiableFactors.join('\n') + '\n';
+      } else {
+        scoredSection += '  • Focus on non-modifiable factors: Age, gender (maintain healthy lifestyle)\n';
+      }
+
+      // Critical thresholds for non-CKD patients
+      scoredSection += '\n**CRITICAL THRESHOLDS TO WATCH (Transition from At-Risk to Disease):**\n';
+      scoredSection += '  • **uACR ≥30 mg/g** (microalbuminuria): First sign of kidney damage - NOT routine!\n';
+      scoredSection += '    - If crossed: Initiate ACE-I/ARB, increase monitoring frequency\n';
+      scoredSection += '  • **eGFR declining toward 60**: Even if >60, declining trend is concerning\n';
+      scoredSection += '    - If declining: Aggressive risk factor modification needed\n';
+      scoredSection += '  • **uACR >300 mg/g** (macroalbuminuria): Severe kidney damage\n';
+      scoredSection += '    - If crossed: CRITICAL severity, urgent intervention\n';
+    }
+
     return `You are an expert nephrologist analyzing patient lab value changes. Generate a concise clinical analysis of the following patient update.
 
 **Patient Context:**
 - Name: ${context.firstName} ${context.lastName}
-- Age: ${context.age}
-- Patient Type: ${context.isCkd ? 'CKD Patient' : 'At-Risk Patient'}
+- Age: ${context.age}, Gender: ${context.gender || 'Unknown'}
+- Patient Type: ${context.isCkd ? 'CKD Patient' : 'Non-CKD At-Risk Patient'}
 - Current Health State: ${context.currentHealthState || 'Unknown'} (${context.gfrCategory || 'Unknown'}/${context.albuminuriaCategory || 'Unknown'})
 - Previous Health State: ${context.previousHealthState || 'Unknown'}
 - Risk Level: ${context.riskLevel || 'Unknown'}
@@ -413,7 +473,7 @@ export class AIUpdateAnalysisService {
 - Monitoring Status: ${context.monitoringActive ? `Active${context.monitoringDevice ? ` (${context.monitoringDevice})` : ''}` : 'NOT ON MONITORING'}
 - Clinical Recommendations: ${recommendationsText}
 - Cycle: ${context.previousCycleNumber || 'N/A'} → ${context.cycleNumber}
-${phase3Section}
+${phase3Section}${scoredSection}
 
 **Previous Lab Values (Cycle ${context.previousCycleNumber || 'N/A'}):**
 ${this.formatLabValues(previous)}
