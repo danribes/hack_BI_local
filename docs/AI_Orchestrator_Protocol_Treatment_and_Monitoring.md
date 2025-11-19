@@ -208,6 +208,70 @@ AI MUST address impact of comorbidities on CKD:
 - Hypertension + Albuminuria → "RAS inhibitor for BP control and proteinuria reduction"
 - Diabetes + Hypertension + CKD → "Both RAS inhibitor AND SGLT2 inhibitor for comprehensive disease modification"
 
+### Follow-Up Timing Requirements (Section 10 of AI Prompt)
+
+**CRITICAL**: AI MUST provide specific follow-up timeframes - NEVER use vague "follow up as scheduled"
+
+**A. CKD Patients - Based on KDIGO Risk Level**
+
+Follow-up intervals from `/docs/FOLLOW_UP_TIMING_MATRIX.md`:
+
+- **RED (Very High Risk)** - G4, G5, A3 (any G), G3b-A2:
+  * Clinical labs: Every 1-3 months
+  * Required phrase: "Schedule follow-up in 1-3 months (very high risk per KDIGO)"
+  * Tests: Comprehensive metabolic panel, eGFR, creatinine, uACR, CBC, electrolytes, BP
+
+- **ORANGE (High Risk)** - G3a-A2, G3b-A1:
+  * Clinical labs: Every 3-6 months
+  * Required phrase: "Schedule follow-up in 3-6 months (high risk per KDIGO)"
+  * Tests: eGFR, creatinine, uACR, electrolytes, BP check
+
+- **YELLOW (Moderate Risk)** - G1/G2-A2, G3a-A1:
+  * Clinical labs: Every 6-12 months
+  * Required phrase: "Schedule follow-up in 6-12 months (moderate risk per KDIGO)"
+  * Tests: eGFR, uACR, routine monitoring, BP check
+
+- **GREEN (Low Risk)** - G1/G2-A1:
+  * Clinical labs: Annually
+  * Required phrase: "Schedule annual follow-up in 12 months (low risk per KDIGO)"
+  * Tests: eGFR, uACR screening
+
+**B. Non-CKD Patients - Based on Risk Factors**
+
+- **High Risk** (Diabetes + Hypertension OR multiple risk factors):
+  * Follow-up: Every 6-12 months
+  * Required phrase: "Schedule follow-up in 6-12 months (high risk - multiple CKD risk factors present)"
+  * Tests: eGFR, uACR, comprehensive metabolic panel, HbA1c, BP
+
+- **Moderate Risk** (Single risk factor: diabetes OR hypertension OR age >60 OR family history):
+  * Follow-up: Annually
+  * Required phrase: "Schedule annual follow-up in 12 months (moderate risk - single CKD risk factor present)"
+  * Tests: eGFR, uACR, basic metabolic panel, BP
+
+- **Low Risk** (G1/G2-A1, no significant risk factors, age <60):
+  * Follow-up: Every 1-2 years
+  * Required phrase: "Schedule follow-up in 1-2 years for routine health maintenance"
+  * Tests: eGFR, uACR screening
+
+**C. Timing Modifiers**
+
+When to shorten intervals:
+- Rapid eGFR decline (>5 mL/min/year) → Shorten by 50%
+- Significant uACR increase (>50%) → Shorten by 3-6 months
+- New treatment initiated → 1-2 weeks for safety labs, then resume normal schedule
+- Health state progression (A1→A2, G3a→G3b) → Shorten by one tier
+
+**D. Required Format**
+
+✅ CORRECT Examples:
+- "Schedule follow-up in 6 months (moderate risk per KDIGO). Next labs: eGFR, uACR, electrolytes."
+- "URGENT: Schedule follow-up in 1-3 months (very high risk - RED). Tests: comprehensive metabolic panel, eGFR, uACR, CBC."
+
+❌ WRONG Examples:
+- "Follow up as scheduled" (no timeframe)
+- "Continue monitoring" (no specific interval)
+- "Monitor kidney function" (vague)
+
 ## Validation Criteria
 
 ### For a patient like Betty Anderson (G3a-A1, Moderate CKD, Not on Treatment/Monitoring):
@@ -238,6 +302,20 @@ AI MUST address impact of comorbidities on CKD:
 - **Home Monitoring (Minuteful Kidney)**: Monthly at-home uACR testing BETWEEN clinic visits to detect early changes in albuminuria
 - **Rationale**: Albuminuria can fluctuate; monthly home testing provides trend data that 6-month clinic visits would miss
 
+### For a patient like Helen Campbell (G2-A1, Non-CKD, Low Risk, Age 84, No significant risk factors):
+
+**Expected AI Recommendations MUST include**:
+1. ✅ **Follow-Up Timing**: "Schedule annual follow-up in 12 months for routine kidney screening (low risk per KDIGO)"
+2. ✅ **Specific Labs**: "Next labs (in 12 months): eGFR, serum creatinine, uACR, basic metabolic panel, blood pressure check"
+3. ✅ **Rationale**: "G2-A1 with normal kidney function and no significant risk factors. Annual screening adequate per KDIGO guidelines."
+4. ❌ **Should NOT say**: "Follow up as scheduled" without specifying timeframe
+5. ❌ **Should NOT say**: "Continue monitoring" without stating when (12 months)
+
+**Why Specific Timing Matters**:
+- **Prevents ambiguity**: Patient and clinic staff know exactly when next appointment should be
+- **Risk-appropriate**: Annual screening matches low-risk profile per KDIGO guidelines
+- **Actionable**: Clear timeframe enables scheduling and patient compliance
+
 ### Success Metrics:
 - 100% of patients transitioning to CKD Stage 3+ receive treatment initiation evaluation
 - 100% of patients with eGFR <60 receive home monitoring recommendation
@@ -246,6 +324,7 @@ AI MUST address impact of comorbidities on CKD:
 - 100% of AI analyses distinguish between clinical monitoring and home monitoring
 - 100% of AI analyses comment on biomarker trends (eGFR, uACR)
 - 100% of AI analyses address comorbidity impact when relevant (diabetes, hypertension, heart failure)
+- 100% of AI analyses include specific follow-up timeframes (never "as scheduled")
 
 ## Error Prevention
 
@@ -261,6 +340,12 @@ AI MUST address impact of comorbidities on CKD:
 
 4. ❌ **Vague monitoring advice**: "Monitor kidney function"
    - ✅ **Specific**: "Minuteful Kidney Kit, Monthly frequency, monitors uACR for early detection"
+
+5. ❌ **Vague follow-up timing**: "Follow up as scheduled" or "Continue monitoring"
+   - ✅ **Specific**: "Schedule follow-up in 6 months (moderate risk per KDIGO). Next labs: eGFR, uACR, electrolytes."
+
+6. ❌ **Missing timeframe justification**: "Follow up in 6 months" without explaining why
+   - ✅ **Justified**: "Schedule follow-up in 6 months (moderate risk - YELLOW per KDIGO). G3a-A1 requires regular monitoring."
 
 ## Audit Trail
 

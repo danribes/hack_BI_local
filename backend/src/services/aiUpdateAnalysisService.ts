@@ -545,6 +545,65 @@ IMPORTANT: Even if changes are minimal or the patient is stable, still provide a
    - Hypertension + Albuminuria → "Recommend RAS inhibitor for BP control and proteinuria reduction"
    - Diabetes + Hypertension + CKD → "Consider both RAS inhibitor AND SGLT2 inhibitor for comprehensive disease modification"
 
+10. **Follow-Up Timing - MUST Specify Exact Timeframe:**
+
+   **CRITICAL**: NEVER say "Follow up as scheduled" or "Continue monitoring" without specifying WHEN
+
+   **A. For CKD Patients - Based on KDIGO Risk Level:**
+
+   - **RED (Very High Risk)** - G4/G5, or A3 (any G), or G3b-A2:
+     * "Schedule follow-up in 1-3 months (very high risk per KDIGO)"
+     * "Next labs due in [1-3 months]: comprehensive metabolic panel, eGFR, uACR, CBC"
+     * If declining: "Follow up in 1 month due to concerning decline"
+
+   - **ORANGE (High Risk)** - G3a-A2, or G3b-A1:
+     * "Schedule follow-up in 3-6 months (high risk per KDIGO)"
+     * "Next labs due in [3-6 months]: eGFR, uACR, electrolytes, BP check"
+
+   - **YELLOW (Moderate Risk)** - G1/G2-A2, or G3a-A1:
+     * "Schedule follow-up in 6-12 months (moderate risk per KDIGO)"
+     * "Next labs due in [6-12 months]: eGFR, uACR, routine monitoring"
+
+   - **GREEN (Low Risk)** - G1/G2-A1:
+     * "Schedule annual follow-up in 12 months (low risk per KDIGO)"
+     * "Next screening in 12 months: eGFR, uACR"
+
+   **B. For Non-CKD Patients - Based on Risk Factors:**
+
+   - **High Risk** (Diabetes + Hypertension, or multiple risk factors):
+     * "Schedule follow-up in 6-12 months for CKD screening"
+     * "Next eGFR and uACR screening in [6-12 months] due to diabetes/hypertension"
+
+   - **Moderate Risk** (Single risk factor: diabetes OR hypertension OR age >60):
+     * "Schedule annual follow-up in 12 months for CKD screening"
+     * "Next kidney function screening in 12 months"
+
+   - **Low Risk** (G1/G2-A1, no risk factors):
+     * "Schedule follow-up in 1-2 years or as needed for routine health maintenance"
+     * "Next kidney screening in 1-2 years or if symptoms develop"
+
+   **C. Timing Modifiers - Adjust Based on Clinical Context:**
+
+   - **If eGFR declining rapidly** (>5 mL/min/year): Shorten interval by 50%
+     * Example: YELLOW normally 6-12 months → "Follow up in 3-6 months due to rapid decline"
+
+   - **If uACR increasing significantly** (>50% increase): Shorten interval
+     * Example: GREEN normally 12 months → "Follow up in 6 months due to rising albuminuria"
+
+   - **If new treatment initiated**: Follow up in 1-2 weeks for safety labs
+     * "Follow up in 1-2 weeks after starting RAS inhibitor to check potassium and creatinine"
+     * "Then resume normal [X-month] monitoring schedule"
+
+   - **If stable on treatment**: Use standard interval for risk level
+     * "Continue current treatment. Follow up in [X months] per [risk level] guidelines"
+
+   **REQUIRED FORMAT Examples:**
+   - ✅ CORRECT: "Schedule follow-up in 6 months (moderate risk). Next labs: eGFR, uACR, electrolytes."
+   - ✅ CORRECT: "Follow up in 1-2 weeks after starting RAS inhibitor for safety labs, then every 6 months."
+   - ✅ CORRECT: "Annual follow-up in 12 months for routine CKD screening (low risk)."
+   - ❌ WRONG: "Follow up as scheduled" (no timeframe specified)
+   - ❌ WRONG: "Continue monitoring" (no timeframe or specifics)
+
 Return ONLY the JSON response, no additional text.`;
   }
 
