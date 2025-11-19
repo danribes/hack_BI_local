@@ -44,7 +44,7 @@ The AI analysis service (`aiUpdateAnalysisService.ts`) was **not calling the Pha
    - RAS Inhibitors: STRONG/MODERATE/NOT_INDICATED/CONTRAINDICATED
 
 2. **Home Monitoring Recommendations**:
-   - RenalGuard/Minuteful Kidney: Recommended/Not Recommended
+   - Minuteful Kidney/Minuteful Kidney: Recommended/Not Recommended
    - Specific frequency: Weekly/Bi-weekly/Monthly
    - Clinical rationale and cost-effectiveness
 
@@ -197,7 +197,7 @@ AI Analysis:
 Phase 3 Output for G3a-A1:
 - Jardiance: MODERATE indication (if diabetes present) OR NOT_INDICATED (if no diabetes)
 - RAS Inhibitor: MODERATE indication (CKD without significant albuminuria)
-- RenalGuard/Minuteful: Recommended = YES, Frequency = Monthly
+- Minuteful Kidney/Minuteful: Recommended = YES, Frequency = Monthly
   Rationale: "CKD Stage 3a. Monthly monitoring to assess stability and detect changes."
 ```
 
@@ -267,6 +267,56 @@ curl -X POST http://localhost:3000/api/patients/792701d5-42fc-4981-b9fe-48fa0ef0
   -H "Content-Type: application/json" \
   -d '{"cycle_number": 4}'
 ```
+
+---
+
+## About Minuteful Kidney Home Monitoring
+
+### What is Minuteful Kidney?
+Minuteful Kidney is an FDA-cleared, smartphone-powered device that allows patients to conduct clinical-grade albumin-to-creatinine ratio (uACR) urine tests at home.
+
+### How It Works
+1. **Direct-to-Door Kit**: Mailed directly to patient's home with test strips and color board
+2. **Smartphone App Guidance**: Step-by-step chatbot and visual aids guide patients through testing
+3. **Computer Vision Analysis**: Patient takes photo of test strip; AI analyzes results with clinical-grade accuracy
+4. **Instant Results**: Immediate feedback to patient with automatic EMR integration for doctor review
+
+### Adherence Benefits
+
+#### Removes Logistical Barriers
+- **No clinic visits required**: Eliminates transportation needs and time off work
+- **Test anytime**: Patients complete testing at their convenience, not limited by lab hours
+- **Direct-to-door delivery**: Removes need for prescription pickup or lab order coordination
+
+#### High Usability & Confidence
+- **99% usability success rate** across ages 18-80
+- **Computer vision technology**: Eliminates human error in dipstick reading
+- **Step-by-step guidance**: App chatbot reduces fear of "doing it wrong"
+- **Debunks age myths**: Older populations successfully use digital health tools
+
+#### Increases Patient Engagement
+- **Instant feedback**: Unlike lab tests that take days, results are immediate
+- **Patient empowerment**: Direct access to results increases health literacy
+- **Digital nudges**: Text/app notifications remind patients to test
+- **Closed-loop care**: Abnormal results trigger automatic doctor follow-up
+
+#### Proven Effectiveness
+- **~50% completion rate** in previously non-compliant populations (vs. standard lab testing)
+- **~90% patient preference** for home testing over clinic visits
+- **Equity gains**: Consistent adherence improvements across socioeconomic groups and ages
+- **Cost-effectiveness**: May prevent ER visits and hospitalizations through early detection
+
+### Clinical Use Cases
+- **Post-treatment monitoring**: Track response to SGLT2i or RAS inhibitor therapy
+- **CKD progression tracking**: Detect early changes in albuminuria
+- **Diabetes screening**: Annual uACR for diabetic patients without clinic visit burden
+- **Unengaged populations**: Reach patients who haven't tested in 12+ months
+
+### Integration with Treatment Protocol
+The enhanced AI orchestrator now recommends Minuteful Kidney monitoring with specific frequency:
+- **Weekly**: Advanced CKD on treatment (eGFR <30 or uACR ≥300)
+- **Bi-weekly**: Moderate CKD on SGLT2i (eGFR <45 or uACR ≥100)
+- **Monthly**: Mild-moderate CKD, diabetes with CKD risk factors, or CKD without treatment (eGFR <60 or uACR ≥30)
 
 ---
 

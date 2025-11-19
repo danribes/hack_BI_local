@@ -3,7 +3,7 @@
 ## Purpose
 This protocol ensures that the AI orchestrator systematically evaluates and recommends:
 1. **Treatment initiation** for CKD patients not currently on therapy
-2. **Home monitoring** (Minuteful Kidney/RenalGuard) for appropriate patients
+2. **Home monitoring** (Minuteful Kidney - FDA-cleared smartphone uACR test) for appropriate patients
 3. **Treatment optimization** for patients already on therapy
 
 ## Critical Issue Addressed
@@ -38,11 +38,16 @@ This protocol ensures that the AI orchestrator systematically evaluates and reco
    - Safety considerations (hyperkalemia, creatinine monitoring)
    - Specific reasoning
 
-3. **RenalGuard/Minuteful Kidney Monitoring**:
+3. **Minuteful Kidney Home Monitoring** (FDA-cleared smartphone uACR test):
    - Recommended: yes/no
    - Frequency: Weekly, Bi-weekly, Monthly
    - Rationale (clinical justification)
-   - Cost-effectiveness assessment
+   - **Adherence Benefits**:
+     * **At-home convenience**: Removes logistical barriers (transportation, time off work, clinic visits)
+     * **High usability**: 99% usability success rate across ages 18-80; computer vision eliminates dipstick reading errors
+     * **Instant feedback**: Smartphone results with immediate EMR integration increase patient engagement
+     * **Proven effectiveness**: ~50% completion rate in previously non-compliant populations; ~90% patient preference for home testing
+     * **Clinical outcomes**: Early detection of kidney function changes; may prevent ER visits and hospitalizations
 
 ### Phase 3: AI Analysis with Enhanced Context
 **Tool**: `aiUpdateAnalysisService.analyzePatientUpdate`
@@ -51,7 +56,7 @@ This protocol ensures that the AI orchestrator systematically evaluates and reco
 1. **Input MUST include**:
    - Current treatment status (Active/Not Active)
    - Current monitoring status (Active/Not Active)
-   - **Phase 3 treatment recommendations** (Jardiance, RAS inhibitor, RenalGuard)
+   - **Phase 3 treatment recommendations** (Jardiance, RAS inhibitor, Minuteful Kidney)
    - KDIGO risk level and health state
    - Lab value changes from previous cycle
 
@@ -65,7 +70,7 @@ This protocol ensures that the AI orchestrator systematically evaluates and reco
 
 3. **AI Analysis MUST check**:
    - If treatment status is "NOT ON TREATMENT" AND Phase 3 indicates STRONG/MODERATE → recommend initiation
-   - If monitoring status is "NOT ON MONITORING" AND RenalGuard is recommended → recommend initiation
+   - If monitoring status is "NOT ON MONITORING" AND Minuteful Kidney is recommended → recommend initiation
    - If already on treatment but worsening → recommend optimization
    - If already being monitored → acknowledge and continue
 
@@ -116,7 +121,7 @@ Rationale: [clinical justification from Phase 3]"
 ### For AI Prompt (buildAnalysisPrompt method)
 - [ ] Add section for Phase 3 Treatment Recommendations
 - [ ] Include detailed treatment indication levels
-- [ ] Include RenalGuard/Minuteful monitoring recommendations
+- [ ] Include Minuteful Kidney/Minuteful monitoring recommendations
 - [ ] Add explicit instructions to check treatment/monitoring gaps
 
 ### For Recommended Actions Output
@@ -161,7 +166,7 @@ Rationale: [clinical justification from Phase 3]"
 
 Each AI analysis should log:
 - Whether Phase 3 was called
-- Treatment recommendations from Phase 3 (Jardiance, RAS inhibitor, RenalGuard)
+- Treatment recommendations from Phase 3 (Jardiance, RAS inhibitor, Minuteful Kidney)
 - Patient treatment/monitoring status
 - Final AI recommendations
 - Whether recommendations match Phase 3 guidance

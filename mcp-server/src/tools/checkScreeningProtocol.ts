@@ -390,7 +390,7 @@ function generateScreeningRecommendations(
 
   if (hasCKD) {
     recommendations.push('Ensure patient is enrolled in CKD monitoring program');
-    recommendations.push('Consider RenalGuard home monitoring for frequent eGFR/uACR tracking');
+    recommendations.push('Consider Minuteful Kidney home monitoring (FDA-cleared smartphone uACR test) for convenient at-home tracking');
   }
 
   return recommendations;

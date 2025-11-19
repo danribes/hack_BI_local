@@ -28,11 +28,11 @@ interface Phase3TreatmentRecommendations {
     evidence: string;
     reasoning: string[];
   };
-  renalGuard?: {
+  minutefulKidney?: {
     recommended: boolean;
     frequency: string | null;
     rationale: string;
-    costEffectiveness: string;
+    adherenceBenefits: string;
   };
 }
 
@@ -113,7 +113,7 @@ export class AIUpdateAnalysisService {
         console.log(`[AI Analysis] Phase 3 recommendations:`, {
           jardiance: phase3Recs.jardiance?.indication,
           rasInhibitor: phase3Recs.rasInhibitor?.indication,
-          renalGuard: phase3Recs.renalGuard?.recommended ? `${phase3Recs.renalGuard.frequency}` : 'Not recommended'
+          minutefulKidney: phase3Recs.minutefulKidney?.recommended ? `${phase3Recs.minutefulKidney.frequency}` : 'Not recommended'
         });
       } catch (error) {
         console.error('[AI Analysis] Error fetching Phase 3 recommendations:', error);
@@ -163,11 +163,11 @@ export class AIUpdateAnalysisService {
           evidence: data.rasInhibitor.evidence,
           reasoning: data.rasInhibitor.reasoning || []
         } : undefined,
-        renalGuard: data.renalGuard ? {
-          recommended: data.renalGuard.recommended,
-          frequency: data.renalGuard.frequency,
-          rationale: data.renalGuard.rationale,
-          costEffectiveness: data.renalGuard.costEffectiveness
+        minutefulKidney: data.minutefulKidney ? {
+          recommended: data.minutefulKidney.recommended,
+          frequency: data.minutefulKidney.frequency,
+          rationale: data.minutefulKidney.rationale,
+          adherenceBenefits: data.minutefulKidney.adherenceBenefits
         } : undefined
       };
     } catch (error) {
@@ -370,14 +370,14 @@ export class AIUpdateAnalysisService {
         }
       }
 
-      // RenalGuard/Minuteful Kidney monitoring
-      if (p3.renalGuard) {
+      // Minuteful Kidney home monitoring
+      if (p3.minutefulKidney) {
         phase3Section += `\n*Home Monitoring (Minuteful Kidney):*\n`;
-        phase3Section += `- Recommended: ${p3.renalGuard.recommended ? 'YES' : 'NO'}\n`;
-        if (p3.renalGuard.recommended) {
-          phase3Section += `- Frequency: ${p3.renalGuard.frequency || 'To be determined'}\n`;
-          phase3Section += `- Rationale: ${p3.renalGuard.rationale}\n`;
-          phase3Section += `- Cost-Effectiveness: ${p3.renalGuard.costEffectiveness}\n`;
+        phase3Section += `- Recommended: ${p3.minutefulKidney.recommended ? 'YES' : 'NO'}\n`;
+        if (p3.minutefulKidney.recommended) {
+          phase3Section += `- Frequency: ${p3.minutefulKidney.frequency || 'To be determined'}\n`;
+          phase3Section += `- Rationale: ${p3.minutefulKidney.rationale}\n`;
+          phase3Section += `- Adherence Benefits: ${p3.minutefulKidney.adherenceBenefits}\n`;
         }
       }
     } else {

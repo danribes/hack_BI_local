@@ -16,15 +16,15 @@ export interface TreatmentRecommendation {
 export interface TreatmentDecisionOutput {
   jardiance: TreatmentRecommendation;
   rasInhibitor: TreatmentRecommendation;
-  renalGuard: RenalGuardRecommendation;
+  minutefulKidney: MinutefulKidneyRecommendation;
   overallPlan: string[];
 }
 
-export interface RenalGuardRecommendation {
+export interface MinutefulKidneyRecommendation {
   recommended: boolean;
   frequency: string | null;
   rationale: string;
-  costEffectiveness: string;
+  adherenceBenefits: string;
 }
 
 /**
@@ -33,7 +33,7 @@ export interface RenalGuardRecommendation {
  * Evaluates eligibility for:
  * - Jardiance (SGLT2 inhibitor)
  * - RAS inhibitors (ACEi/ARB)
- * - RenalGuard home monitoring
+ * - Minuteful Kidney home monitoring (FDA-cleared smartphone uACR test)
  *
  * Based on: Unified CKD Specification v3.0, Phase 3
  */
@@ -108,8 +108,8 @@ export async function assessTreatmentOptions(input: TreatmentDecisionInput): Pro
     hasHeartFailure: patient.has_heart_failure,
   });
 
-  // Assess RenalGuard need
-  const renalGuard = assessRenalGuardNeed({
+  // Assess Minuteful Kidney home monitoring need
+  const minutefulKidney = assessMinutefulKidneyNeed({
     egfr,
     uacr,
     hasDiabetes: patient.has_diabetes,
@@ -117,12 +117,12 @@ export async function assessTreatmentOptions(input: TreatmentDecisionInput): Pro
   });
 
   // Generate overall treatment plan
-  const overallPlan = generateOverallPlan(jardiance, rasInhibitor, renalGuard);
+  const overallPlan = generateOverallPlan(jardiance, rasInhibitor, minutefulKidney);
 
   return {
     jardiance,
     rasInhibitor,
-    renalGuard,
+    minutefulKidney,
     overallPlan,
   };
 }
@@ -321,18 +321,18 @@ function assessRASInhibitorEligibility(data: RASInhibitorAssessmentData): Treatm
   };
 }
 
-interface RenalGuardAssessmentData {
+interface MinutefulKidneyAssessmentData {
   egfr: number;
   uacr: number;
   hasDiabetes: boolean;
   onSglt2i: boolean;
 }
 
-function assessRenalGuardNeed(data: RenalGuardAssessmentData): RenalGuardRecommendation {
+function assessMinutefulKidneyNeed(data: MinutefulKidneyAssessmentData): MinutefulKidneyRecommendation {
   let recommended: boolean;
   let frequency: string | null;
   let rationale: string;
-  let costEffectiveness: string;
+  let adherenceBenefits: string;
 
   // HIGH PRIORITY - Active CKD with treatment
   if ((data.egfr < 60 || data.uacr >= 30) && data.onSglt2i) {
@@ -341,17 +341,17 @@ function assessRenalGuardNeed(data: RenalGuardAssessmentData): RenalGuardRecomme
     if (data.egfr < 30 || data.uacr >= 300) {
       frequency = 'Weekly';
       rationale =
-        'Advanced CKD with proteinuria on disease-modifying therapy. Weekly monitoring for early detection of worsening.';
-      costEffectiveness = 'High - May prevent ER visits and hospitalizations';
+        'Advanced CKD with proteinuria on disease-modifying therapy. Weekly at-home monitoring enables early detection of worsening kidney function.';
+      adherenceBenefits = 'High adherence expected - At-home convenience removes clinic visit barriers; instant smartphone results increase engagement. May prevent ER visits and hospitalizations.';
     } else if (data.egfr < 45 || data.uacr >= 100) {
       frequency = 'Bi-weekly';
-      rationale = 'Moderate CKD on SGLT2 inhibitor. Bi-weekly monitoring to track treatment response.';
-      costEffectiveness = 'Moderate-High - Helps optimize therapy and detect issues early';
+      rationale = 'Moderate CKD on SGLT2 inhibitor. Bi-weekly at-home monitoring tracks treatment response and empowers patient self-management.';
+      adherenceBenefits = 'Moderate-High adherence - FDA-cleared smartphone test with 99% usability across ages 18-80; computer vision eliminates reading errors. Helps optimize therapy.';
     } else {
       frequency = 'Monthly';
       rationale =
-        'Mild-moderate CKD with albuminuria. Monthly monitoring to assess stability and adherence.';
-      costEffectiveness = 'Moderate - Useful for trend analysis';
+        'Mild-moderate CKD with albuminuria. Monthly at-home monitoring assesses stability and medication adherence without clinic visits.';
+      adherenceBenefits = 'Moderate adherence - Direct-to-door kits achieve ~50% completion in previously non-compliant populations; automated EMR integration ensures follow-up.';
     }
   }
   // MODERATE PRIORITY - CKD without treatment or diabetes
@@ -359,29 +359,29 @@ function assessRenalGuardNeed(data: RenalGuardAssessmentData): RenalGuardRecomme
     recommended = true;
     frequency = 'Monthly';
     rationale =
-      'CKD risk factors present. Monthly monitoring recommended to establish baseline and detect changes.';
-    costEffectiveness = 'Moderate - Helps with early detection';
+      'CKD risk factors present. Monthly at-home monitoring recommended to establish baseline and detect progression early.';
+    adherenceBenefits = 'Moderate adherence - Removes logistical barriers (transportation, time off work); ~90% of patients prefer at-home testing over clinic visits.';
   }
   // LOW PRIORITY
   else {
     recommended = false;
     frequency = null;
     rationale = 'Normal kidney function without significant risk factors. Standard lab monitoring sufficient.';
-    costEffectiveness = 'Low - Annual screening adequate';
+    adherenceBenefits = 'Not applicable - Annual clinical screening adequate for low-risk patients.';
   }
 
   return {
     recommended,
     frequency,
     rationale,
-    costEffectiveness,
+    adherenceBenefits,
   };
 }
 
 function generateOverallPlan(
   jardiance: TreatmentRecommendation,
   rasInhibitor: TreatmentRecommendation,
-  renalGuard: RenalGuardRecommendation
+  minutefulKidney: MinutefulKidneyRecommendation
 ): string[] {
   const plan: string[] = [];
 
@@ -406,10 +406,11 @@ function generateOverallPlan(
     plan.push('  - Consider after optimizing other therapies');
   }
 
-  // RenalGuard
-  if (renalGuard.recommended) {
-    plan.push(`RenalGuard Home Monitoring: ${renalGuard.frequency || 'Recommended'}`);
-    plan.push(`  - ${renalGuard.rationale}`);
+  // Minuteful Kidney Home Monitoring
+  if (minutefulKidney.recommended) {
+    plan.push(`Minuteful Kidney Home Monitoring: ${minutefulKidney.frequency || 'Recommended'}`);
+    plan.push(`  - ${minutefulKidney.rationale}`);
+    plan.push(`  - Adherence: ${minutefulKidney.adherenceBenefits}`);
   }
 
   // General recommendations

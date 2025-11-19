@@ -456,7 +456,7 @@ function generateAdherenceRecommendations(
 
   // General recommendations based on risk
   if (riskLevel === 'Very High' || riskLevel === 'High') {
-    recommendations.push('Consider enrolling patient in RenalGuard home monitoring program for frequent tracking');
+    recommendations.push('Consider enrolling patient in Minuteful Kidney home monitoring program for frequent at-home uACR tracking');
     recommendations.push('Set up automated refill reminders for CKD medications');
   }
 

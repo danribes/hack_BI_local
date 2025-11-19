@@ -19,7 +19,7 @@ export interface PreDiagnosisRiskOutput {
   testingTimeline: string;
   expectedYield: string;
   recommendations: string[];
-  renalGuardRecommendation: string;
+  minutefulKidneyRecommendation: string;
 }
 
 /**
@@ -304,26 +304,26 @@ function calculateEnhancedRiskScore(data: PatientRiskData): PreDiagnosisRiskOutp
   let priority: 'URGENT' | 'ROUTINE' | 'STANDARD';
   let testingTimeline: string;
   let expectedYield: string;
-  let renalGuardRecommendation: string;
+  let minutefulKidneyRecommendation: string;
 
   if (riskScore >= 40) {
     riskTier = 'TIER_1_HIGH';
     priority = 'URGENT';
     testingTimeline = 'Order tests immediately (this week)';
     expectedYield = '40-60% will have abnormal results';
-    renalGuardRecommendation = 'RenalGuard monitoring STRONGLY RECOMMENDED';
+    minutefulKidneyRecommendation = 'Minuteful Kidney home monitoring STRONGLY RECOMMENDED - FDA-cleared smartphone uACR test for convenient at-home monitoring';
   } else if (riskScore >= 20) {
     riskTier = 'TIER_2_MODERATE';
     priority = 'ROUTINE';
     testingTimeline = 'Order tests at next visit (1-3 months)';
     expectedYield = '20-35% will have abnormal results';
-    renalGuardRecommendation = 'RenalGuard if tests abnormal';
+    minutefulKidneyRecommendation = 'Minuteful Kidney recommended if tests show CKD - improves adherence through at-home convenience';
   } else {
     riskTier = 'TIER_3_LOW';
     priority = 'STANDARD';
     testingTimeline = 'Standard screening (annual or at age 40)';
     expectedYield = '<10% will have abnormal results';
-    renalGuardRecommendation = 'Baseline at age 40 or if risk factors develop';
+    minutefulKidneyRecommendation = 'Standard lab monitoring adequate; consider Minuteful Kidney if CKD risk factors develop';
   }
 
   const recommendations = generatePreDiagnosisRecommendations(
@@ -341,7 +341,7 @@ function calculateEnhancedRiskScore(data: PatientRiskData): PreDiagnosisRiskOutp
     testingTimeline,
     expectedYield,
     recommendations,
-    renalGuardRecommendation,
+    minutefulKidneyRecommendation,
   };
 }
 

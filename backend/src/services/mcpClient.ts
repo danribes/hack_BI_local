@@ -154,7 +154,7 @@ export class MCPClient {
 
   /**
    * PHASE 3: Assess treatment options
-   * Evaluate eligibility for Jardiance, RAS inhibitors, RenalGuard
+   * Evaluate eligibility for Jardiance, RAS inhibitors, and Minuteful Kidney home monitoring
    */
   async assessTreatmentOptions(patientId: string): Promise<any> {
     if (!this.client || !this.isConnected) {

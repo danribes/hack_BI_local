@@ -42,7 +42,7 @@ import { searchGuidelines } from './tools/guidelines.js';
  * PHASE-BASED TOOLS:
  * - Phase 1: Pre-Diagnosis Risk Assessment (3-tier stratification)
  * - Phase 2: CKD Diagnosis & KDIGO Classification (with trajectory analysis)
- * - Phase 3: Treatment Initiation Decision Support (Jardiance, RAS inhibitors, RenalGuard)
+ * - Phase 3: Treatment Initiation Decision Support (Jardiance, RAS inhibitors, Minuteful Kidney)
  * - Phase 4: Adherence Monitoring (MPR calculation, barrier detection, smart alerts)
  */
 
@@ -69,7 +69,7 @@ const TOOLS: Tool[] = [
   {
     name: 'assess_pre_diagnosis_risk',
     description:
-      'PHASE 1: Assess CKD risk when eGFR/uACR unavailable. Uses 3-tier stratification (HIGH/MODERATE/LOW) based on comorbidities, medications, vitals, and clinical indicators. Returns testing urgency, expected yield, and RenalGuard recommendations.',
+      'PHASE 1: Assess CKD risk when eGFR/uACR unavailable. Uses 3-tier stratification (HIGH/MODERATE/LOW) based on comorbidities, medications, vitals, and clinical indicators. Returns testing urgency, expected yield, and Minuteful Kidney recommendations.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -103,7 +103,7 @@ const TOOLS: Tool[] = [
   {
     name: 'assess_treatment_options',
     description:
-      'PHASE 3: Evaluate eligibility for Jardiance (SGLT2i) and RAS inhibitors based on KDIGO 2024 guidelines. Returns indication strength (STRONG/MODERATE/CONTRAINDICATED), EMPA-KIDNEY evidence, contraindications, safety monitoring requirements, and RenalGuard recommendations.',
+      'PHASE 3: Evaluate eligibility for Jardiance (SGLT2i) and RAS inhibitors based on KDIGO 2024 guidelines. Returns indication strength (STRONG/MODERATE/CONTRAINDICATED), EMPA-KIDNEY evidence, contraindications, safety monitoring requirements, and Minuteful Kidney recommendations.',
     inputSchema: {
       type: 'object',
       properties: {

@@ -30,7 +30,7 @@ export interface TrajectoryAnalysis {
 export interface MonitoringPlan {
   labFrequency: string;
   clinicVisits: string;
-  renalGuardFrequency: string;
+  minutefulKidneyFrequency: string;
 }
 
 /**
@@ -234,36 +234,36 @@ function getMonitoringPlan(
 ): MonitoringPlan {
   let labFrequency: string;
   let clinicVisits: string;
-  let renalGuardFrequency: string;
+  let minutefulKidneyFrequency: string;
 
   switch (riskLevel) {
     case 'RED':
       labFrequency = 'Every 1-3 months';
       clinicVisits = 'Every 1-3 months';
-      renalGuardFrequency = 'Monthly';
+      minutefulKidneyFrequency = 'Monthly - High-priority CKD monitoring with at-home convenience';
       break;
     case 'ORANGE':
       labFrequency = 'Every 3-6 months';
       clinicVisits = 'Every 3-6 months';
-      renalGuardFrequency = 'Every 3-6 months';
+      minutefulKidneyFrequency = 'Every 3-6 months - Regular monitoring recommended';
       break;
     case 'YELLOW':
       labFrequency = 'Every 6-12 months';
       clinicVisits = 'Every 6-12 months';
-      renalGuardFrequency = albuminuriaCategory !== 'A1' ? 'Every 6-12 months' : 'Not needed';
+      minutefulKidneyFrequency = albuminuriaCategory !== 'A1' ? 'Every 6-12 months - Helps track albuminuria trends' : 'Not needed - Low risk';
       break;
     case 'GREEN':
     default:
       labFrequency = 'Annually';
       clinicVisits = 'Annually';
-      renalGuardFrequency = 'Not needed';
+      minutefulKidneyFrequency = 'Not needed - Standard annual lab screening adequate';
       break;
   }
 
   return {
     labFrequency,
     clinicVisits,
-    renalGuardFrequency,
+    minutefulKidneyFrequency,
   };
 }
 
