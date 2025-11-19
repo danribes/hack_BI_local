@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { getPool } from '../../config/database';
-import { classifyKDIGO, getRiskCategoryLabel, getCKDSeverity } from '../../utils/kdigo';
+import { classifyKDIGO, classifyKDIGOWithSCORED, getRiskCategoryLabel, getCKDSeverity } from '../../utils/kdigo';
 import { HealthStateCommentService } from '../../services/healthStateCommentService';
 import { AIUpdateAnalysisService } from '../../services/aiUpdateAnalysisService';
 
@@ -841,10 +841,8 @@ router.get('/:id', async (req: Request, res: Response): Promise<any> => {
     const egfr = egfrObs?.value_numeric || 90;
     const uacr = uacrObs?.value_numeric || 15;
 
-    const kdigoClassification = classifyKDIGO(egfr, uacr);
-    const riskCategory = getRiskCategoryLabel(kdigoClassification);
-
-    // Derive comorbidity flags from conditions
+    // Derive comorbidity flags from conditions BEFORE classification
+    // (needed for SCORED assessment)
     const conditions = conditionsResult.rows;
     const comorbidities = {
       has_diabetes: conditions.some(c => c.condition_code?.startsWith('E1') && c.clinical_status === 'active'),
@@ -865,6 +863,24 @@ router.get('/:id', async (req: Request, res: Response): Promise<any> => {
       has_ra: conditions.some(c => (c.condition_code?.startsWith('M05') || c.condition_code?.startsWith('M06')) && c.clinical_status === 'active'),
       has_polycystic_kidney_disease: conditions.some(c => c.condition_code?.startsWith('Q61') && c.clinical_status === 'active'),
     };
+
+    // Calculate patient age from date_of_birth
+    const birthDate = new Date(patient.date_of_birth);
+    const age = Math.floor((new Date().getTime() - birthDate.getTime()) / (365.25 * 24 * 60 * 60 * 1000));
+
+    // Build demographics for SCORED assessment
+    const demographics = {
+      age,
+      gender: patient.gender.toLowerCase() as 'male' | 'female',
+      has_hypertension: comorbidities.has_hypertension,
+      has_diabetes: comorbidities.has_diabetes,
+      has_cvd: comorbidities.has_heart_failure || comorbidities.has_cad || comorbidities.has_mi || comorbidities.has_stroke,
+      has_pvd: comorbidities.has_peripheral_vascular_disease
+    };
+
+    // Use SCORED-based classification for proper non-CKD risk assessment
+    const kdigoClassification = classifyKDIGOWithSCORED(egfr, uacr, demographics);
+    const riskCategory = getRiskCategoryLabel(kdigoClassification);
 
     // Extract vital signs from latest observations for backward compatibility
     const latestObservations = latestObservationsResult.rows;

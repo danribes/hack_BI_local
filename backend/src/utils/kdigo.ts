@@ -1,6 +1,9 @@
 /**
  * KDIGO CKD Classification Utility
  * Calculates health state, risk level, and CKD stage based on eGFR and uACR
+ *
+ * IMPORTANT: KDIGO is a staging/prognosis system for patients who ALREADY have CKD.
+ * For non-CKD patients, we use the SCORED model to assess risk of hidden/future disease.
  */
 
 export interface KDIGOClassification {
@@ -33,6 +36,168 @@ export interface KDIGOClassification {
   // Monitoring
   target_bp: string;
   monitoring_frequency: string;
+
+  // SCORED assessment (for non-CKD patients)
+  scored_points?: number;
+  scored_risk_level?: 'low' | 'high';
+}
+
+/**
+ * Patient demographics for SCORED model
+ */
+export interface PatientDemographics {
+  age: number;
+  gender: 'male' | 'female';
+  has_hypertension?: boolean;
+  has_diabetes?: boolean;
+  has_cvd?: boolean; // Cardiovascular disease (MI, stroke, heart failure)
+  has_pvd?: boolean; // Peripheral vascular disease
+}
+
+/**
+ * Calculate SCORED (Screening for Occult REnal Disease) risk score
+ * This is the validated tool for finding "occult" (hidden) kidney disease in non-CKD individuals
+ *
+ * Reference: Bang et al. - SCORED model
+ *
+ * Scoring:
+ * - Age 50-59: +2, Age 60-69: +3, Age ≥70: +4
+ * - Female: +1
+ * - Hypertension: +1
+ * - Diabetes: +1
+ * - CVD: +1
+ * - PVD: +1
+ * - Proteinuria (uACR ≥30): +1
+ *
+ * Risk Levels:
+ * - Low Risk (0-3): Low probability of undetected CKD, routine annual screening
+ * - High Risk (≥4): ~20% chance of already having undetected CKD, immediate screening required
+ */
+export function calculateSCORED(demographics: PatientDemographics, uacr: number): {
+  points: number;
+  risk_level: 'low' | 'high';
+  components: string[];
+} {
+  let points = 0;
+  const components: string[] = [];
+
+  // Age scoring
+  if (demographics.age >= 70) {
+    points += 4;
+    components.push('Age ≥70 (+4)');
+  } else if (demographics.age >= 60) {
+    points += 3;
+    components.push('Age 60-69 (+3)');
+  } else if (demographics.age >= 50) {
+    points += 2;
+    components.push('Age 50-59 (+2)');
+  }
+
+  // Gender
+  if (demographics.gender === 'female') {
+    points += 1;
+    components.push('Female (+1)');
+  }
+
+  // Comorbidities
+  if (demographics.has_hypertension) {
+    points += 1;
+    components.push('Hypertension (+1)');
+  }
+
+  if (demographics.has_diabetes) {
+    points += 1;
+    components.push('Diabetes (+1)');
+  }
+
+  if (demographics.has_cvd) {
+    points += 1;
+    components.push('Cardiovascular Disease (+1)');
+  }
+
+  if (demographics.has_pvd) {
+    points += 1;
+    components.push('Peripheral Vascular Disease (+1)');
+  }
+
+  // Proteinuria (if uACR ≥30, indicates microalbuminuria)
+  if (uacr >= 30) {
+    points += 1;
+    components.push('Proteinuria/High uACR (+1)');
+  }
+
+  // Risk level determination
+  const risk_level = points >= 4 ? 'high' : 'low';
+
+  return { points, risk_level, components };
+}
+
+/**
+ * Determine non-CKD risk level based on SCORED score and lab values
+ *
+ * Border values for non-CKD patients:
+ * - eGFR: >90 (normal/low risk), 60-89 (borderline/medium), <60 (high risk - this becomes CKD diagnosis)
+ * - uACR: <30 (normal/low risk), 30-300 (microalbuminuria/medium risk), >300 (macroalbuminuria/high risk)
+ */
+export function getNonCKDRiskLevel(
+  egfr: number,
+  uacr: number,
+  scoredPoints: number
+): {
+  risk_level: 'low' | 'moderate' | 'high';
+  risk_color: 'green' | 'yellow' | 'orange';
+  reasoning: string[];
+} {
+  const reasoning: string[] = [];
+
+  // Start with SCORED assessment
+  let baseRisk: 'low' | 'moderate' | 'high' = scoredPoints >= 4 ? 'high' : 'low';
+
+  if (scoredPoints >= 4) {
+    reasoning.push(`SCORED score ${scoredPoints} indicates ≥20% chance of undetected CKD`);
+  } else {
+    reasoning.push(`SCORED score ${scoredPoints} indicates low probability of hidden disease`);
+  }
+
+  // Evaluate eGFR (borderline values are concerning even without CKD diagnosis)
+  if (egfr >= 90) {
+    reasoning.push('eGFR >90: Normal kidney filtration');
+  } else if (egfr >= 60) {
+    reasoning.push('eGFR 60-89: Borderline - mild decline, monitor closely');
+    // Borderline eGFR elevates risk
+    if (baseRisk === 'low') {
+      baseRisk = 'moderate';
+    }
+  }
+
+  // Evaluate uACR (this is critical - microalbuminuria is the first sign of kidney damage)
+  if (uacr < 30) {
+    reasoning.push('uACR <30: No proteinuria');
+  } else if (uacr <= 300) {
+    reasoning.push('uACR 30-300: Microalbuminuria - early kidney damage detected');
+    // Microalbuminuria significantly elevates risk
+    if (baseRisk === 'low') {
+      baseRisk = 'moderate';
+    } else if (baseRisk === 'moderate') {
+      baseRisk = 'high';
+    }
+  } else {
+    reasoning.push('uACR >300: Macroalbuminuria - severe kidney damage');
+    baseRisk = 'high';
+  }
+
+  // Combine factors for final risk
+  let finalRisk: 'low' | 'moderate' | 'high' = baseRisk;
+
+  // Special case: High SCORED + microalbuminuria = definitely high risk
+  if (scoredPoints >= 4 && uacr >= 30) {
+    finalRisk = 'high';
+    reasoning.push('HIGH RISK: Multiple risk factors + kidney damage markers present');
+  }
+
+  const risk_color = finalRisk === 'high' ? 'orange' : finalRisk === 'moderate' ? 'yellow' : 'green';
+
+  return { risk_level: finalRisk, risk_color, reasoning };
 }
 
 /**
@@ -266,6 +431,100 @@ export function getMonitoringFrequencyCategory(kdigo: KDIGOClassification): stri
     default:
       return 'annually'; // Annually
   }
+}
+
+/**
+ * Complete KDIGO classification WITH SCORED assessment for non-CKD patients
+ * This is the clinically appropriate function that combines:
+ * - KDIGO staging for CKD patients
+ * - SCORED model risk assessment for non-CKD patients
+ */
+export function classifyKDIGOWithSCORED(
+  egfr: number,
+  uacr: number,
+  demographics?: PatientDemographics
+): KDIGOClassification {
+  const gfrInfo = getGFRCategory(egfr);
+  const albInfo = getAlbuminuriaCategory(uacr);
+  const ckdInfo = getCKDStage(egfr, uacr);
+  const health_state = `${gfrInfo.category}-${albInfo.category}`;
+
+  let riskInfo: any;
+  let scored_points: number | undefined;
+  let scored_risk_level: 'low' | 'high' | undefined;
+
+  if (!ckdInfo.has_ckd && demographics) {
+    // Non-CKD patient WITH demographics - use SCORED model
+    const scoredResult = calculateSCORED(demographics, uacr);
+    scored_points = scoredResult.points;
+    scored_risk_level = scoredResult.risk_level;
+
+    const nonCKDRisk = getNonCKDRiskLevel(egfr, uacr, scoredResult.points);
+    riskInfo = {
+      risk_level: nonCKDRisk.risk_level,
+      risk_color: nonCKDRisk.risk_color
+    };
+
+    console.log(`[SCORED Assessment] Patient (Age ${demographics.age}, ${demographics.gender})`);
+    console.log(`  SCORED Points: ${scored_points} (${scored_risk_level} risk)`);
+    console.log(`  Components: ${scoredResult.components.join(', ')}`);
+    console.log(`  Final Risk: ${riskInfo.risk_level} (${riskInfo.risk_color})`);
+    console.log(`  Reasoning: ${nonCKDRisk.reasoning.join('; ')}`);
+  } else {
+    // CKD patient OR no demographics available - use KDIGO risk matrix
+    riskInfo = getKDIGORiskLevel(gfrInfo.category, albInfo.category);
+  }
+
+  // Clinical recommendations
+  const requires_nephrology = gfrInfo.category === 'G4' || gfrInfo.category === 'G5' ||
+                              (gfrInfo.category === 'G3b') ||
+                              (albInfo.category === 'A3');
+
+  const requires_dialysis = gfrInfo.category === 'G5' ||
+                           (gfrInfo.category === 'G4' && egfr < 20);
+
+  const recommend_ras = albInfo.category === 'A2' || albInfo.category === 'A3';
+  const recommend_sglt2i = ckdInfo.stage !== null && ckdInfo.stage >= 2 && ckdInfo.stage <= 4;
+
+  // BP target based on proteinuria
+  const target_bp = albInfo.category === 'A1' ? '<140/90 mmHg' : '<130/80 mmHg';
+
+  // Monitoring frequency based on risk
+  let monitoring_frequency: string;
+  switch (riskInfo.risk_level) {
+    case 'very_high':
+      monitoring_frequency = 'Every 1-3 months';
+      break;
+    case 'high':
+      monitoring_frequency = 'Every 3-6 months';
+      break;
+    case 'moderate':
+      monitoring_frequency = 'Every 6-12 months';
+      break;
+    default:
+      monitoring_frequency = 'Annually';
+  }
+
+  return {
+    gfr_category: gfrInfo.category as any,
+    gfr_description: gfrInfo.description,
+    albuminuria_category: albInfo.category as any,
+    albuminuria_description: albInfo.description,
+    health_state,
+    risk_level: riskInfo.risk_level,
+    risk_color: riskInfo.risk_color,
+    has_ckd: ckdInfo.has_ckd,
+    ckd_stage: ckdInfo.stage,
+    ckd_stage_name: ckdInfo.name,
+    requires_nephrology_referral: requires_nephrology,
+    requires_dialysis_planning: requires_dialysis,
+    recommend_ras_inhibitor: recommend_ras,
+    recommend_sglt2i: recommend_sglt2i,
+    target_bp,
+    monitoring_frequency,
+    scored_points,
+    scored_risk_level
+  };
 }
 
 /**
