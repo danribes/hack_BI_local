@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { getPool } from '../../config/database';
-import { classifyKDIGO, classifyKDIGOWithSCORED, getRiskCategoryLabel, getCKDSeverity } from '../../utils/kdigo';
+import { classifyKDIGO, classifyKDIGOWithSCORED, calculateSCORED, getRiskCategoryLabel, getCKDSeverity } from '../../utils/kdigo';
 import { HealthStateCommentService } from '../../services/healthStateCommentService';
 import { AIUpdateAnalysisService } from '../../services/aiUpdateAnalysisService';
 
@@ -979,6 +979,30 @@ router.post('/:id/update-records', async (req: Request, res: Response): Promise<
 
     const patient = patientResult.rows[0];
 
+    // Get patient conditions for comorbidity assessment
+    const conditionsResult = await pool.query(`
+      SELECT *
+      FROM conditions
+      WHERE patient_id = $1
+    `, [id]);
+
+    // Extract comorbidities from conditions
+    const comorbidities = {
+      has_diabetes: conditionsResult.rows.some(c => c.condition_code?.startsWith('E11')), // Type 2 Diabetes
+      has_hypertension: conditionsResult.rows.some(c => c.condition_code?.startsWith('I10')), // Essential hypertension
+      has_heart_failure: conditionsResult.rows.some(c => c.condition_code?.startsWith('I50')), // Heart failure
+      has_cad: conditionsResult.rows.some(c => c.condition_code?.startsWith('I25')), // Coronary artery disease
+      has_mi: conditionsResult.rows.some(c => c.condition_code?.startsWith('I21')), // Myocardial infarction
+      has_stroke: conditionsResult.rows.some(c => c.condition_code?.startsWith('I63')), // Cerebral infarction
+      has_peripheral_vascular_disease: conditionsResult.rows.some(c => c.condition_code?.startsWith('I73')), // Peripheral vascular disease
+      has_obesity: conditionsResult.rows.some(c => c.condition_code?.startsWith('E66')), // Obesity
+      family_history_esrd: conditionsResult.rows.some(c => c.condition_code === 'Z82.49'), // Family history of ESRD
+    };
+
+    // Calculate patient age from date_of_birth
+    const birthDate = new Date(patient.date_of_birth);
+    const age = Math.floor((new Date().getTime() - birthDate.getTime()) / (365.25 * 24 * 60 * 60 * 1000));
+
     // Get latest observations
     const latestObservationsResult = await pool.query(`
       SELECT DISTINCT ON (observation_type)
@@ -1034,13 +1058,23 @@ router.post('/:id/update-records', async (req: Request, res: Response): Promise<
       console.log(`✓ Patient data reset complete, starting new cycle from month 1`);
     }
 
-    // Calculate KDIGO classification
+    // Calculate KDIGO classification with SCORED assessment for non-CKD patients
     const egfrObs = latestObs.find(obs => obs.observation_type === 'eGFR');
     const uacrObs = latestObs.find(obs => obs.observation_type === 'uACR');
     const egfr = egfrObs?.value_numeric || 90;
     const uacr = uacrObs?.value_numeric || 15;
 
-    const kdigoClassification = classifyKDIGO(egfr, uacr);
+    // Build demographics for SCORED assessment
+    const demographics = {
+      age,
+      gender: patient.gender.toLowerCase() as 'male' | 'female',
+      has_hypertension: comorbidities.has_hypertension,
+      has_diabetes: comorbidities.has_diabetes,
+      has_cvd: comorbidities.has_heart_failure || comorbidities.has_cad || comorbidities.has_mi || comorbidities.has_stroke,
+      has_pvd: comorbidities.has_peripheral_vascular_disease
+    };
+
+    const kdigoClassification = classifyKDIGOWithSCORED(egfr, uacr, demographics);
 
     // Determine treatment and monitoring status
     const isTreated = patient.ckd_treatment_active || false;
@@ -1178,8 +1212,8 @@ Provide ONLY the JSON object, nothing else.`;
       }
     }
 
-    // Calculate new health state after inserting observations
-    const newKdigoClassification = classifyKDIGO(generatedValues.eGFR, generatedValues.uACR);
+    // Calculate new health state after inserting observations (with SCORED for non-CKD)
+    const newKdigoClassification = classifyKDIGOWithSCORED(generatedValues.eGFR, generatedValues.uACR, demographics);
 
     // Detect CKD status transition (non-CKD → CKD or CKD → non-CKD)
     const previousHasCKD = kdigoClassification.has_ckd;
@@ -1358,7 +1392,7 @@ Provide ONLY the JSON object, nothing else.`;
       const birthDate = new Date(patient.date_of_birth);
       const age = Math.floor((new Date().getTime() - birthDate.getTime()) / (365.25 * 24 * 60 * 60 * 1000));
 
-      // Prepare patient context with KDIGO clinical recommendations
+      // Prepare patient context with KDIGO clinical recommendations and SCORED data
       const patientContext = {
         patientId: id,
         firstName: patient.first_name,
@@ -1380,6 +1414,18 @@ Provide ONLY the JSON object, nothing else.`;
         riskLevel: newKdigoClassification.risk_level,
         gfrCategory: newKdigoClassification.gfr_category,
         albuminuriaCategory: newKdigoClassification.albuminuria_category,
+        // Include SCORED assessment data for non-CKD patients
+        scored_points: !hasCKD ? newKdigoClassification.scored_points : undefined,
+        scored_risk_level: !hasCKD ? newKdigoClassification.scored_risk_level : undefined,
+        scored_components: !hasCKD && newKdigoClassification.scored_points !== undefined
+          ? calculateSCORED(demographics, generatedValues.uACR).components
+          : undefined,
+        // Include demographics and comorbidities for context
+        gender: patient.gender.toLowerCase() as 'male' | 'female',
+        has_hypertension: comorbidities.has_hypertension,
+        has_diabetes: comorbidities.has_diabetes,
+        has_cvd: comorbidities.has_heart_failure || comorbidities.has_cad || comorbidities.has_mi || comorbidities.has_stroke,
+        has_pvd: comorbidities.has_peripheral_vascular_disease,
       };
 
       // Call AI analysis service - now always generates a comment
