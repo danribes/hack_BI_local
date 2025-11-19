@@ -277,6 +277,46 @@ Available data includes:
 - Comorbidities (diabetes, hypertension, CVD)
 - Risk factors and progression indicators
 
+═══════════════════════════════════════════════════════════════════════════════
+🚨 CRITICAL: TREATMENT AND MONITORING STATUS VERIFICATION 🚨
+═══════════════════════════════════════════════════════════════════════════════
+
+BEFORE making ANY treatment or monitoring recommendation, you MUST:
+
+1. CHECK the patient's "CKD Treatment Status" and "Home Monitoring Status" fields
+   (These will be prominently displayed in the patient context section)
+
+2. MATCH your recommendations to the current status:
+
+   IF Treatment Status = "Active (...)":
+      ✅ Patient IS on treatment
+      ✅ Say: "Continue current CKD treatment", "Optimize therapy", "Adjust dosing"
+      ❌ NEVER say: "Initiate treatment", "Start therapy", "Patient not on treatment"
+
+   IF Treatment Status = "NOT ON TREATMENT":
+      ✅ Patient is NOT on treatment
+      ✅ Say: "Initiate RAS inhibitor", "Start SGLT2 inhibitor", "Begin treatment"
+      ❌ NEVER say: "Continue treatment", "Maintain therapy", "Optimize current regimen"
+
+   IF Monitoring Status = "Active (...)":
+      ✅ Patient IS on home monitoring
+      ✅ Say: "Continue home monitoring", "Review Minuteful Kidney data"
+      ❌ NEVER say: "Initiate home monitoring", "Start Minuteful Kidney"
+
+   IF Monitoring Status = "NOT ON MONITORING":
+      ✅ Patient is NOT on home monitoring
+      ✅ Say: "Initiate Minuteful Kidney monitoring", "Start at-home testing"
+      ❌ NEVER say: "Continue home monitoring", "Maintain testing"
+
+3. VALIDATE before responding:
+   - "Does my treatment recommendation match the treatment status?" [YES/NO]
+   - "Did I accidentally recommend 'initiating' something already active?" [YES/NO]
+   - If NO to either, REVISE your response!
+
+This is CRITICAL to avoid contradictory advice that could confuse doctors and harm patients.
+
+═══════════════════════════════════════════════════════════════════════════════
+
 IMPORTANT - Population-Level Questions:
 When doctors ask population-level questions (e.g., "How many patients...", "Which patients need...", "Show me patients..."),
 the system automatically fetches relevant database statistics and provides them in a section marked "--- POPULATION DATA ---" below.
@@ -325,7 +365,9 @@ or treatment recommendations, and suggest the doctor rephrase their question if 
           weight, height, smoking_status, has_diabetes, has_hypertension,
           has_heart_failure, has_cad, cvd_history, family_history_esrd,
           on_ras_inhibitor, on_sglt2i, nephrotoxic_meds,
-          nephrologist_referral, diagnosis_date, last_visit_date, next_visit_date
+          nephrologist_referral, diagnosis_date, last_visit_date, next_visit_date,
+          ckd_treatment_active, ckd_treatment_type,
+          home_monitoring_active, home_monitoring_device
         FROM patients
         WHERE id = $1
       `;
@@ -338,9 +380,44 @@ or treatment recommendations, and suggest the doctor rephrase their question if 
       const patient = patientResult.rows[0];
       const age = this.calculateAge(patient.date_of_birth);
 
+      // Determine treatment and monitoring status for display
+      const treatmentStatus = patient.ckd_treatment_active
+        ? `Active (${patient.ckd_treatment_type || 'Type not specified'})`
+        : 'NOT ON TREATMENT';
+
+      const monitoringStatus = patient.home_monitoring_active
+        ? `Active (${patient.home_monitoring_device || 'Device not specified'})`
+        : 'NOT ON MONITORING';
+
       contextParts.push(`Patient: ${patient.first_name} ${patient.last_name} (MRN: ${patient.medical_record_number})
 Age: ${age} years, Gender: ${patient.gender}
 Weight: ${patient.weight}kg, Height: ${patient.height}cm, BMI: ${this.calculateBMI(patient.weight, patient.height)}
+
+═══════════════════════════════════════════════════════════════════════════════
+🚨 CRITICAL: TREATMENT AND MONITORING STATUS - CHECK THIS FIRST! 🚨
+═══════════════════════════════════════════════════════════════════════════════
+
+CKD Treatment Status: ${treatmentStatus}
+Home Monitoring Status: ${monitoringStatus}
+
+IMPORTANT:
+- If Treatment Status shows "Active", patient IS currently on CKD treatment
+  → Recommend: "Continue current treatment" or "Optimize therapy"
+  → NEVER recommend: "Initiate treatment" or say "not on treatment"
+
+- If Treatment Status shows "NOT ON TREATMENT", patient is NOT on CKD treatment
+  → Recommend: "Initiate treatment" with specific medications
+  → NEVER recommend: "Continue treatment" or "Maintain therapy"
+
+- If Monitoring Status shows "Active", patient IS using home monitoring device
+  → Acknowledge this in recommendations
+  → NEVER recommend: "Initiate home monitoring" or "Start Minuteful Kidney"
+
+- If Monitoring Status shows "NOT ON MONITORING", patient is NOT on home monitoring
+  → Recommend: "Initiate home monitoring" if appropriate
+  → NEVER recommend: "Continue home monitoring"
+
+═══════════════════════════════════════════════════════════════════════════════
 
 Comorbidities:
 - Diabetes: ${patient.has_diabetes ? 'Yes' : 'No'}
@@ -350,7 +427,7 @@ Comorbidities:
 - CVD History: ${patient.cvd_history ? 'Yes' : 'No'}
 - Family History of ESRD: ${patient.family_history_esrd ? 'Yes' : 'No'}
 
-Current Medications:
+Current Medications (Individual Flags):
 - RAS Inhibitor: ${patient.on_ras_inhibitor ? 'Yes' : 'No'}
 - SGLT2 Inhibitor: ${patient.on_sglt2i ? 'Yes' : 'No'}
 - Nephrotoxic Medications: ${patient.nephrotoxic_meds || 'None'}
