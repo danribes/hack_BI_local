@@ -1146,88 +1146,95 @@ function App() {
                         <svg className="h-4 w-4 mr-2 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                         </svg>
-                        Why This Patient Is At {selectedPatient.risk_category}
+                        Why This Patient Is Classified As Non-CKD {selectedPatient.kdigo_classification.risk_level === 'low' ? 'Low Risk' : selectedPatient.kdigo_classification.risk_level === 'moderate' ? 'Moderate Risk' : 'High Risk'}
                       </h3>
                       <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
-                        <p className="text-sm text-gray-700 mb-3">
-                          This patient does not currently have chronic kidney disease but is at elevated risk due to the following factors:
-                        </p>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                          {/* Comorbidities */}
-                          {selectedPatient.has_diabetes && (
-                            <div className="flex items-start space-x-2 text-sm">
-                              <svg className="h-4 w-4 text-red-600 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                              </svg>
-                              <span className="text-gray-700">Diabetes (major kidney disease risk factor)</span>
+                        {(selectedPatient.has_diabetes || selectedPatient.has_hypertension || selectedPatient.has_heart_failure ||
+                          selectedPatient.has_cad || selectedPatient.cvd_history || selectedPatient.family_history_esrd ||
+                          (selectedPatient.smoking_status && selectedPatient.smoking_status.toLowerCase() !== 'never') ||
+                          selectedPatient.has_obesity) ? (
+                          <>
+                            <p className="text-sm text-gray-700 mb-3">
+                              This patient does not currently have chronic kidney disease but is at elevated risk due to the following factors:
+                            </p>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                              {/* Comorbidities */}
+                              {selectedPatient.has_diabetes && (
+                                <div className="flex items-start space-x-2 text-sm">
+                                  <svg className="h-4 w-4 text-red-600 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                                  </svg>
+                                  <span className="text-gray-700">Diabetes (major kidney disease risk factor)</span>
+                                </div>
+                              )}
+                              {selectedPatient.has_hypertension && (
+                                <div className="flex items-start space-x-2 text-sm">
+                                  <svg className="h-4 w-4 text-red-600 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                                  </svg>
+                                  <span className="text-gray-700">Hypertension (can damage kidney function)</span>
+                                </div>
+                              )}
+                              {selectedPatient.has_heart_failure && (
+                                <div className="flex items-start space-x-2 text-sm">
+                                  <svg className="h-4 w-4 text-red-600 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                                  </svg>
+                                  <span className="text-gray-700">Heart failure (cardiorenal syndrome)</span>
+                                </div>
+                              )}
+                              {selectedPatient.has_cad && (
+                                <div className="flex items-start space-x-2 text-sm">
+                                  <svg className="h-4 w-4 text-red-600 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                                  </svg>
+                                  <span className="text-gray-700">Coronary artery disease</span>
+                                </div>
+                              )}
+                              {selectedPatient.cvd_history && (
+                                <div className="flex items-start space-x-2 text-sm">
+                                  <svg className="h-4 w-4 text-red-600 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                                  </svg>
+                                  <span className="text-gray-700">Cardiovascular disease history</span>
+                                </div>
+                              )}
+                              {selectedPatient.family_history_esrd && (
+                                <div className="flex items-start space-x-2 text-sm">
+                                  <svg className="h-4 w-4 text-orange-600 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                                  </svg>
+                                  <span className="text-gray-700">Family history of kidney failure (genetic risk)</span>
+                                </div>
+                              )}
+                              {selectedPatient.smoking_status && selectedPatient.smoking_status.toLowerCase() !== 'never' && (
+                                <div className="flex items-start space-x-2 text-sm">
+                                  <svg className="h-4 w-4 text-orange-600 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                                  </svg>
+                                  <span className="text-gray-700">Smoking ({selectedPatient.smoking_status})</span>
+                                </div>
+                              )}
+                              {selectedPatient.has_obesity && (
+                                <div className="flex items-start space-x-2 text-sm">
+                                  <svg className="h-4 w-4 text-orange-600 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                                  </svg>
+                                  <span className="text-gray-700">Obesity (BMI {selectedPatient.bmi ? selectedPatient.bmi.toFixed(1) : 'N/A'})</span>
+                                </div>
+                              )}
                             </div>
-                          )}
-                          {selectedPatient.has_hypertension && (
-                            <div className="flex items-start space-x-2 text-sm">
-                              <svg className="h-4 w-4 text-red-600 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                              </svg>
-                              <span className="text-gray-700">Hypertension (can damage kidney function)</span>
-                            </div>
-                          )}
-                          {selectedPatient.has_heart_failure && (
-                            <div className="flex items-start space-x-2 text-sm">
-                              <svg className="h-4 w-4 text-red-600 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                              </svg>
-                              <span className="text-gray-700">Heart failure (cardiorenal syndrome)</span>
-                            </div>
-                          )}
-                          {selectedPatient.has_cad && (
-                            <div className="flex items-start space-x-2 text-sm">
-                              <svg className="h-4 w-4 text-red-600 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                              </svg>
-                              <span className="text-gray-700">Coronary artery disease</span>
-                            </div>
-                          )}
-                          {selectedPatient.cvd_history && (
-                            <div className="flex items-start space-x-2 text-sm">
-                              <svg className="h-4 w-4 text-red-600 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                              </svg>
-                              <span className="text-gray-700">Cardiovascular disease history</span>
-                            </div>
-                          )}
-                          {selectedPatient.family_history_esrd && (
-                            <div className="flex items-start space-x-2 text-sm">
-                              <svg className="h-4 w-4 text-orange-600 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                              </svg>
-                              <span className="text-gray-700">Family history of kidney failure (genetic risk)</span>
-                            </div>
-                          )}
-                          {selectedPatient.smoking_status && selectedPatient.smoking_status !== 'never' && (
-                            <div className="flex items-start space-x-2 text-sm">
-                              <svg className="h-4 w-4 text-orange-600 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                              </svg>
-                              <span className="text-gray-700">Smoking ({selectedPatient.smoking_status})</span>
-                            </div>
-                          )}
-                          {selectedPatient.has_obesity && (
-                            <div className="flex items-start space-x-2 text-sm">
-                              <svg className="h-4 w-4 text-orange-600 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                              </svg>
-                              <span className="text-gray-700">Obesity (BMI {selectedPatient.bmi ? selectedPatient.bmi.toFixed(1) : 'N/A'})</span>
-                            </div>
-                          )}
-                          {(!selectedPatient.has_diabetes && !selectedPatient.has_hypertension && !selectedPatient.has_heart_failure &&
-                            !selectedPatient.has_cad && !selectedPatient.cvd_history && !selectedPatient.family_history_esrd) && (
-                            <div className="flex items-start space-x-2 text-sm col-span-2">
-                              <svg className="h-4 w-4 text-blue-600 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-                              </svg>
-                              <span className="text-gray-700 italic">Risk assessment based on age, lab values, and clinical presentation. Regular monitoring recommended.</span>
-                            </div>
-                          )}
-                        </div>
+                          </>
+                        ) : (
+                          <div className="flex items-start space-x-2 text-sm">
+                            <svg className="h-4 w-4 text-blue-600 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                            </svg>
+                            <span className="text-gray-700">
+                              This patient does not currently have chronic kidney disease. Risk assessment based on age, lab values, and clinical presentation. Regular monitoring recommended.
+                            </span>
+                          </div>
+                        )}
                       </div>
                     </div>
                   )}
