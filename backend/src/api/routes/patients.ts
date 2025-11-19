@@ -1532,4 +1532,61 @@ router.post('/:id/reset-records', async (req: Request, res: Response): Promise<a
   }
 });
 
+/**
+ * Reset all patients to original state
+ * POST /api/patients/reset-all
+ * Removes all generated observations (month_number > 1) and comments for ALL patients
+ */
+router.post('/reset-all', async (req: Request, res: Response): Promise<any> => {
+  try {
+    const pool = getPool();
+
+    console.log('[Reset All] Starting database-wide patient reset...');
+
+    // Delete all observations with month_number > 1 (keeping only original baseline data)
+    const deleteObsResult = await pool.query(`
+      DELETE FROM observations
+      WHERE month_number > 1
+    `);
+
+    // Delete all health state comments (all of them, since they're all generated)
+    const deleteCommentsResult = await pool.query(`
+      DELETE FROM patient_health_state_comments
+    `);
+
+    // Reset patient health states to their baseline (based on month 1 observations)
+    // This ensures the UI shows correct initial state
+    await pool.query(`
+      UPDATE patients p
+      SET
+        updated_at = NOW()
+      WHERE EXISTS (
+        SELECT 1 FROM observations o
+        WHERE o.patient_id = p.id AND o.month_number = 1
+      )
+    `);
+
+    console.log('[Reset All] Database-wide reset completed:');
+    console.log(`  - Deleted ${deleteObsResult.rowCount} generated observations (month > 1)`);
+    console.log(`  - Deleted ${deleteCommentsResult.rowCount} health state comments`);
+    console.log('  - All patients reset to original baseline state');
+
+    res.json({
+      status: 'success',
+      message: 'All patient records reset to original state successfully',
+      deleted_observations: deleteObsResult.rowCount,
+      deleted_comments: deleteCommentsResult.rowCount,
+      description: 'All patients have been reset to their original baseline. You can now simulate patient evolution from scratch.'
+    });
+
+  } catch (error) {
+    console.error('[Reset All] Error resetting all patient records:', error);
+    res.status(500).json({
+      status: 'error',
+      message: 'Failed to reset all patient records',
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
 export default router;

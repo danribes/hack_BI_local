@@ -12,9 +12,10 @@ interface FilterProps {
     healthStateChangeType: 'any' | 'improved' | 'worsened';
   };
   onFilterChange: (filters: any) => void;
+  onResetAll?: () => void;
 }
 
-const PatientFilters: FC<FilterProps> = ({ statistics, activeFilters, onFilterChange }) => {
+const PatientFilters: FC<FilterProps> = ({ statistics, activeFilters, onFilterChange, onResetAll }) => {
   if (!statistics) return null;
 
   const { ckd, non_ckd, total_patients, health_state_changes } = statistics;
@@ -155,6 +156,20 @@ const PatientFilters: FC<FilterProps> = ({ statistics, activeFilters, onFilterCh
               <span>Recent Health State Changes</span>
             </div>
           </button>
+          {onResetAll && (
+            <button
+              onClick={onResetAll}
+              className="px-4 py-2 rounded-lg font-medium text-sm transition-all bg-red-600 text-white hover:bg-red-700 shadow-md hover:shadow-lg"
+              title="Reset all patients to original baseline state (removes all updates and comments)"
+            >
+              <div className="flex items-center gap-2">
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                <span>Reset All Patients</span>
+              </div>
+            </button>
+          )}
         </div>
       </div>
 

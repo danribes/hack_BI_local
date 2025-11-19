@@ -344,6 +344,53 @@ function App() {
     }
   };
 
+  const handleResetAll = async () => {
+    if (!window.confirm('⚠️ WARNING: This will reset ALL patients to their original baseline state, removing all updates and comments. Are you sure you want to continue?')) {
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/patients/reset-all`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to reset all patients');
+      }
+
+      const result = await response.json();
+      console.log('[Reset All] Success:', result);
+
+      // Show success message
+      alert(`✅ Success!\n\nAll patients have been reset to their original baseline.\n\nDeleted:\n- ${result.deleted_observations} generated observations\n- ${result.deleted_comments} comments\n\nYou can now simulate patient evolution from scratch.`);
+
+      // Refresh the patient list and statistics
+      await fetchPatients();
+      await fetchStatistics();
+
+      // Reset to "All Patients" filter
+      setActiveFilters({
+        patientType: 'all',
+        ckdSeverity: null,
+        ckdTreatment: null,
+        nonCkdRisk: null,
+        nonCkdMonitoring: null,
+        healthStateChangeDays: 30,
+        healthStateChangeType: 'any'
+      });
+
+    } catch (error) {
+      console.error('Error resetting all patients:', error);
+      alert('❌ Error: Failed to reset all patients. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const fetchPatientDetail = async (patientId: string) => {
     try {
       setLoadingDetail(true);
@@ -2239,7 +2286,7 @@ function App() {
           <div className="flex items-center justify-between mb-4">
             <div className="flex-1 text-center">
               <h1 className="text-5xl font-bold text-gray-900 mb-2">
-                Healthcare AI
+                RenalGuard AI
               </h1>
               <p className="text-xl text-gray-600">
                 Patient Database
@@ -2255,6 +2302,7 @@ function App() {
               statistics={statistics}
               activeFilters={activeFilters}
               onFilterChange={handleFilterChange}
+              onResetAll={handleResetAll}
             />
           </div>
         )}
@@ -2552,7 +2600,7 @@ function App() {
 
         {/* Footer */}
         <footer className="mt-12 text-center text-gray-600 text-sm">
-          <p>Healthcare AI Clinical Data Analyzer</p>
+          <p>RenalGuard AI Clinical Data Analyzer</p>
         </footer>
       </div>
 
