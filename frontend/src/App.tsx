@@ -20,6 +20,12 @@ interface KDIGOClassification {
   recommend_sglt2i: boolean;
   target_bp: string;
   monitoring_frequency: string;
+  // SCORED assessment (for non-CKD patients)
+  scored_points?: number;
+  scored_risk_level?: 'low' | 'high';
+  // Framingham assessment (for non-CKD patients)
+  framingham_risk_percentage?: number;
+  framingham_risk_level?: 'low' | 'moderate' | 'high';
 }
 
 interface Patient {
@@ -1139,102 +1145,148 @@ function App() {
                     </>
                   )}
 
-                  {/* For Non-CKD Patients: Risk Factors Explanation */}
+                  {/* For Non-CKD Patients: Dual Risk Assessment (SCORED + Framingham) */}
                   {!selectedPatient.kdigo_classification.has_ckd && (
                     <div className="mb-6">
-                      <h3 className="text-sm font-bold text-gray-700 mb-3 flex items-center">
-                        <svg className="h-4 w-4 mr-2 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                        </svg>
-                        Why This Patient Is Classified As Non-CKD {selectedPatient.kdigo_classification.risk_level === 'low' ? 'Low Risk' : selectedPatient.kdigo_classification.risk_level === 'moderate' ? 'Moderate Risk' : 'High Risk'}
-                      </h3>
-                      <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
-                        {(selectedPatient.has_diabetes || selectedPatient.has_hypertension || selectedPatient.has_heart_failure ||
-                          selectedPatient.has_cad || selectedPatient.cvd_history || selectedPatient.family_history_esrd ||
-                          (selectedPatient.smoking_status && selectedPatient.smoking_status.toLowerCase() !== 'never') ||
-                          selectedPatient.has_obesity) ? (
-                          <>
-                            <p className="text-sm text-gray-700 mb-3">
-                              This patient does not currently have chronic kidney disease but is at elevated risk due to the following factors:
-                            </p>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                              {/* Comorbidities */}
-                              {selectedPatient.has_diabetes && (
-                                <div className="flex items-start space-x-2 text-sm">
-                                  <svg className="h-4 w-4 text-red-600 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                                  </svg>
-                                  <span className="text-gray-700">Diabetes (major kidney disease risk factor)</span>
-                                </div>
-                              )}
-                              {selectedPatient.has_hypertension && (
-                                <div className="flex items-start space-x-2 text-sm">
-                                  <svg className="h-4 w-4 text-red-600 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                                  </svg>
-                                  <span className="text-gray-700">Hypertension (can damage kidney function)</span>
-                                </div>
-                              )}
-                              {selectedPatient.has_heart_failure && (
-                                <div className="flex items-start space-x-2 text-sm">
-                                  <svg className="h-4 w-4 text-red-600 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                                  </svg>
-                                  <span className="text-gray-700">Heart failure (cardiorenal syndrome)</span>
-                                </div>
-                              )}
-                              {selectedPatient.has_cad && (
-                                <div className="flex items-start space-x-2 text-sm">
-                                  <svg className="h-4 w-4 text-red-600 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                                  </svg>
-                                  <span className="text-gray-700">Coronary artery disease</span>
-                                </div>
-                              )}
-                              {selectedPatient.cvd_history && (
-                                <div className="flex items-start space-x-2 text-sm">
-                                  <svg className="h-4 w-4 text-red-600 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                                  </svg>
-                                  <span className="text-gray-700">Cardiovascular disease history</span>
-                                </div>
-                              )}
-                              {selectedPatient.family_history_esrd && (
-                                <div className="flex items-start space-x-2 text-sm">
-                                  <svg className="h-4 w-4 text-orange-600 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                                  </svg>
-                                  <span className="text-gray-700">Family history of kidney failure (genetic risk)</span>
-                                </div>
-                              )}
-                              {selectedPatient.smoking_status && selectedPatient.smoking_status.toLowerCase() !== 'never' && (
-                                <div className="flex items-start space-x-2 text-sm">
-                                  <svg className="h-4 w-4 text-orange-600 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                                  </svg>
-                                  <span className="text-gray-700">Smoking ({selectedPatient.smoking_status})</span>
-                                </div>
-                              )}
-                              {selectedPatient.has_obesity && (
-                                <div className="flex items-start space-x-2 text-sm">
-                                  <svg className="h-4 w-4 text-orange-600 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                                  </svg>
-                                  <span className="text-gray-700">Obesity (BMI {selectedPatient.bmi ? selectedPatient.bmi.toFixed(1) : 'N/A'})</span>
-                                </div>
-                              )}
-                            </div>
-                          </>
-                        ) : (
-                          <div className="flex items-start space-x-2 text-sm">
-                            <svg className="h-4 w-4 text-blue-600 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                              <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-                            </svg>
-                            <span className="text-gray-700">
-                              This patient does not currently have chronic kidney disease. Risk assessment based on age, lab values, and clinical presentation. Regular monitoring recommended.
-                            </span>
+                      {/* Explanation Banner */}
+                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+                        <div className="flex items-start space-x-2">
+                          <svg className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                          </svg>
+                          <div className="text-sm text-blue-900">
+                            <span className="font-semibold">Comprehensive Risk Assessment:</span> Non-CKD patients require dual assessment for complete clinical picture.
                           </div>
-                        )}
+                        </div>
+                      </div>
+
+                      {/* Side-by-Side: SCORED and Framingham */}
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                        {/* SCORED Model (Left) */}
+                        <div className="border-2 border-blue-300 rounded-lg overflow-hidden">
+                          <div className="bg-blue-100 px-4 py-3 border-b-2 border-blue-300">
+                            <h4 className="text-sm font-bold text-blue-900 flex items-center">
+                              <svg className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                              </svg>
+                              SCORED (Screening)
+                            </h4>
+                            <p className="text-xs text-blue-800 mt-1">Detects Current Hidden Disease</p>
+                          </div>
+                          <div className="p-4 bg-white">
+                            {selectedPatient.kdigo_classification.scored_points !== undefined ? (
+                              <>
+                                <div className="mb-3">
+                                  <div className="text-xs font-semibold text-gray-500 uppercase mb-1">Score</div>
+                                  <div className="text-2xl font-bold text-blue-900">
+                                    {selectedPatient.kdigo_classification.scored_points} points
+                                  </div>
+                                  <div className={`inline-flex items-center px-2 py-1 rounded text-xs font-semibold mt-1 ${
+                                    selectedPatient.kdigo_classification.scored_risk_level === 'high' ? 'bg-orange-100 text-orange-800' : 'bg-green-100 text-green-800'
+                                  }`}>
+                                    {selectedPatient.kdigo_classification.scored_risk_level === 'high' ? 'HIGH RISK' : 'LOW RISK'}
+                                  </div>
+                                </div>
+
+                                <div className="mb-3">
+                                  <div className="text-xs font-semibold text-gray-500 uppercase mb-2">Clinical Meaning</div>
+                                  <div className="text-sm text-gray-700">
+                                    {selectedPatient.kdigo_classification.scored_risk_level === 'high' ? (
+                                      <div className="bg-orange-50 border border-orange-200 rounded p-2">
+                                        <span className="font-semibold text-orange-900">~20% chance</span> this patient <span className="font-semibold">ALREADY has</span> undetected CKD
+                                      </div>
+                                    ) : (
+                                      <div className="bg-green-50 border border-green-200 rounded p-2">
+                                        <span className="font-semibold text-green-900">Low probability</span> of hidden kidney disease
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+
+                                <div className="mb-3">
+                                  <div className="text-xs font-semibold text-gray-500 uppercase mb-2">Action Required</div>
+                                  <div className="text-sm text-gray-700">
+                                    {selectedPatient.kdigo_classification.scored_risk_level === 'high' ? (
+                                      <span className="text-orange-900 font-medium">Order screening NOW (eGFR + uACR)</span>
+                                    ) : (
+                                      <span>Routine annual screening</span>
+                                    )}
+                                  </div>
+                                </div>
+                              </>
+                            ) : (
+                              <div className="text-sm text-gray-500 italic">SCORED data not available</div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Framingham Model (Right) */}
+                        <div className="border-2 border-purple-300 rounded-lg overflow-hidden">
+                          <div className="bg-purple-100 px-4 py-3 border-b-2 border-purple-300">
+                            <h4 className="text-sm font-bold text-purple-900 flex items-center">
+                              <svg className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                              </svg>
+                              Framingham (Prediction)
+                            </h4>
+                            <p className="text-xs text-purple-800 mt-1">Predicts Future 10-Year Risk</p>
+                          </div>
+                          <div className="p-4 bg-white">
+                            {selectedPatient.kdigo_classification.framingham_risk_percentage !== undefined ? (
+                              <>
+                                <div className="mb-3">
+                                  <div className="text-xs font-semibold text-gray-500 uppercase mb-1">10-Year Risk</div>
+                                  <div className="text-2xl font-bold text-purple-900">
+                                    {selectedPatient.kdigo_classification.framingham_risk_percentage.toFixed(1)}%
+                                  </div>
+                                  <div className={`inline-flex items-center px-2 py-1 rounded text-xs font-semibold mt-1 ${
+                                    selectedPatient.kdigo_classification.framingham_risk_level === 'high' ? 'bg-red-100 text-red-800' :
+                                    selectedPatient.kdigo_classification.framingham_risk_level === 'moderate' ? 'bg-yellow-100 text-yellow-800' :
+                                    'bg-green-100 text-green-800'
+                                  }`}>
+                                    {selectedPatient.kdigo_classification.framingham_risk_level === 'high' ? 'HIGH RISK' :
+                                     selectedPatient.kdigo_classification.framingham_risk_level === 'moderate' ? 'MODERATE RISK' :
+                                     'LOW RISK'}
+                                  </div>
+                                </div>
+
+                                <div className="mb-3">
+                                  <div className="text-xs font-semibold text-gray-500 uppercase mb-2">Clinical Meaning</div>
+                                  <div className="text-sm text-gray-700">
+                                    {selectedPatient.kdigo_classification.framingham_risk_level === 'high' ? (
+                                      <div className="bg-red-50 border border-red-200 rounded p-2">
+                                        <span className="font-semibold text-red-900">High likelihood</span> of developing CKD within 10 years
+                                      </div>
+                                    ) : selectedPatient.kdigo_classification.framingham_risk_level === 'moderate' ? (
+                                      <div className="bg-yellow-50 border border-yellow-200 rounded p-2">
+                                        <span className="font-semibold text-yellow-900">Moderate risk</span> requires enhanced monitoring
+                                      </div>
+                                    ) : (
+                                      <div className="bg-green-50 border border-green-200 rounded p-2">
+                                        <span className="font-semibold text-green-900">Low probability</span> of future CKD
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+
+                                <div className="mb-3">
+                                  <div className="text-xs font-semibold text-gray-500 uppercase mb-2">Action Required</div>
+                                  <div className="text-sm text-gray-700">
+                                    {selectedPatient.kdigo_classification.framingham_risk_level === 'high' ? (
+                                      <span className="text-red-900 font-medium">Aggressive prevention NOW (SGLT2i, strict BP control)</span>
+                                    ) : selectedPatient.kdigo_classification.framingham_risk_level === 'moderate' ? (
+                                      <span className="text-yellow-900 font-medium">Strict risk factor modification</span>
+                                    ) : (
+                                      <span>Standard preventive care</span>
+                                    )}
+                                  </div>
+                                </div>
+                              </>
+                            ) : (
+                              <div className="text-sm text-gray-500 italic">Framingham data not available</div>
+                            )}
+                          </div>
+                        </div>
                       </div>
                     </div>
                   )}
