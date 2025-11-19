@@ -81,6 +81,9 @@ interface PatientContext {
   // MCP Comprehensive Analyses (baseline and post-update)
   mcpBaselineAnalysis?: any;
   mcpPostUpdateAnalysis?: any;
+  // MCP Error Messages (if MCP analysis failed)
+  mcpBaselineError?: string;
+  mcpPostUpdateError?: string;
 }
 
 interface AIAnalysisResult {
@@ -605,7 +608,35 @@ This patient has improved from CKD to Non-CKD status this cycle. This is excelle
 
     // Build comprehensive MCP analysis section
     let mcpComprehensiveSection = '';
-    if (context.mcpBaselineAnalysis && context.mcpPostUpdateAnalysis) {
+
+    // Check if MCP analysis failed and provide error information
+    if (context.mcpBaselineError || context.mcpPostUpdateError) {
+      mcpComprehensiveSection = `
+═══════════════════════════════════════════════════════════════════════════════
+⚠️ MCP CLINICAL DECISION SUPPORT UNAVAILABLE ⚠️
+═══════════════════════════════════════════════════════════════════════════════
+
+**SYSTEM ERROR:** MCP comprehensive analysis could not be completed.
+
+${context.mcpBaselineError ? `**Baseline Analysis Error:** ${context.mcpBaselineError}\n` : ''}
+${context.mcpPostUpdateError ? `**Post-Update Analysis Error:** ${context.mcpPostUpdateError}\n` : ''}
+
+**IMPACT:** The following advanced clinical decision support features are unavailable:
+- Evidence-based treatment recommendations (Jardiance/SGLT2i, RAS inhibitors)
+- Minuteful Kidney home monitoring eligibility
+- Medication safety assessments and dose adjustments
+- Protocol adherence tracking
+- Comprehensive risk stratification
+
+**YOUR TASK:**
+- Provide analysis based on lab values and KDIGO guidelines only
+- Include a clear notice to the user about the MCP system being temporarily unavailable
+- Recommend manual review by healthcare provider for treatment decisions
+- Base recommendations on standard KDIGO protocols
+
+═══════════════════════════════════════════════════════════════════════════════
+`;
+    } else if (context.mcpBaselineAnalysis && context.mcpPostUpdateAnalysis) {
       mcpComprehensiveSection = `
 ═══════════════════════════════════════════════════════════════════════════════
 🔬 MCP COMPREHENSIVE CLINICAL DECISION SUPPORT ANALYSIS 🔬

@@ -1133,6 +1133,7 @@ router.post('/:id/update-records', async (req: Request, res: Response): Promise<
     console.log(`${'='.repeat(80)}\n`);
 
     let baselineAnalysis = null;
+    let mcpBaselineError: string | null = null;
     try {
       const mcpClient = await getMCPClient();
       console.log('[MCP Baseline] Fetching comprehensive baseline analysis...');
@@ -1142,7 +1143,11 @@ router.post('/:id/update-records', async (req: Request, res: Response): Promise<
       console.log('[MCP Baseline] CKD Status:', baselineAnalysis?.patient_summary?.has_ckd ? 'Yes' : 'No');
       console.log('[MCP Baseline] Risk Level:', baselineAnalysis?.patient_summary?.risk_level || 'Unknown');
     } catch (mcpError) {
-      console.error('[MCP Baseline] ⚠️  Error fetching baseline analysis:', mcpError);
+      const errorMessage = mcpError instanceof Error ? mcpError.message : String(mcpError);
+      const errorStack = mcpError instanceof Error ? mcpError.stack : '';
+      mcpBaselineError = errorMessage;
+      console.error('[MCP Baseline] ⚠️  Error fetching baseline analysis:', errorMessage);
+      console.error('[MCP Baseline] Error details:', errorStack);
       console.log('[MCP Baseline] Continuing without baseline analysis...');
       // Don't fail the update if MCP baseline fails
     }
@@ -1517,6 +1522,7 @@ Provide ONLY the JSON object, nothing else.`;
     console.log(`${'='.repeat(80)}\n`);
 
     let postUpdateAnalysis = null;
+    let mcpPostUpdateError: string | null = null;
     try {
       const mcpClient = await getMCPClient();
       console.log('[MCP Post-Update] Fetching comprehensive post-update analysis...');
@@ -1553,7 +1559,11 @@ Provide ONLY the JSON object, nothing else.`;
         console.log('');
       }
     } catch (mcpError) {
-      console.error('[MCP Post-Update] ⚠️  Error fetching post-update analysis:', mcpError);
+      const errorMessage = mcpError instanceof Error ? mcpError.message : String(mcpError);
+      const errorStack = mcpError instanceof Error ? mcpError.stack : '';
+      mcpPostUpdateError = errorMessage;
+      console.error('[MCP Post-Update] ⚠️  Error fetching post-update analysis:', errorMessage);
+      console.error('[MCP Post-Update] Error details:', errorStack);
       console.log('[MCP Post-Update] Continuing without post-update analysis...');
       // Don't fail the update if MCP post-update fails
     }
@@ -1665,6 +1675,8 @@ Provide ONLY the JSON object, nothing else.`;
         // - Protocol adherence tracking
         mcpBaselineAnalysis: baselineAnalysis || undefined,
         mcpPostUpdateAnalysis: postUpdateAnalysis || undefined,
+        mcpBaselineError: mcpBaselineError || undefined,
+        mcpPostUpdateError: mcpPostUpdateError || undefined,
       };
 
       // Call AI analysis service - now always generates a comment
