@@ -3,6 +3,7 @@ import { getPool } from '../../config/database';
 import { classifyKDIGO, classifyKDIGOWithSCORED, calculateSCORED, calculateFramingham, getRiskCategoryLabel, getCKDSeverity } from '../../utils/kdigo';
 import { HealthStateCommentService } from '../../services/healthStateCommentService';
 import { AIUpdateAnalysisService } from '../../services/aiUpdateAnalysisService';
+import { EmailService } from '../../services/emailService';
 
 const router = Router();
 
@@ -1436,7 +1437,7 @@ Provide ONLY the JSON object, nothing else.`;
         firstName: patient.first_name,
         lastName: patient.last_name,
         age,
-        isCkd: hasCKD,
+        isCkd: currentHasCKD,  // FIXED: Use current CKD status, not previous
         currentHealthState: newHealthState,
         previousHealthState: previousHealthState || undefined,
         treatmentActive: isTreated,
@@ -1445,6 +1446,9 @@ Provide ONLY the JSON object, nothing else.`;
         monitoringDevice: patient.home_monitoring_device,
         cycleNumber: nextMonthNumber,
         previousCycleNumber: nextMonthNumber - 1,
+        // CKD status transition information
+        hasTransitioned,
+        transitionType: hasTransitioned ? (currentHasCKD ? 'non-ckd-to-ckd' as const : 'ckd-to-non-ckd' as const) : undefined,
         // Include KDIGO clinical recommendations to guide AI analysis
         recommendRasInhibitor: newKdigoClassification.recommend_ras_inhibitor,
         recommendSglt2i: newKdigoClassification.recommend_sglt2i,
@@ -1452,16 +1456,16 @@ Provide ONLY the JSON object, nothing else.`;
         riskLevel: newKdigoClassification.risk_level,
         gfrCategory: newKdigoClassification.gfr_category,
         albuminuriaCategory: newKdigoClassification.albuminuria_category,
-        // Include SCORED assessment data for non-CKD patients
-        scored_points: !hasCKD ? newKdigoClassification.scored_points : undefined,
-        scored_risk_level: !hasCKD ? newKdigoClassification.scored_risk_level : undefined,
-        scored_components: !hasCKD && newKdigoClassification.scored_points !== undefined
+        // Include SCORED assessment data for non-CKD patients (use NEW status)
+        scored_points: !currentHasCKD ? newKdigoClassification.scored_points : undefined,
+        scored_risk_level: !currentHasCKD ? newKdigoClassification.scored_risk_level : undefined,
+        scored_components: !currentHasCKD && newKdigoClassification.scored_points !== undefined
           ? calculateSCORED(demographics, generatedValues.uACR).components
           : undefined,
-        // Include Framingham assessment data for non-CKD patients
-        framingham_risk_percentage: !hasCKD ? newKdigoClassification.framingham_risk_percentage : undefined,
-        framingham_risk_level: !hasCKD ? newKdigoClassification.framingham_risk_level : undefined,
-        framingham_components: !hasCKD && newKdigoClassification.framingham_risk_percentage !== undefined
+        // Include Framingham assessment data for non-CKD patients (use NEW status)
+        framingham_risk_percentage: !currentHasCKD ? newKdigoClassification.framingham_risk_percentage : undefined,
+        framingham_risk_level: !currentHasCKD ? newKdigoClassification.framingham_risk_level : undefined,
+        framingham_components: !currentHasCKD && newKdigoClassification.framingham_risk_percentage !== undefined
           ? calculateFramingham(demographics, generatedValues.uACR).components
           : undefined,
         // Include demographics and comorbidities for context
@@ -1491,6 +1495,52 @@ Provide ONLY the JSON object, nothing else.`;
       );
 
       console.log(`✓ AI update analysis comment created: ${aiCommentId}`);
+
+      // Send email notification if CKD status transition occurred
+      if (hasTransitioned) {
+        try {
+          console.log(`[Patient Update] 📧 Sending email notification for CKD status transition...`);
+          const emailService = new EmailService(pool);
+
+          const transitionMessage = currentHasCKD
+            ? `Patient ${patient.first_name} ${patient.last_name} has transitioned from Non-CKD to CKD status.\n\n` +
+              `New Classification: ${newKdigoClassification.ckd_stage_name} (${newHealthState})\n` +
+              `Risk Level: ${newKdigoClassification.risk_level}\n\n` +
+              `Latest Lab Values:\n` +
+              `- eGFR: ${generatedValues.eGFR.toFixed(1)} mL/min/1.73m²\n` +
+              `- uACR: ${generatedValues.uACR.toFixed(1)} mg/g\n\n` +
+              `Clinical Recommendations:\n` +
+              `${newKdigoClassification.recommend_ras_inhibitor ? '- RAS Inhibitor (ACE-I/ARB) recommended\n' : ''}` +
+              `${newKdigoClassification.recommend_sglt2i ? '- SGLT2 Inhibitor recommended\n' : ''}` +
+              `${newKdigoClassification.requires_nephrology_referral ? '- Nephrology referral required\n' : ''}` +
+              `- Target BP: ${newKdigoClassification.target_bp}\n` +
+              `- Monitoring Frequency: ${newKdigoClassification.monitoring_frequency}\n\n` +
+              `Please review the patient's record for detailed AI analysis and recommendations.`
+            : `Patient ${patient.first_name} ${patient.last_name} has transitioned from CKD to Non-CKD status.\n\n` +
+              `Previous Classification: ${kdigoClassification.ckd_stage_name}\n` +
+              `New Status: Non-CKD (${newHealthState})\n\n` +
+              `Latest Lab Values:\n` +
+              `- eGFR: ${generatedValues.eGFR.toFixed(1)} mL/min/1.73m²\n` +
+              `- uACR: ${generatedValues.uACR.toFixed(1)} mg/g\n\n` +
+              `This indicates improvement in kidney function. Continue monitoring per guidelines.`;
+
+          await emailService.sendNotification({
+            to: '', // Will use doctor_email from config
+            subject: currentHasCKD
+              ? `🚨 CRITICAL: Patient Transitioned to CKD Status - ${patient.first_name} ${patient.last_name}`
+              : `✅ Patient Improved: Transitioned from CKD to Non-CKD - ${patient.first_name} ${patient.last_name}`,
+            message: transitionMessage,
+            priority: currentHasCKD ? 'CRITICAL' : 'MODERATE',
+            patientName: `${patient.first_name} ${patient.last_name}`,
+            mrn: patient.medical_record_number
+          });
+
+          console.log(`✓ Email notification sent for CKD status transition`);
+        } catch (emailError) {
+          console.error('[Patient Update] Error sending email notification:', emailError);
+          // Don't fail the update if email fails
+        }
+      }
     } catch (aiError) {
       console.error('[Patient Update] Error generating AI update analysis:', aiError);
 

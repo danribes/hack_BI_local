@@ -50,6 +50,9 @@ interface PatientContext {
   monitoringDevice?: string;
   cycleNumber: number;
   previousCycleNumber?: number;
+  // CKD status transition
+  hasTransitioned?: boolean;
+  transitionType?: 'non-ckd-to-ckd' | 'ckd-to-non-ckd';
   // KDIGO clinical recommendations
   recommendRasInhibitor?: boolean;
   recommendSglt2i?: boolean;
@@ -533,6 +536,70 @@ export class AIUpdateAnalysisService {
       riskAssessmentSection += framinghamSection;
     }
 
+    // Build CKD transition alert if applicable
+    let transitionAlert = '';
+    if (context.hasTransitioned && context.transitionType) {
+      if (context.transitionType === 'non-ckd-to-ckd') {
+        transitionAlert = `
+═══════════════════════════════════════════════════════════════════════════════
+🚨 CRITICAL ALERT: CKD STATUS TRANSITION DETECTED 🚨
+═══════════════════════════════════════════════════════════════════════════════
+
+**TRANSITION TYPE:** NON-CKD → CKD
+
+This patient has transitioned from Non-CKD to CKD status this cycle. This is a CRITICAL clinical event requiring:
+
+1. **IMMEDIATE ACKNOWLEDGMENT:** Your clinical summary MUST start with: "🚨 CRITICAL: Patient has transitioned to CKD status..."
+2. **SEVERITY LEVEL:** Set severity to "critical" and concernLevel to "high"
+3. **COMPREHENSIVE ASSESSMENT:**
+   - Explain WHY the transition occurred (which lab values crossed thresholds)
+   - Identify the new CKD stage and KDIGO classification
+   - State the clinical implications of this diagnosis
+4. **URGENT ACTIONS REQUIRED:**
+   - Initiate CKD treatment protocol if not already started
+   - RAS inhibitor (ACE-I/ARB) if albuminuria present
+   - SGLT2 inhibitor consideration per guidelines
+   - Nephrology referral if stage 3b or higher
+   - Increase monitoring frequency
+   - Patient education about new CKD diagnosis
+5. **PROGNOSIS AND MONITORING:**
+   - Discuss progression risk
+   - Set aggressive targets for BP, glucose control
+   - Emphasize importance of treatment adherence
+
+**DO NOT treat this as a routine update. This is a life-changing diagnosis for the patient.**
+
+═══════════════════════════════════════════════════════════════════════════════
+`;
+      } else if (context.transitionType === 'ckd-to-non-ckd') {
+        transitionAlert = `
+═══════════════════════════════════════════════════════════════════════════════
+✅ POSITIVE ALERT: CKD STATUS IMPROVEMENT DETECTED ✅
+═══════════════════════════════════════════════════════════════════════════════
+
+**TRANSITION TYPE:** CKD → NON-CKD
+
+This patient has improved from CKD to Non-CKD status this cycle. This is excellent news requiring:
+
+1. **ACKNOWLEDGMENT:** Your clinical summary should highlight: "✅ Excellent progress: Patient kidney function has improved to Non-CKD status..."
+2. **SEVERITY LEVEL:** Set severity to "info" and concernLevel to "none"
+3. **ASSESSMENT:**
+   - Explain the improvement (which lab values improved and how)
+   - Acknowledge the success of current management
+   - Note this doesn't mean "cured" - continued monitoring essential
+4. **CONTINUE CURRENT MANAGEMENT:**
+   - Maintain current medications that led to improvement
+   - Continue lifestyle modifications
+   - Ongoing monitoring per guidelines
+   - Prevent recurrence
+
+**This is a positive outcome but requires continued vigilance.**
+
+═══════════════════════════════════════════════════════════════════════════════
+`;
+      }
+    }
+
     return `You are an expert nephrologist analyzing patient lab value changes. Generate a concise clinical analysis of the following patient update.
 
 **Patient Context:**
@@ -547,7 +614,7 @@ export class AIUpdateAnalysisService {
 - Clinical Recommendations: ${recommendationsText}
 - Cycle: ${context.previousCycleNumber || 'N/A'} → ${context.cycleNumber}
 ${phase3Section}${riskAssessmentSection}
-
+${transitionAlert}
 **Previous Lab Values (Cycle ${context.previousCycleNumber || 'N/A'}):**
 ${this.formatLabValues(previous)}
 
