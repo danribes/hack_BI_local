@@ -1263,6 +1263,93 @@ Provide ONLY the JSON object, nothing else.`;
       console.log(`[Patient Update] 🔄 CKD STATUS TRANSITION DETECTED for patient ${id}`);
       console.log(`  Previous: ${previousHasCKD ? 'CKD' : 'Non-CKD'} → Current: ${currentHasCKD ? 'CKD' : 'Non-CKD'}`);
       console.log(`  Previous state: ${kdigoClassification.health_state} → Current state: ${newKdigoClassification.health_state}`);
+
+      // Create alert for CKD transition
+      try {
+        const transitionType = currentHasCKD ? 'non-ckd-to-ckd' : 'ckd-to-non-ckd';
+        const subject = currentHasCKD
+          ? `🚨 New CKD Diagnosis: ${patient.first_name} ${patient.last_name} (MRN: ${patient.medical_record_number})`
+          : `Positive Change: CKD Resolution for ${patient.first_name} ${patient.last_name} (MRN: ${patient.medical_record_number})`;
+
+        const message = currentHasCKD
+          ? `Patient has transitioned from high-risk non-CKD to CKD.\n\n` +
+            `New Classification: ${newKdigoClassification.health_state} (${newKdigoClassification.ckd_stage_name})\n` +
+            `Risk Level: ${newKdigoClassification.risk_level}\n` +
+            `eGFR: ${egfr.toFixed(1)} → ${generatedValues.eGFR.toFixed(1)} mL/min/1.73m²\n` +
+            `uACR: ${uacr.toFixed(1)} → ${generatedValues.uACR.toFixed(1)} mg/g\n\n` +
+            `Action Required: Review patient for CKD management protocol initiation.`
+          : `Patient has improved from CKD to non-CKD status.\n\n` +
+            `New Classification: ${newKdigoClassification.health_state}\n` +
+            `Risk Level: ${newKdigoClassification.risk_level}\n` +
+            `eGFR: ${egfr.toFixed(1)} → ${generatedValues.eGFR.toFixed(1)} mL/min/1.73m²\n` +
+            `uACR: ${uacr.toFixed(1)} → ${generatedValues.uACR.toFixed(1)} mg/g\n\n` +
+            `Continue monitoring and maintain current treatment plan.`;
+
+        const priority = currentHasCKD ? 'CRITICAL' : 'HIGH';
+        const notificationType = currentHasCKD ? 'critical_alert' : 'state_change';
+
+        const alertSummary = {
+          transition_type: transitionType,
+          previous_has_ckd: previousHasCKD,
+          current_has_ckd: currentHasCKD,
+          previous_health_state: kdigoClassification.health_state,
+          current_health_state: newKdigoClassification.health_state,
+          previous_egfr: egfr,
+          current_egfr: generatedValues.eGFR,
+          previous_uacr: uacr,
+          current_uacr: generatedValues.uACR,
+          timestamp: new Date().toISOString(),
+          cycle_number: nextMonthNumber
+        };
+
+        // Insert notification into database
+        await pool.query(`
+          INSERT INTO doctor_notifications (
+            patient_id,
+            notification_type,
+            priority,
+            subject,
+            message,
+            doctor_email,
+            doctor_name,
+            status,
+            alert_summary
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+          RETURNING id
+        `, [
+          id,
+          notificationType,
+          priority,
+          subject,
+          message,
+          'doctor@example.com',
+          'Primary Care Provider',
+          'pending',
+          JSON.stringify(alertSummary)
+        ]);
+
+        console.log(`✓ CKD transition alert created: ${subject} [${priority}]`);
+
+        // Send email notification
+        try {
+          const emailService = new EmailService(pool);
+          await emailService.sendNotification({
+            to: '', // Will be determined by email config
+            subject,
+            message,
+            priority,
+            patientName: `${patient.first_name} ${patient.last_name}`,
+            mrn: patient.medical_record_number,
+          });
+          console.log(`✓ Email notification sent for CKD transition`);
+        } catch (emailError) {
+          console.error('Failed to send email notification:', emailError);
+          // Don't fail the update if email fails
+        }
+      } catch (alertError) {
+        console.error('[Patient Update] Error creating CKD transition alert:', alertError);
+        // Don't fail the update if alert creation fails
+      }
     }
 
     // Update patient data tables with new health state
