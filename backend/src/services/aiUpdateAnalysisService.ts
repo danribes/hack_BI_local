@@ -1,6 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { Pool } from 'pg';
 import { classifyKDIGO } from '../utils/kdigo';
+import { MCPClient } from './mcpClient';
 
 interface LabValues {
   egfr?: number;
@@ -14,6 +15,25 @@ interface LabValues {
   hemoglobin?: number;
   heart_rate?: number;
   oxygen_saturation?: number;
+}
+
+interface Phase3TreatmentRecommendations {
+  jardiance?: {
+    indication: string;
+    evidence: string;
+    reasoning: string[];
+  };
+  rasInhibitor?: {
+    indication: string;
+    evidence: string;
+    reasoning: string[];
+  };
+  renalGuard?: {
+    recommended: boolean;
+    frequency: string | null;
+    rationale: string;
+    costEffectiveness: string;
+  };
 }
 
 interface PatientContext {
@@ -37,6 +57,8 @@ interface PatientContext {
   riskLevel?: 'low' | 'moderate' | 'high' | 'very_high';
   gfrCategory?: string;
   albuminuriaCategory?: string;
+  // Phase 3 treatment recommendations
+  phase3Recommendations?: Phase3TreatmentRecommendations;
 }
 
 interface AIAnalysisResult {
@@ -52,6 +74,7 @@ interface AIAnalysisResult {
 export class AIUpdateAnalysisService {
   private anthropic: Anthropic;
   private pool: Pool;
+  private mcpClient: MCPClient;
 
   constructor(pool: Pool) {
     this.pool = pool;
@@ -60,6 +83,7 @@ export class AIUpdateAnalysisService {
       throw new Error('ANTHROPIC_API_KEY environment variable is required');
     }
     this.anthropic = new Anthropic({ apiKey });
+    this.mcpClient = new MCPClient();
   }
 
   /**
@@ -78,6 +102,25 @@ export class AIUpdateAnalysisService {
 
     console.log(`[AI Analysis] Analyzing patient update (significant changes: ${hasSignificantChanges})`);
 
+    // Fetch Phase 3 treatment recommendations for CKD patients or those at risk
+    // This is CRITICAL for proper treatment and monitoring recommendations
+    if (patientContext.isCkd || (newLabValues.egfr && newLabValues.egfr < 60) ||
+        (newLabValues.uacr && newLabValues.uacr >= 30)) {
+      try {
+        console.log(`[AI Analysis] Fetching Phase 3 treatment recommendations for patient ${patientContext.patientId}`);
+        const phase3Recs = await this.fetchPhase3Recommendations(patientContext.patientId);
+        patientContext.phase3Recommendations = phase3Recs;
+        console.log(`[AI Analysis] Phase 3 recommendations:`, {
+          jardiance: phase3Recs.jardiance?.indication,
+          rasInhibitor: phase3Recs.rasInhibitor?.indication,
+          renalGuard: phase3Recs.renalGuard?.recommended ? `${phase3Recs.renalGuard.frequency}` : 'Not recommended'
+        });
+      } catch (error) {
+        console.error('[AI Analysis] Error fetching Phase 3 recommendations:', error);
+        // Continue without Phase 3 recommendations rather than failing
+      }
+    }
+
     // Always call Claude AI to analyze the changes, even for stable patients
     // This ensures that every update receives an AI-powered assessment
     const aiAnalysis = await this.generateAIAnalysis(patientContext, previousLabValues, newLabValues, changes);
@@ -86,6 +129,51 @@ export class AIUpdateAnalysisService {
     aiAnalysis.hasSignificantChanges = true;
 
     return aiAnalysis;
+  }
+
+  /**
+   * Fetches Phase 3 treatment recommendations from MCP server
+   */
+  private async fetchPhase3Recommendations(patientId: string): Promise<Phase3TreatmentRecommendations> {
+    try {
+      // Ensure MCP client is connected
+      if (!this.mcpClient) {
+        console.warn('[AI Analysis] MCP client not initialized');
+        return {};
+      }
+
+      const result = await this.mcpClient.assessTreatmentOptions(patientId);
+
+      if (!result) {
+        console.warn('[AI Analysis] Phase 3 returned no recommendations');
+        return {};
+      }
+
+      // MCP client already parses the result, so we can use it directly
+      const data = result;
+
+      return {
+        jardiance: data.jardiance ? {
+          indication: data.jardiance.indication,
+          evidence: data.jardiance.evidence,
+          reasoning: data.jardiance.reasoning || []
+        } : undefined,
+        rasInhibitor: data.rasInhibitor ? {
+          indication: data.rasInhibitor.indication,
+          evidence: data.rasInhibitor.evidence,
+          reasoning: data.rasInhibitor.reasoning || []
+        } : undefined,
+        renalGuard: data.renalGuard ? {
+          recommended: data.renalGuard.recommended,
+          frequency: data.renalGuard.frequency,
+          rationale: data.renalGuard.rationale,
+          costEffectiveness: data.renalGuard.costEffectiveness
+        } : undefined
+      };
+    } catch (error) {
+      console.error('[AI Analysis] Error in fetchPhase3Recommendations:', error);
+      return {};
+    }
   }
 
   /**
@@ -257,6 +345,45 @@ export class AIUpdateAnalysisService {
       ? clinicalRecommendations.join(', ')
       : 'Standard monitoring';
 
+    // Build Phase 3 treatment recommendations section
+    let phase3Section = '\n**Phase 3 Treatment Decision Analysis:**\n';
+    if (context.phase3Recommendations) {
+      const p3 = context.phase3Recommendations;
+
+      // Jardiance/SGLT2i recommendation
+      if (p3.jardiance) {
+        phase3Section += `\n*SGLT2 Inhibitor (Jardiance):*\n`;
+        phase3Section += `- Indication Level: ${p3.jardiance.indication}\n`;
+        phase3Section += `- Evidence: ${p3.jardiance.evidence}\n`;
+        if (p3.jardiance.reasoning && p3.jardiance.reasoning.length > 0) {
+          phase3Section += `- Reasoning: ${p3.jardiance.reasoning.join('; ')}\n`;
+        }
+      }
+
+      // RAS Inhibitor recommendation
+      if (p3.rasInhibitor) {
+        phase3Section += `\n*RAS Inhibitor (ACE-I/ARB):*\n`;
+        phase3Section += `- Indication Level: ${p3.rasInhibitor.indication}\n`;
+        phase3Section += `- Evidence: ${p3.rasInhibitor.evidence}\n`;
+        if (p3.rasInhibitor.reasoning && p3.rasInhibitor.reasoning.length > 0) {
+          phase3Section += `- Reasoning: ${p3.rasInhibitor.reasoning.join('; ')}\n`;
+        }
+      }
+
+      // RenalGuard/Minuteful Kidney monitoring
+      if (p3.renalGuard) {
+        phase3Section += `\n*Home Monitoring (Minuteful Kidney):*\n`;
+        phase3Section += `- Recommended: ${p3.renalGuard.recommended ? 'YES' : 'NO'}\n`;
+        if (p3.renalGuard.recommended) {
+          phase3Section += `- Frequency: ${p3.renalGuard.frequency || 'To be determined'}\n`;
+          phase3Section += `- Rationale: ${p3.renalGuard.rationale}\n`;
+          phase3Section += `- Cost-Effectiveness: ${p3.renalGuard.costEffectiveness}\n`;
+        }
+      }
+    } else {
+      phase3Section += 'Phase 3 analysis not available for this patient.\n';
+    }
+
     return `You are an expert nephrologist analyzing patient lab value changes. Generate a concise clinical analysis of the following patient update.
 
 **Patient Context:**
@@ -270,6 +397,7 @@ export class AIUpdateAnalysisService {
 - Monitoring Status: ${context.monitoringActive ? `Active${context.monitoringDevice ? ` (${context.monitoringDevice})` : ''}` : 'NOT ON MONITORING'}
 - Clinical Recommendations: ${recommendationsText}
 - Cycle: ${context.previousCycleNumber || 'N/A'} → ${context.cycleNumber}
+${phase3Section}
 
 **Previous Lab Values (Cycle ${context.previousCycleNumber || 'N/A'}):**
 ${this.formatLabValues(previous)}
@@ -295,7 +423,7 @@ IMPORTANT: Even if changes are minimal or the patient is stable, still provide a
 
 **CRITICAL CLINICAL GUIDELINES:**
 
-**FIRST AND MOST IMPORTANT: ALWAYS CHECK THE "Treatment Status" AND "Monitoring Status" FIELDS ABOVE BEFORE MAKING ANY RECOMMENDATIONS!**
+**FIRST AND MOST IMPORTANT: ALWAYS CHECK THE "Treatment Status", "Monitoring Status", AND "Phase 3 Treatment Decision Analysis" SECTIONS ABOVE BEFORE MAKING ANY RECOMMENDATIONS!**
 
 1. **Status Verification (CHECK THIS FIRST!):**
    - Look at "Treatment Status:" field in Patient Context section
@@ -304,6 +432,7 @@ IMPORTANT: Even if changes are minimal or the patient is stable, still provide a
    - Look at "Monitoring Status:" field in Patient Context section
      * If it says "Active (...)" → Patient IS currently being monitored
      * If it says "NOT ON MONITORING" → Patient is NOT currently being monitored
+   - Look at "Phase 3 Treatment Decision Analysis:" section for detailed treatment/monitoring recommendations
    - These fields are the ONLY source of truth for treatment/monitoring status - use them!
 
 2. **For Patients CURRENTLY ON TREATMENT (Treatment Status: Active):**
@@ -313,10 +442,15 @@ IMPORTANT: Even if changes are minimal or the patient is stable, still provide a
    - Use phrases: "continue current treatment", "optimize current therapy", "adjust current regimen", "maintain current management"
 
 3. **For Patients NOT ON TREATMENT (Treatment Status: NOT ON TREATMENT):**
-   - If CKD Stage 3 or higher: ALWAYS recommend initiating appropriate CKD treatment
+   - CHECK THE PHASE 3 TREATMENT DECISION ANALYSIS SECTION FIRST!
+   - If Phase 3 shows STRONG or MODERATE indication for Jardiance OR RAS Inhibitor:
+     * MUST recommend initiating the specific medication
+     * Include the evidence base from Phase 3 (e.g., "EMPA-KIDNEY trial", "KDIGO Grade 1A")
+     * Reference the specific reasoning provided in Phase 3
+   - If CKD Stage 3 or higher WITHOUT Phase 3 recommendations: recommend general treatment evaluation
    - If showing WORSENING kidney function: URGENT - recommend immediate treatment initiation
-   - Use phrases: "initiate treatment", "start therapy", "begin pharmacological intervention"
-   - Reference the Clinical Recommendations field for specific medication recommendations
+   - Use specific phrases: "Initiate SGLT2 inhibitor (Jardiance)", "Start RAS inhibitor (ACE-I or ARB)"
+   - DO NOT use vague phrases like "consider treatment" - be specific based on Phase 3 analysis
 
 4. **Severity Assessment:**
    - Stage 4 CKD (G4) or higher without treatment = CRITICAL severity, HIGH concern
@@ -336,11 +470,15 @@ IMPORTANT: Even if changes are minimal or the patient is stable, still provide a
    - For UNTREATED patients with deterioration: recommend urgent treatment initiation
 
 7. **Monitoring Status Considerations:**
-   - Check "Monitoring Status:" field before recommending monitoring
-   - If "Active (...)" → Patient IS being monitored, acknowledge this
-   - If "NOT ON MONITORING" and high-risk/CKD → Recommend initiating home monitoring
-   - For MONITORED patients: "Continue current monitoring protocol"
-   - For UNMONITORED patients: "Initiate home monitoring" or "Start regular monitoring"
+   - CHECK THE PHASE 3 TREATMENT DECISION ANALYSIS FOR HOME MONITORING (Minuteful Kidney) RECOMMENDATIONS!
+   - If "Monitoring Status: NOT ON MONITORING" AND Phase 3 shows "Recommended: YES":
+     * MUST recommend initiating Minuteful Kidney home monitoring
+     * Include the specific frequency from Phase 3 (Weekly, Bi-weekly, Monthly)
+     * Include the rationale from Phase 3
+     * Emphasize benefits: "Early detection of changes, improved patient engagement, cost-effective monitoring"
+   - If "Monitoring Status: Active (...)" → Patient IS being monitored, acknowledge and recommend continuation
+   - For patients WITHOUT Phase 3 monitoring recommendation but high-risk/CKD → Recommend evaluation for monitoring
+   - Use specific phrases: "Initiate Minuteful Kidney home monitoring (Monthly frequency)", not "consider monitoring"
 
 Return ONLY the JSON response, no additional text.`;
   }
