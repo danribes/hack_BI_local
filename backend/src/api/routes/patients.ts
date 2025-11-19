@@ -1646,18 +1646,28 @@ Provide ONLY the JSON object, nothing else.`;
         riskLevel: newKdigoClassification.risk_level,
         gfrCategory: newKdigoClassification.gfr_category,
         albuminuriaCategory: newKdigoClassification.albuminuria_category,
-        // Include SCORED assessment data for non-CKD patients (use NEW status)
-        scored_points: !currentHasCKD ? newKdigoClassification.scored_points : undefined,
-        scored_risk_level: !currentHasCKD ? newKdigoClassification.scored_risk_level : undefined,
+        // Include SCORED assessment data for non-CKD patients
+        // CRITICAL: For non-CKD → CKD transitions, preserve PREVIOUS risk data so AI can explain WHY patient was high-risk
+        scored_points: !currentHasCKD ? newKdigoClassification.scored_points
+          : (hasTransitioned && !previousHasCKD ? kdigoClassification.scored_points : undefined),
+        scored_risk_level: !currentHasCKD ? newKdigoClassification.scored_risk_level
+          : (hasTransitioned && !previousHasCKD ? kdigoClassification.scored_risk_level : undefined),
         scored_components: !currentHasCKD && newKdigoClassification.scored_points !== undefined
           ? calculateSCORED(demographics, generatedValues.uACR).components
-          : undefined,
-        // Include Framingham assessment data for non-CKD patients (use NEW status)
-        framingham_risk_percentage: !currentHasCKD ? newKdigoClassification.framingham_risk_percentage : undefined,
-        framingham_risk_level: !currentHasCKD ? newKdigoClassification.framingham_risk_level : undefined,
+          : (hasTransitioned && !previousHasCKD && kdigoClassification.scored_points !== undefined
+            ? calculateSCORED(demographics, uacr).components  // Use PREVIOUS uACR
+            : undefined),
+        // Include Framingham assessment data for non-CKD patients
+        // CRITICAL: For non-CKD → CKD transitions, preserve PREVIOUS risk data
+        framingham_risk_percentage: !currentHasCKD ? newKdigoClassification.framingham_risk_percentage
+          : (hasTransitioned && !previousHasCKD ? kdigoClassification.framingham_risk_percentage : undefined),
+        framingham_risk_level: !currentHasCKD ? newKdigoClassification.framingham_risk_level
+          : (hasTransitioned && !previousHasCKD ? kdigoClassification.framingham_risk_level : undefined),
         framingham_components: !currentHasCKD && newKdigoClassification.framingham_risk_percentage !== undefined
           ? calculateFramingham(demographics, generatedValues.uACR).components
-          : undefined,
+          : (hasTransitioned && !previousHasCKD && kdigoClassification.framingham_risk_percentage !== undefined
+            ? calculateFramingham(demographics, uacr).components  // Use PREVIOUS uACR
+            : undefined),
         // Include demographics and comorbidities for context
         gender: patient.gender.toLowerCase() as 'male' | 'female',
         has_hypertension: comorbidities.has_hypertension,

@@ -421,59 +421,80 @@ export class AIUpdateAnalysisService {
     }
 
     // Build SCORED risk assessment section for non-CKD patients
+    // ALSO show for transitions: if patient is now CKD but has SCORED data, they just transitioned
     let scoredSection = '';
-    if (!context.isCkd && context.scored_points !== undefined) {
-      scoredSection = '\n**SCORED Risk Assessment (For Non-CKD At-Risk Patients):**\n';
+    if (context.scored_points !== undefined) {
+      const sectionTitle = context.isCkd && context.hasTransitioned
+        ? '\n**PREVIOUS SCORED Risk Assessment (Before CKD Transition):**\n'
+        : '\n**SCORED Risk Assessment (For Non-CKD At-Risk Patients):**\n';
+      scoredSection = sectionTitle;
       scoredSection += `- SCORED Points: ${context.scored_points} (${context.scored_risk_level} risk)\n`;
 
       if (context.scored_components && context.scored_components.length > 0) {
         scoredSection += `- Risk Components: ${context.scored_components.join(', ')}\n`;
       }
 
-      if (context.scored_points >= 4) {
-        scoredSection += `- **Clinical Significance:** Score ≥4 indicates approximately **20% chance** this patient ALREADY has undetected CKD!\n`;
-        scoredSection += `- **Action Required:** Immediate comprehensive kidney screening if not recently done\n`;
+      // For transitions to CKD, explain what the previous risk meant
+      if (context.isCkd && context.hasTransitioned) {
+        if (context.scored_points >= 4) {
+          scoredSection += `- **Clinical Significance:** This HIGH score (≥4) indicated ~20% chance of ALREADY having undetected CKD\n`;
+          scoredSection += `- **OUTCOME:** The SCORED prediction was CORRECT - patient has now been diagnosed with CKD\n`;
+          scoredSection += `- **Implication:** This validates the importance of SCORED screening - early detection enabled timely intervention\n`;
+        } else {
+          scoredSection += `- **Clinical Significance:** Despite LOW SCORED risk, patient has transitioned to CKD\n`;
+          scoredSection += `- **Implication:** This highlights that SCORED is a screening tool, not definitive - regular monitoring is essential\n`;
+        }
       } else {
-        scoredSection += `- Clinical Significance: Low probability of hidden kidney disease, routine annual screening appropriate\n`;
-      }
+        // For current non-CKD patients, provide standard guidance
+        if (context.scored_points >= 4) {
+          scoredSection += `- **Clinical Significance:** Score ≥4 indicates approximately **20% chance** this patient ALREADY has undetected CKD!\n`;
+          scoredSection += `- **Action Required:** Immediate comprehensive kidney screening if not recently done\n`;
+        } else {
+          scoredSection += `- Clinical Significance: Low probability of hidden kidney disease, routine annual screening appropriate\n`;
+        }
 
-      // Add comorbidity-specific guidance
-      scoredSection += '\n**Modifiable Risk Factors to Address:**\n';
-      const modifiableFactors: string[] = [];
+        // Add comorbidity-specific guidance (only for non-CKD patients)
+        scoredSection += '\n**Modifiable Risk Factors to Address:**\n';
+        const modifiableFactors: string[] = [];
 
-      if (context.has_hypertension) {
-        modifiableFactors.push('  • Hypertension: Target BP <130/80 mmHg (strict control protects kidneys)');
-      }
-      if (context.has_diabetes) {
-        modifiableFactors.push('  • Diabetes: Target HbA1c <7% (glycemic control slows kidney damage)');
-      }
-      if (context.has_cvd) {
-        modifiableFactors.push('  • Cardiovascular Disease: Cardio-protective medications reduce cardiorenal syndrome risk');
-      }
-      if (context.has_pvd) {
-        modifiableFactors.push('  • Peripheral Vascular Disease: Address systemic vascular health');
-      }
+        if (context.has_hypertension) {
+          modifiableFactors.push('  • Hypertension: Target BP <130/80 mmHg (strict control protects kidneys)');
+        }
+        if (context.has_diabetes) {
+          modifiableFactors.push('  • Diabetes: Target HbA1c <7% (glycemic control slows kidney damage)');
+        }
+        if (context.has_cvd) {
+          modifiableFactors.push('  • Cardiovascular Disease: Cardio-protective medications reduce cardiorenal syndrome risk');
+        }
+        if (context.has_pvd) {
+          modifiableFactors.push('  • Peripheral Vascular Disease: Address systemic vascular health');
+        }
 
-      if (modifiableFactors.length > 0) {
-        scoredSection += modifiableFactors.join('\n') + '\n';
-      } else {
-        scoredSection += '  • Focus on non-modifiable factors: Age, gender (maintain healthy lifestyle)\n';
-      }
+        if (modifiableFactors.length > 0) {
+          scoredSection += modifiableFactors.join('\n') + '\n';
+        } else {
+          scoredSection += '  • Focus on non-modifiable factors: Age, gender (maintain healthy lifestyle)\n';
+        }
 
-      // Critical thresholds for non-CKD patients
-      scoredSection += '\n**CRITICAL THRESHOLDS TO WATCH (Transition from At-Risk to Disease):**\n';
-      scoredSection += '  • **uACR ≥30 mg/g** (microalbuminuria): First sign of kidney damage - NOT routine!\n';
-      scoredSection += '    - If crossed: Initiate ACE-I/ARB, increase monitoring frequency\n';
-      scoredSection += '  • **eGFR declining toward 60**: Even if >60, declining trend is concerning\n';
-      scoredSection += '    - If declining: Aggressive risk factor modification needed\n';
-      scoredSection += '  • **uACR >300 mg/g** (macroalbuminuria): Severe kidney damage\n';
-      scoredSection += '    - If crossed: CRITICAL severity, urgent intervention\n';
+        // Critical thresholds for non-CKD patients (not applicable after transition)
+        scoredSection += '\n**CRITICAL THRESHOLDS TO WATCH (Transition from At-Risk to Disease):**\n';
+        scoredSection += '  • **uACR ≥30 mg/g** (microalbuminuria): First sign of kidney damage - NOT routine!\n';
+        scoredSection += '    - If crossed: Initiate ACE-I/ARB, increase monitoring frequency\n';
+        scoredSection += '  • **eGFR declining toward 60**: Even if >60, declining trend is concerning\n';
+        scoredSection += '    - If declining: Aggressive risk factor modification needed\n';
+        scoredSection += '  • **uACR >300 mg/g** (macroalbuminuria): Severe kidney damage\n';
+        scoredSection += '    - If crossed: CRITICAL severity, urgent intervention\n';
+      }
     }
 
     // Build Framingham risk assessment section for non-CKD patients
+    // ALSO show for transitions: if patient is now CKD but has Framingham data, they just transitioned
     let framinghamSection = '';
-    if (!context.isCkd && context.framingham_risk_percentage !== undefined) {
-      framinghamSection = '\n**Framingham 10-Year CKD Risk Prediction (For Non-CKD Patients):**\n';
+    if (context.framingham_risk_percentage !== undefined) {
+      const sectionTitle = context.isCkd && context.hasTransitioned
+        ? '\n**PREVIOUS Framingham 10-Year CKD Risk Prediction (Before CKD Transition):**\n'
+        : '\n**Framingham 10-Year CKD Risk Prediction (For Non-CKD Patients):**\n';
+      framinghamSection = sectionTitle;
       framinghamSection += `- 10-Year Risk: ${context.framingham_risk_percentage}% (${context.framingham_risk_level} risk)\n`;
 
       if (context.framingham_components && context.framingham_components.length > 0) {
@@ -483,52 +504,75 @@ export class AIUpdateAnalysisService {
         });
       }
 
-      // Clinical interpretation based on risk level
-      if (context.framingham_risk_level === 'high') {
-        framinghamSection += `\n- **Clinical Interpretation:** >20% 10-year risk = **HIGH likelihood** of developing CKD\n`;
-        framinghamSection += `- **Action Required:** Aggressive preventive intervention NOW to "flatten the curve" of future kidney decline\n`;
-        framinghamSection += `- **Preventive Strategies:**\n`;
-        framinghamSection += `  • Consider SGLT2 inhibitors (kidney-protective even before CKD diagnosis)\n`;
-        framinghamSection += `  • Consider GLP-1 agonists if diabetic/obese\n`;
-        framinghamSection += `  • Strict BP control (<130/80 mmHg)\n`;
-        framinghamSection += `  • Intensive glucose management (HbA1c <7% if diabetic)\n`;
-        framinghamSection += `  • Increase monitoring frequency (every 3-6 months)\n`;
-      } else if (context.framingham_risk_level === 'moderate') {
-        framinghamSection += `\n- **Clinical Interpretation:** 10-20% 10-year risk = Moderate risk requiring enhanced monitoring\n`;
-        framinghamSection += `- **Action Required:** Strict risk factor modification\n`;
-        framinghamSection += `- **Preventive Strategies:**\n`;
-        framinghamSection += `  • Optimize BP and glucose control\n`;
-        framinghamSection += `  • Address obesity if present (weight loss reduces risk)\n`;
-        framinghamSection += `  • Monitor every 6-12 months\n`;
+      // For transitions to CKD, explain what the previous prediction meant
+      if (context.isCkd && context.hasTransitioned) {
+        if (context.framingham_risk_level === 'high') {
+          framinghamSection += `\n- **Clinical Interpretation:** This HIGH risk (>20% in 10 years) predicted strong likelihood of CKD development\n`;
+          framinghamSection += `- **OUTCOME:** Patient has now transitioned to CKD, unfortunately validating the high-risk prediction\n`;
+          framinghamSection += `- **Implication:** This emphasizes the critical importance of aggressive intervention for high-risk patients\n`;
+          framinghamSection += `- **Going Forward:** Focus shifts from prevention to management - halt progression, prevent complications\n`;
+        } else if (context.framingham_risk_level === 'moderate') {
+          framinghamSection += `\n- **Clinical Interpretation:** Moderate risk (10-20% in 10 years) suggested reasonable probability of CKD\n`;
+          framinghamSection += `- **OUTCOME:** Patient has transitioned to CKD sooner than the 10-year prediction window\n`;
+          framinghamSection += `- **Implication:** Even moderate risk warrants intensive preventive measures\n`;
+        } else {
+          framinghamSection += `\n- **Clinical Interpretation:** Despite LOW Framingham risk (<10%), patient has transitioned to CKD\n`;
+          framinghamSection += `- **Implication:** Framingham predicts 10-year risk but cannot account for all individual factors\n`;
+          framinghamSection += `- **Lesson:** Highlights importance of monitoring ALL patients, not just high-risk\n`;
+        }
       } else {
-        framinghamSection += `\n- **Clinical Interpretation:** <10% 10-year risk = Low probability of future CKD\n`;
-        framinghamSection += `- **Action:** Routine annual screening, standard preventive care\n`;
-      }
+        // For current non-CKD patients, provide standard guidance
+        if (context.framingham_risk_level === 'high') {
+          framinghamSection += `\n- **Clinical Interpretation:** >20% 10-year risk = **HIGH likelihood** of developing CKD\n`;
+          framinghamSection += `- **Action Required:** Aggressive preventive intervention NOW to "flatten the curve" of future kidney decline\n`;
+          framinghamSection += `- **Preventive Strategies:**\n`;
+          framinghamSection += `  • Consider SGLT2 inhibitors (kidney-protective even before CKD diagnosis)\n`;
+          framinghamSection += `  • Consider GLP-1 agonists if diabetic/obese\n`;
+          framinghamSection += `  • Strict BP control (<130/80 mmHg)\n`;
+          framinghamSection += `  • Intensive glucose management (HbA1c <7% if diabetic)\n`;
+          framinghamSection += `  • Increase monitoring frequency (every 3-6 months)\n`;
+        } else if (context.framingham_risk_level === 'moderate') {
+          framinghamSection += `\n- **Clinical Interpretation:** 10-20% 10-year risk = Moderate risk requiring enhanced monitoring\n`;
+          framinghamSection += `- **Action Required:** Strict risk factor modification\n`;
+          framinghamSection += `- **Preventive Strategies:**\n`;
+          framinghamSection += `  • Optimize BP and glucose control\n`;
+          framinghamSection += `  • Address obesity if present (weight loss reduces risk)\n`;
+          framinghamSection += `  • Monitor every 6-12 months\n`;
+        } else {
+          framinghamSection += `\n- **Clinical Interpretation:** <10% 10-year risk = Low probability of future CKD\n`;
+          framinghamSection += `- **Action:** Routine annual screening, standard preventive care\n`;
+        }
 
-      // Specific risk factor targets
-      framinghamSection += '\n**Specific Preventive Targets:**\n';
-      if (context.has_diabetes) {
-        framinghamSection += `  • Diabetes control: HbA1c <7% (current control reduces future kidney damage by 40%)\n`;
-      }
-      if (context.has_hypertension) {
-        framinghamSection += `  • BP control: <130/80 mmHg (each 10 mmHg reduction = 15% lower CKD risk)\n`;
-      }
-      if (context.smoking_status === 'current') {
-        framinghamSection += `  • **Smoking cessation: CRITICAL** (current smoking doubles kidney disease risk)\n`;
-      }
-      if (context.bmi && context.bmi >= 30) {
-        framinghamSection += `  • Weight loss: Target BMI <30 (10% weight loss = 25% risk reduction)\n`;
-      }
-      if (context.has_cvd) {
-        framinghamSection += `  • Cardio-protective therapy: ACE-I/ARB, statins (reduce cardiorenal syndrome risk)\n`;
+        // Specific risk factor targets (only for non-CKD patients)
+        framinghamSection += '\n**Specific Preventive Targets:**\n';
+        if (context.has_diabetes) {
+          framinghamSection += `  • Diabetes control: HbA1c <7% (current control reduces future kidney damage by 40%)\n`;
+        }
+        if (context.has_hypertension) {
+          framinghamSection += `  • BP control: <130/80 mmHg (each 10 mmHg reduction = 15% lower CKD risk)\n`;
+        }
+        if (context.smoking_status === 'current') {
+          framinghamSection += `  • **Smoking cessation: CRITICAL** (current smoking doubles kidney disease risk)\n`;
+        }
+        if (context.bmi && context.bmi >= 30) {
+          framinghamSection += `  • Weight loss: Target BMI <30 (10% weight loss = 25% risk reduction)\n`;
+        }
+        if (context.has_cvd) {
+          framinghamSection += `  • Cardio-protective therapy: ACE-I/ARB, statins (reduce cardiorenal syndrome risk)\n`;
+        }
       }
     }
 
     // Combine risk assessment sections
     let riskAssessmentSection = '';
     if (scoredSection || framinghamSection) {
-      riskAssessmentSection = '\n**Comprehensive Risk Assessment:**\n';
-      if (scoredSection && framinghamSection) {
+      if (context.isCkd && context.hasTransitioned) {
+        riskAssessmentSection = '\n**Previous Risk Assessment (Before CKD Transition):**\n';
+        riskAssessmentSection += '\nThe following risk scores were calculated BEFORE the patient transitioned to CKD:\n';
+      } else {
+        riskAssessmentSection = '\n**Comprehensive Risk Assessment:**\n';
+      }
+      if (scoredSection && framinghamSection && !context.hasTransitioned) {
         riskAssessmentSection += '\nThis patient requires DUAL assessment:\n';
         riskAssessmentSection += '1. **SCORED** (Current Hidden Disease): Answers "Do they ALREADY have undetected kidney damage?"\n';
         riskAssessmentSection += '2. **Framingham** (Future Risk Prediction): Answers "What is their risk of DEVELOPING CKD in the next 10 years?"\n';
