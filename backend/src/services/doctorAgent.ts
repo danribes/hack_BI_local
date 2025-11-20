@@ -442,11 +442,11 @@ Status:
       if (includeRecentLabs) {
         const labQuery = `
           SELECT
-            observation_type, value, unit, observed_date, reference_range,
+            observation_type, value_numeric, unit, observation_date,
             status
           FROM observations
           WHERE patient_id = $1
-          ORDER BY observed_date DESC
+          ORDER BY observation_date DESC
           LIMIT 20
         `;
         const labResult = await this.db.query(labQuery, [patientId]);
@@ -456,33 +456,50 @@ Status:
           labResult.rows.forEach(lab => {
             const abnormal = lab.status === 'abnormal' ? ' [ABNORMAL]' : '';
             contextParts.push(
-              `- ${lab.observation_type}: ${lab.value} ${lab.unit} (Ref: ${lab.reference_range}) - ${lab.observed_date}${abnormal}`
+              `- ${lab.observation_type}: ${lab.value_numeric} ${lab.unit} - ${lab.observation_date}${abnormal}`
             );
           });
         }
       }
 
-      // Get risk assessment
+      // Get KDIGO classification and risk assessment from tracking tables
       if (includeRiskAssessment) {
-        const riskQuery = `
+        // Check CKD patient data
+        const ckdQuery = `
           SELECT
-            kdigo_category, ckd_stage, risk_level, risk_score,
-            recommendations, created_at
-          FROM patient_risk_assessments
+            ckd_severity, ckd_stage, kdigo_health_state,
+            is_monitored, is_treated, monitoring_device, monitoring_frequency
+          FROM ckd_patient_data
           WHERE patient_id = $1
-          ORDER BY created_at DESC
-          LIMIT 1
         `;
-        const riskResult = await this.db.query(riskQuery, [patientId]);
+        const ckdResult = await this.db.query(ckdQuery, [patientId]);
 
-        if (riskResult.rows.length > 0) {
-          const risk = riskResult.rows[0];
-          contextParts.push(`\nCurrent Risk Assessment (as of ${risk.created_at}):
-- KDIGO Category: ${risk.kdigo_category}
-- CKD Stage: ${risk.ckd_stage}
-- Risk Level: ${risk.risk_level}
-- Risk Score: ${risk.risk_score}
-- Recommendations: ${risk.recommendations || 'None'}`);
+        if (ckdResult.rows.length > 0) {
+          const ckd = ckdResult.rows[0];
+          contextParts.push(`\nCKD Classification & Status:
+- KDIGO Health State: ${ckd.kdigo_health_state}
+- CKD Severity: ${ckd.ckd_severity}
+- CKD Stage: ${ckd.ckd_stage}
+- Treatment Status: ${ckd.is_treated ? `Active` : 'NOT ON TREATMENT'}
+- Monitoring Status: ${ckd.is_monitored ? `Active (${ckd.monitoring_device || 'Device not specified'}, ${ckd.monitoring_frequency || 'Frequency not specified'})` : 'NOT ON MONITORING'}`);
+        } else {
+          // Check non-CKD patient data
+          const nonCkdQuery = `
+            SELECT
+              risk_level, kdigo_health_state,
+              is_monitored, monitoring_device, monitoring_frequency
+            FROM non_ckd_patient_data
+            WHERE patient_id = $1
+          `;
+          const nonCkdResult = await this.db.query(nonCkdQuery, [patientId]);
+
+          if (nonCkdResult.rows.length > 0) {
+            const nonCkd = nonCkdResult.rows[0];
+            contextParts.push(`\nNon-CKD Risk Assessment:
+- KDIGO Health State: ${nonCkd.kdigo_health_state}
+- Risk Level: ${nonCkd.risk_level}
+- Monitoring Status: ${nonCkd.is_monitored ? `Active (${nonCkd.monitoring_device || 'Device not specified'}, ${nonCkd.monitoring_frequency || 'Frequency not specified'})` : 'NOT ON MONITORING'}`);
+          }
         }
       }
 
