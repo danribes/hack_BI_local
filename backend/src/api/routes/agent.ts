@@ -56,15 +56,24 @@ export function createAgentRouter(db: Pool): Router {
         includeRiskAssessment: includeRiskAssessment !== false, // Default true
       } : undefined;
 
+      console.log('[Agent Chat] Request received:', {
+        messagesCount: messages.length,
+        patientId: patientId || 'none',
+        hasContext: !!context
+      });
+
       // Call agent service
       const response = await agentService.chat(messages, context);
+
+      console.log('[Agent Chat] Response generated successfully');
 
       res.json({
         response,
         timestamp: new Date().toISOString(),
       });
     } catch (error) {
-      console.error('Error in agent chat:', error);
+      console.error('[Agent Chat] Error in agent chat:', error);
+      console.error('[Agent Chat] Error stack:', error instanceof Error ? error.stack : 'No stack');
       res.status(500).json({
         error: 'Failed to process chat request',
         message: error instanceof Error ? error.message : 'Unknown error',

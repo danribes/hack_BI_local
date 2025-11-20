@@ -359,6 +359,8 @@ or treatment recommendations, and suggest the doctor rephrase their question if 
       let contextParts: string[] = [];
 
       // Get basic patient info
+      console.log('[DoctorAgent] Fetching patient context for ID:', patientId);
+
       const patientQuery = `
         SELECT
           medical_record_number, first_name, last_name, date_of_birth, gender,
@@ -374,8 +376,11 @@ or treatment recommendations, and suggest the doctor rephrase their question if 
       const patientResult = await this.db.query(patientQuery, [patientId]);
 
       if (patientResult.rows.length === 0) {
+        console.log('[DoctorAgent] Patient not found:', patientId);
         return 'Patient not found';
       }
+
+      console.log('[DoctorAgent] Patient found, building context...');
 
       const patient = patientResult.rows[0];
       const age = this.calculateAge(patient.date_of_birth);
@@ -440,91 +445,113 @@ Status:
 
       // Get recent lab results
       if (includeRecentLabs) {
-        const labQuery = `
-          SELECT
-            observation_type, value_numeric, unit, observation_date,
-            status
-          FROM observations
-          WHERE patient_id = $1
-          ORDER BY observation_date DESC
-          LIMIT 20
-        `;
-        const labResult = await this.db.query(labQuery, [patientId]);
+        try {
+          const labQuery = `
+            SELECT
+              observation_type, value_numeric, unit, observation_date,
+              status
+            FROM observations
+            WHERE patient_id = $1
+            ORDER BY observation_date DESC
+            LIMIT 20
+          `;
+          const labResult = await this.db.query(labQuery, [patientId]);
 
-        if (labResult.rows.length > 0) {
-          contextParts.push('\nRecent Lab Results:');
-          labResult.rows.forEach(lab => {
-            const abnormal = lab.status === 'abnormal' ? ' [ABNORMAL]' : '';
-            contextParts.push(
-              `- ${lab.observation_type}: ${lab.value_numeric} ${lab.unit} - ${lab.observation_date}${abnormal}`
-            );
-          });
+          if (labResult.rows.length > 0) {
+            contextParts.push('\nRecent Lab Results:');
+            labResult.rows.forEach(lab => {
+              const abnormal = lab.status === 'abnormal' ? ' [ABNORMAL]' : '';
+              contextParts.push(
+                `- ${lab.observation_type}: ${lab.value_numeric} ${lab.unit} - ${lab.observation_date}${abnormal}`
+              );
+            });
+          }
+        } catch (labError) {
+          console.error('[DoctorAgent] Error fetching lab results:', labError);
+          contextParts.push('\n[Lab Results: Error loading data]');
         }
       }
 
       // Get KDIGO classification and risk assessment from tracking tables
       if (includeRiskAssessment) {
-        // Check CKD patient data
-        const ckdQuery = `
-          SELECT
-            ckd_severity, ckd_stage, kdigo_health_state,
-            is_monitored, is_treated, monitoring_device, monitoring_frequency
-          FROM ckd_patient_data
-          WHERE patient_id = $1
-        `;
-        const ckdResult = await this.db.query(ckdQuery, [patientId]);
+        try {
+          // Check CKD patient data
+          const ckdQuery = `
+            SELECT
+              ckd_severity, ckd_stage, kdigo_health_state,
+              is_monitored, is_treated, monitoring_device, monitoring_frequency
+            FROM ckd_patient_data
+            WHERE patient_id = $1
+          `;
+          const ckdResult = await this.db.query(ckdQuery, [patientId]);
 
-        if (ckdResult.rows.length > 0) {
-          const ckd = ckdResult.rows[0];
-          contextParts.push(`\nCKD Classification & Status:
+          if (ckdResult.rows.length > 0) {
+            const ckd = ckdResult.rows[0];
+            contextParts.push(`\nCKD Classification & Status:
 - KDIGO Health State: ${ckd.kdigo_health_state}
 - CKD Severity: ${ckd.ckd_severity}
 - CKD Stage: ${ckd.ckd_stage}
 - Treatment Status: ${ckd.is_treated ? `Active` : 'NOT ON TREATMENT'}
 - Monitoring Status: ${ckd.is_monitored ? `Active (${ckd.monitoring_device || 'Device not specified'}, ${ckd.monitoring_frequency || 'Frequency not specified'})` : 'NOT ON MONITORING'}`);
-        } else {
-          // Check non-CKD patient data
-          const nonCkdQuery = `
-            SELECT
-              risk_level, kdigo_health_state,
-              is_monitored, monitoring_device, monitoring_frequency
-            FROM non_ckd_patient_data
-            WHERE patient_id = $1
-          `;
-          const nonCkdResult = await this.db.query(nonCkdQuery, [patientId]);
+          } else {
+            // Check non-CKD patient data
+            const nonCkdQuery = `
+              SELECT
+                risk_level, kdigo_health_state,
+                is_monitored, monitoring_device, monitoring_frequency
+              FROM non_ckd_patient_data
+              WHERE patient_id = $1
+            `;
+            const nonCkdResult = await this.db.query(nonCkdQuery, [patientId]);
 
-          if (nonCkdResult.rows.length > 0) {
-            const nonCkd = nonCkdResult.rows[0];
-            contextParts.push(`\nNon-CKD Risk Assessment:
+            if (nonCkdResult.rows.length > 0) {
+              const nonCkd = nonCkdResult.rows[0];
+              contextParts.push(`\nNon-CKD Risk Assessment:
 - KDIGO Health State: ${nonCkd.kdigo_health_state}
 - Risk Level: ${nonCkd.risk_level}
 - Monitoring Status: ${nonCkd.is_monitored ? `Active (${nonCkd.monitoring_device || 'Device not specified'}, ${nonCkd.monitoring_frequency || 'Frequency not specified'})` : 'NOT ON MONITORING'}`);
+            }
           }
+        } catch (riskError) {
+          console.error('[DoctorAgent] Error fetching risk assessment:', riskError);
+          contextParts.push('\n[Risk Assessment: Error loading data]');
         }
       }
 
       // Get active conditions
-      const conditionsQuery = `
-        SELECT condition_name, severity, clinical_status, onset_date
-        FROM conditions
-        WHERE patient_id = $1 AND clinical_status = 'active'
-        ORDER BY onset_date DESC
-      `;
-      const conditionsResult = await this.db.query(conditionsQuery, [patientId]);
+      try {
+        const conditionsQuery = `
+          SELECT condition_name, severity, clinical_status, onset_date
+          FROM conditions
+          WHERE patient_id = $1 AND clinical_status = 'active'
+          ORDER BY onset_date DESC
+        `;
+        const conditionsResult = await this.db.query(conditionsQuery, [patientId]);
 
-      if (conditionsResult.rows.length > 0) {
-        contextParts.push('\nActive Conditions:');
-        conditionsResult.rows.forEach(condition => {
-          contextParts.push(
-            `- ${condition.condition_name} (${condition.severity}) - Since ${condition.onset_date}`
-          );
-        });
+        if (conditionsResult.rows.length > 0) {
+          contextParts.push('\nActive Conditions:');
+          conditionsResult.rows.forEach(condition => {
+            contextParts.push(
+              `- ${condition.condition_name} (${condition.severity}) - Since ${condition.onset_date}`
+            );
+          });
+        }
+      } catch (conditionsError) {
+        console.error('[DoctorAgent] Error fetching conditions:', conditionsError);
+        // Don't add error message to context, conditions are optional
       }
 
       return contextParts.join('\n');
     } catch (error) {
-      console.error('Error fetching patient context:', error);
-      return 'Error fetching patient data';
+      console.error('[DoctorAgent] Error fetching patient context:', error);
+      console.error('[DoctorAgent] Error details:', error instanceof Error ? error.message : 'Unknown error');
+      console.error('[DoctorAgent] Patient ID:', patientId);
+
+      // Return error with details for debugging
+      if (error instanceof Error) {
+        return `Error fetching patient data: ${error.message}`;
+      }
+      return 'Error fetching patient data: Unknown error';
     }
   }
 
