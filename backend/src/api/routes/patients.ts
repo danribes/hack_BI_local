@@ -42,7 +42,7 @@ router.get('/filter', async (req: Request, res: Response): Promise<any> => {
       update_days
     } = req.query;
 
-    // Build dynamic query based on provided filters
+    // Build dynamic query based on provided filters with full patient data
     let baseQuery = `
       SELECT DISTINCT
         p.id,
@@ -54,17 +54,65 @@ router.get('/filter', async (req: Request, res: Response): Promise<any> => {
         p.email,
         p.phone,
         p.last_visit_date,
-        p.created_at
+        p.created_at,
+        -- Legacy fields (for backward compatibility)
+        p.home_monitoring_device,
+        p.home_monitoring_active,
+        p.ckd_treatment_active,
+        p.ckd_treatment_type,
+        -- Latest observations
+        (SELECT value_numeric FROM observations
+         WHERE patient_id = p.id AND observation_type = 'eGFR'
+         ORDER BY observation_date DESC LIMIT 1) as latest_egfr,
+        (SELECT value_numeric FROM observations
+         WHERE patient_id = p.id AND observation_type = 'uACR'
+         ORDER BY observation_date DESC LIMIT 1) as latest_uacr,
+        -- CKD patient data
+        cpd.ckd_severity,
+        cpd.ckd_stage,
+        cpd.kdigo_health_state as ckd_health_state,
+        cpd.is_monitored as ckd_is_monitored,
+        cpd.monitoring_device as ckd_monitoring_device,
+        cpd.monitoring_frequency as ckd_monitoring_frequency,
+        cpd.is_treated as ckd_is_treated,
+        -- Non-CKD patient data
+        npd.risk_level as non_ckd_risk_level,
+        npd.kdigo_health_state as non_ckd_health_state,
+        npd.is_monitored as non_ckd_is_monitored,
+        npd.monitoring_device as non_ckd_monitoring_device,
+        npd.monitoring_frequency as non_ckd_monitoring_frequency,
+        -- Latest health state comment (for patient list summary)
+        (SELECT comment_text FROM patient_health_state_comments
+         WHERE patient_id = p.id AND visibility = 'visible'
+         ORDER BY created_at DESC LIMIT 1) as latest_comment_text,
+        (SELECT change_type FROM patient_health_state_comments
+         WHERE patient_id = p.id AND visibility = 'visible'
+         ORDER BY created_at DESC LIMIT 1) as latest_comment_change_type,
+        (SELECT severity FROM patient_health_state_comments
+         WHERE patient_id = p.id AND visibility = 'visible'
+         ORDER BY created_at DESC LIMIT 1) as latest_comment_severity,
+        (SELECT created_at FROM patient_health_state_comments
+         WHERE patient_id = p.id AND visibility = 'visible'
+         ORDER BY created_at DESC LIMIT 1) as latest_comment_date,
+        (SELECT cycle_number FROM patient_health_state_comments
+         WHERE patient_id = p.id AND visibility = 'visible'
+         ORDER BY created_at DESC LIMIT 1) as latest_comment_cycle,
+        (SELECT clinical_summary FROM patient_health_state_comments
+         WHERE patient_id = p.id AND visibility = 'visible'
+         ORDER BY created_at DESC LIMIT 1) as latest_comment_clinical_summary,
+        (SELECT recommended_actions FROM patient_health_state_comments
+         WHERE patient_id = p.id AND visibility = 'visible'
+         ORDER BY created_at DESC LIMIT 1) as latest_comment_recommended_actions
     `;
 
-    let fromClause = ' FROM patients p';
+    let fromClause = ' FROM patients p LEFT JOIN ckd_patient_data cpd ON p.id = cpd.patient_id LEFT JOIN non_ckd_patient_data npd ON p.id = npd.patient_id';
     let whereConditions: string[] = [];
     let queryParams: any[] = [];
     let paramCounter = 1;
 
     // Determine if we need CKD or non-CKD tables
     if (has_ckd === 'true') {
-      fromClause += ' INNER JOIN ckd_patient_data cpd ON p.id = cpd.patient_id';
+      whereConditions.push('cpd.patient_id IS NOT NULL');
 
       // CKD-specific filters
       if (severity) {
@@ -94,14 +142,20 @@ router.get('/filter', async (req: Request, res: Response): Promise<any> => {
 
       // Filter by treatment name
       if (treatment_name) {
-        fromClause += ' INNER JOIN ckd_treatments ct ON cpd.id = ct.ckd_patient_data_id';
-        whereConditions.push(`ct.treatment_name ILIKE $${paramCounter++}`);
-        whereConditions.push('ct.is_active = true');
+        whereConditions.push(`
+          EXISTS (
+            SELECT 1 FROM ckd_treatments ct
+            WHERE ct.ckd_patient_data_id = cpd.id
+            AND ct.treatment_name ILIKE $${paramCounter}
+            AND ct.is_active = true
+          )
+        `);
         queryParams.push(`%${treatment_name}%`);
+        paramCounter++;
       }
 
     } else if (has_ckd === 'false') {
-      fromClause += ' INNER JOIN non_ckd_patient_data npd ON p.id = npd.patient_id';
+      whereConditions.push('npd.patient_id IS NOT NULL');
 
       // Non-CKD specific filters
       if (risk_level) {
@@ -118,9 +172,6 @@ router.get('/filter', async (req: Request, res: Response): Promise<any> => {
         whereConditions.push(`npd.monitoring_frequency = $${paramCounter++}`);
         queryParams.push(monitoring_frequency);
       }
-    } else {
-      // No CKD filter specified - return all patients with basic info
-      // This allows combining with other filters later if needed
     }
 
     // Filter for patients with recent updates (comments)
@@ -146,6 +197,76 @@ router.get('/filter', async (req: Request, res: Response): Promise<any> => {
     // Execute query
     const result = await pool.query(finalQuery, queryParams);
 
+    // Calculate KDIGO classification for each patient (same as main patient list endpoint)
+    const patientsWithRisk = result.rows.map(patient => {
+      const egfr = patient.latest_egfr || 90;
+      const uacr = patient.latest_uacr || 15;
+
+      const kdigo = classifyKDIGO(egfr, uacr);
+      const risk_category = getRiskCategoryLabel(kdigo);
+
+      // Use data from tracking tables if available, otherwise fall back to legacy fields
+      const is_monitored = kdigo.has_ckd
+        ? (patient.ckd_is_monitored !== null ? patient.ckd_is_monitored : patient.home_monitoring_active)
+        : (patient.non_ckd_is_monitored !== null ? patient.non_ckd_is_monitored : patient.home_monitoring_active);
+
+      const monitoring_device = kdigo.has_ckd
+        ? (patient.ckd_monitoring_device || patient.home_monitoring_device)
+        : (patient.non_ckd_monitoring_device || patient.home_monitoring_device);
+
+      // Generate summarized comment for list view (max 100 chars)
+      let comment_summary = null;
+      if (patient.latest_comment_text) {
+        // Remove emojis and special characters, extract key info
+        const cleanText = patient.latest_comment_text.replace(/[⚠️✓]/g, '').trim();
+        // Take first sentence or up to 100 characters
+        const firstSentence = cleanText.split('.')[0];
+        comment_summary = firstSentence.length > 100
+          ? firstSentence.substring(0, 97) + '...'
+          : firstSentence;
+      }
+
+      // Generate evolution_summary for patient list badge display
+      let evolution_summary = null;
+      if (patient.latest_comment_change_type) {
+        const changeType = patient.latest_comment_change_type;
+        const severity = patient.latest_comment_severity;
+
+        // Create concise evolution summary based on change type and severity
+        if (changeType === 'worsened' || changeType === 'worsening') {
+          evolution_summary = severity === 'critical' ? 'Critical - Worsening' : 'Worsening';
+        } else if (changeType === 'improved' || changeType === 'improving') {
+          evolution_summary = 'Improving';
+        } else if (changeType === 'stable') {
+          evolution_summary = 'Stable';
+        } else if (changeType === 'initial') {
+          evolution_summary = 'Initial Assessment';
+        }
+      }
+
+      return {
+        ...patient,
+        kdigo_classification: kdigo,
+        risk_category,
+        // Simplified tracking data
+        is_monitored,
+        monitoring_device,
+        is_treated: kdigo.has_ckd ? (patient.ckd_is_treated || patient.ckd_treatment_active) : false,
+        // Evolution summary for patient list
+        evolution_summary,
+        // Latest comment summary for list view
+        latest_comment: patient.latest_comment_text ? {
+          summary: comment_summary,
+          change_type: patient.latest_comment_change_type,
+          severity: patient.latest_comment_severity,
+          date: patient.latest_comment_date,
+          cycle: patient.latest_comment_cycle,
+          clinical_summary: patient.latest_comment_clinical_summary,
+          recommended_actions: patient.latest_comment_recommended_actions
+        } : null
+      };
+    });
+
     res.json({
       status: 'success',
       filters_applied: {
@@ -160,8 +281,8 @@ router.get('/filter', async (req: Request, res: Response): Promise<any> => {
         has_recent_updates: has_recent_updates || 'not_specified',
         update_days: update_days || 'not_specified'
       },
-      count: result.rows.length,
-      patients: result.rows
+      count: patientsWithRisk.length,
+      patients: patientsWithRisk
     });
 
   } catch (error) {
