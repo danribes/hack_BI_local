@@ -1689,6 +1689,10 @@ Provide ONLY the JSON object, nothing else.`;
         mcpPostUpdateError: mcpPostUpdateError || undefined,
       };
 
+      console.log(`\n${'='.repeat(80)}`);
+      console.log(`[Patient Update] 🤖 INITIATING AI ANALYSIS SERVICE`);
+      console.log(`${'='.repeat(80)}\n`);
+
       // Call AI analysis service
       const aiAnalysis = await aiAnalysisService.analyzePatientUpdate(
         patientContext,
@@ -1696,9 +1700,18 @@ Provide ONLY the JSON object, nothing else.`;
         newLabValues
       );
 
+      console.log(`\n${'='.repeat(80)}`);
+      console.log(`[Patient Update] 📝 DECIDING WHETHER TO CREATE AI COMMENT`);
+      console.log(`${'='.repeat(80)}`);
+      console.log(`AI Analysis Significance Flag: ${aiAnalysis.hasSignificantChanges}`);
+      console.log(`Decision: ${aiAnalysis.hasSignificantChanges ? 'CREATE COMMENT' : 'SKIP COMMENT (stable patient)'}`);
+      console.log(`${'='.repeat(80)}\n`);
+
       // Only create AI-generated comment if there are significant changes OR a CKD transition
       // This prevents unnecessary alerts for stable patients with no meaningful changes
       if (aiAnalysis.hasSignificantChanges) {
+        console.log(`[Patient Update] ✅ Creating AI comment (significant changes detected)...`);
+
         aiCommentId = await aiAnalysisService.createAIUpdateComment(
           id,
           aiAnalysis,
@@ -1707,9 +1720,10 @@ Provide ONLY the JSON object, nothing else.`;
           newLabValues
         );
 
-        console.log(`✓ AI update analysis comment created: ${aiCommentId}`);
+        console.log(`[Patient Update] ✓ AI update analysis comment created with ID: ${aiCommentId}`);
       } else {
-        console.log(`ℹ️  No AI comment created - patient stable with no significant changes`);
+        console.log(`[Patient Update] ⊘ Skipping AI comment creation - patient stable with no significant changes`);
+        console.log(`[Patient Update]    This prevents unnecessary alert fatigue for clinicians`);
       }
 
       // Send email notification if CKD status transition occurred

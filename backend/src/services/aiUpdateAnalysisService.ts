@@ -117,36 +117,60 @@ export class AIUpdateAnalysisService {
     previousLabValues: LabValues,
     newLabValues: LabValues
   ): Promise<AIAnalysisResult> {
+    console.log(`\n${'='.repeat(80)}`);
+    console.log(`[AI Analysis] 🤖 STARTING AI PATIENT UPDATE ANALYSIS`);
+    console.log(`${'='.repeat(80)}`);
+    console.log(`Patient: ${patientContext.firstName} ${patientContext.lastName} (ID: ${patientContext.patientId})`);
+    console.log(`CKD Status: ${patientContext.isCkd ? 'CKD Patient' : 'Non-CKD At-Risk'}`);
+    console.log(`Health State: ${patientContext.previousHealthState || 'N/A'} → ${patientContext.currentHealthState || 'N/A'}`);
+    console.log(`Has Transitioned: ${patientContext.hasTransitioned ? `YES (${patientContext.transitionType})` : 'NO'}`);
+    console.log(`Treatment Active: ${patientContext.treatmentActive ? 'YES' : 'NO'}`);
+    console.log(`Monitoring Active: ${patientContext.monitoringActive ? 'YES' : 'NO'}`);
+    console.log(`${'='.repeat(80)}\n`);
+
     // Calculate changes
     const changes = this.calculateLabChanges(previousLabValues, newLabValues);
 
     // Check if there are significant changes (threshold: any change > 5% or important clinical thresholds)
     const hasSignificantChanges = this.hasSignificantChanges(changes, previousLabValues, newLabValues);
 
-    console.log(`[AI Analysis] Analyzing patient update (significant changes: ${hasSignificantChanges})`);
+    console.log(`\n${'='.repeat(80)}`);
+    console.log(`[AI Analysis] 📋 SIGNIFICANCE SUMMARY`);
+    console.log(`${'='.repeat(80)}`);
+    console.log(`Calculated Significance: ${hasSignificantChanges ? '✅ SIGNIFICANT CHANGES DETECTED' : '❌ NO SIGNIFICANT CHANGES'}`);
+    console.log(`CKD Transition: ${patientContext.hasTransitioned ? '✅ YES - WILL FORCE SIGNIFICANT' : '❌ NO'}`);
+    console.log(`${'='.repeat(80)}\n`);
 
     // Fetch Phase 3 treatment recommendations for CKD patients or those at risk
     // This is CRITICAL for proper treatment and monitoring recommendations
     if (patientContext.isCkd || (newLabValues.egfr && newLabValues.egfr < 60) ||
         (newLabValues.uacr && newLabValues.uacr >= 30)) {
       try {
-        console.log(`[AI Analysis] Fetching Phase 3 treatment recommendations for patient ${patientContext.patientId}`);
+        console.log(`[AI Analysis] 💊 Fetching Phase 3 treatment recommendations for patient ${patientContext.patientId}...`);
         const phase3Recs = await this.fetchPhase3Recommendations(patientContext.patientId);
         patientContext.phase3Recommendations = phase3Recs;
-        console.log(`[AI Analysis] Phase 3 recommendations:`, {
-          jardiance: phase3Recs.jardiance?.indication,
-          rasInhibitor: phase3Recs.rasInhibitor?.indication,
+        console.log(`[AI Analysis] ✓ Phase 3 recommendations received:`, {
+          jardiance: phase3Recs.jardiance?.indication || 'Not recommended',
+          rasInhibitor: phase3Recs.rasInhibitor?.indication || 'Not recommended',
           minutefulKidney: phase3Recs.minutefulKidney?.recommended ? `${phase3Recs.minutefulKidney.frequency}` : 'Not recommended'
         });
       } catch (error) {
-        console.error('[AI Analysis] Error fetching Phase 3 recommendations:', error);
+        console.error('[AI Analysis] ⚠️  Error fetching Phase 3 recommendations:', error);
         // Continue without Phase 3 recommendations rather than failing
       }
+    } else {
+      console.log(`[AI Analysis] ⊘ Skipping Phase 3 recommendations (not CKD/at-risk)`);
     }
 
     // For transitions, ALWAYS generate detailed analysis even if lab changes are small
     // For non-transitions, respect the calculated significance
     const forceSignificant = patientContext.hasTransitioned || false;
+
+    console.log(`\n${'='.repeat(80)}`);
+    console.log(`[AI Analysis] 🧠 CALLING CLAUDE AI FOR ANALYSIS`);
+    console.log(`${'='.repeat(80)}`);
+    console.log(`Will call AI: YES (always analyze to generate appropriate response)`);
+    console.log(`${'='.repeat(80)}\n`);
 
     // Call Claude AI to analyze the changes
     // - For transitions: Always generate comprehensive analysis
@@ -154,15 +178,28 @@ export class AIUpdateAnalysisService {
     // - For stable patients: Generate brief stability note
     const aiAnalysis = await this.generateAIAnalysis(patientContext, previousLabValues, newLabValues, changes);
 
+    console.log(`\n${'='.repeat(80)}`);
+    console.log(`[AI Analysis] ✅ AI ANALYSIS COMPLETE`);
+    console.log(`${'='.repeat(80)}`);
+
     // Override hasSignificantChanges only for transitions (which are always clinically significant)
     // Otherwise, respect the calculated value from hasSignificantChanges()
     if (forceSignificant) {
       aiAnalysis.hasSignificantChanges = true;
-      console.log(`[AI Analysis] Marked as significant due to CKD status transition`);
+      console.log(`Final Significance: ✅ SIGNIFICANT (CKD status transition detected)`);
+      console.log(`Reason: CKD transitions are ALWAYS clinically significant`);
     } else {
       aiAnalysis.hasSignificantChanges = hasSignificantChanges;
-      console.log(`[AI Analysis] Significance based on lab changes: ${hasSignificantChanges}`);
+      console.log(`Final Significance: ${hasSignificantChanges ? '✅ SIGNIFICANT' : '❌ NOT SIGNIFICANT'}`);
+      console.log(`Reason: Based on clinical threshold evaluation`);
     }
+
+    console.log(`AI Analysis Result Summary:`);
+    console.log(`  - hasSignificantChanges: ${aiAnalysis.hasSignificantChanges}`);
+    console.log(`  - severity: ${aiAnalysis.severity}`);
+    console.log(`  - concernLevel: ${aiAnalysis.concernLevel}`);
+    console.log(`  - commentText: "${aiAnalysis.commentText.substring(0, 80)}..."`);
+    console.log(`${'='.repeat(80)}\n`);
 
     return aiAnalysis;
   }
@@ -215,6 +252,10 @@ export class AIUpdateAnalysisService {
   private calculateLabChanges(previous: LabValues, current: LabValues): Record<string, { absolute: number; percentage: number }> {
     const changes: Record<string, { absolute: number; percentage: number }> = {};
 
+    console.log(`\n${'='.repeat(80)}`);
+    console.log(`[AI Analysis] 📊 CALCULATING LAB VALUE CHANGES`);
+    console.log(`${'='.repeat(80)}`);
+
     const keys = Object.keys(current) as Array<keyof LabValues>;
     for (const key of keys) {
       const prevValue = previous[key];
@@ -224,9 +265,12 @@ export class AIUpdateAnalysisService {
         const absolute = currValue - prevValue;
         const percentage = prevValue !== 0 ? (absolute / prevValue) * 100 : 0;
         changes[key] = { absolute, percentage };
+
+        console.log(`  ${key}: ${prevValue.toFixed(2)} → ${currValue.toFixed(2)} (Δ ${absolute >= 0 ? '+' : ''}${absolute.toFixed(2)}, ${percentage >= 0 ? '+' : ''}${percentage.toFixed(1)}%)`);
       }
     }
 
+    console.log(`${'='.repeat(80)}\n`);
     return changes;
   }
 
@@ -239,74 +283,159 @@ export class AIUpdateAnalysisService {
     previous: LabValues,
     current: LabValues
   ): boolean {
+    console.log(`\n${'='.repeat(80)}`);
+    console.log(`[AI Analysis] 🔍 EVALUATING CLINICAL SIGNIFICANCE`);
+    console.log(`${'='.repeat(80)}`);
+
     // Check for significant changes in key metrics
     // Note: Thresholds lowered to catch gradual but clinically important changes
 
     // eGFR: >=1.5 ml/min/1.73m² change or >2% change
     // Even small declines (1.5-3 units) are clinically significant in CKD monitoring
-    if (changes.egfr && (Math.abs(changes.egfr.absolute) >= 1.5 || Math.abs(changes.egfr.percentage) > 2)) {
-      console.log(`[AI Analysis] Significant eGFR change detected: ${changes.egfr.absolute.toFixed(1)} units (${changes.egfr.percentage.toFixed(1)}%)`);
-      return true;
+    if (changes.egfr) {
+      const absChange = Math.abs(changes.egfr.absolute);
+      const pctChange = Math.abs(changes.egfr.percentage);
+      const isSignificant = absChange >= 1.5 || pctChange > 2;
+
+      console.log(`  ✓ eGFR Check: ${changes.egfr.absolute.toFixed(1)} units (${changes.egfr.percentage.toFixed(1)}%)`);
+      console.log(`    - Absolute change: ${absChange.toFixed(1)} >= 1.5? ${absChange >= 1.5 ? '✓ YES' : '✗ NO'}`);
+      console.log(`    - Percentage change: ${pctChange.toFixed(1)}% > 2%? ${pctChange > 2 ? '✓ YES' : '✗ NO'}`);
+      console.log(`    - Result: ${isSignificant ? '🚨 SIGNIFICANT' : '✓ Within normal variation'}`);
+
+      if (isSignificant) {
+        console.log(`\n[AI Analysis] ✅ SIGNIFICANCE DETECTED: eGFR change`);
+        console.log(`${'='.repeat(80)}\n`);
+        return true;
+      }
+    } else {
+      console.log(`  ⊘ eGFR: No change data available`);
     }
 
     // uACR: >10% change or crossing albuminuria categories
     // Proteinuria changes are important markers of kidney disease progression
-    if (changes.uacr && Math.abs(changes.uacr.percentage) > 10) {
-      console.log(`[AI Analysis] Significant uACR change detected: ${changes.uacr.percentage.toFixed(1)}%`);
-      return true;
+    if (changes.uacr) {
+      const pctChange = Math.abs(changes.uacr.percentage);
+      const isSignificant = pctChange > 10;
+
+      console.log(`  ✓ uACR Check: ${changes.uacr.percentage.toFixed(1)}%`);
+      console.log(`    - Percentage change: ${pctChange.toFixed(1)}% > 10%? ${isSignificant ? '✓ YES' : '✗ NO'}`);
+      console.log(`    - Result: ${isSignificant ? '🚨 SIGNIFICANT' : '✓ Within normal variation'}`);
+
+      if (isSignificant) {
+        console.log(`\n[AI Analysis] ✅ SIGNIFICANCE DETECTED: uACR change`);
+        console.log(`${'='.repeat(80)}\n`);
+        return true;
+      }
+    } else {
+      console.log(`  ⊘ uACR: No change data available`);
     }
 
     // Check albuminuria category crossing (A1, A2, A3)
     if (previous.uacr !== undefined && current.uacr !== undefined) {
       const prevCategory = this.getAlbuminuriaCategory(previous.uacr);
       const currCategory = this.getAlbuminuriaCategory(current.uacr);
-      if (prevCategory !== currCategory) {
-        console.log(`[AI Analysis] Albuminuria category change: ${prevCategory} → ${currCategory}`);
+      const categoryCrossed = prevCategory !== currCategory;
+
+      console.log(`  ✓ Albuminuria Category Check: ${prevCategory} → ${currCategory}`);
+      console.log(`    - Category changed? ${categoryCrossed ? '✓ YES - SIGNIFICANT' : '✗ NO'}`);
+
+      if (categoryCrossed) {
+        console.log(`\n[AI Analysis] ✅ SIGNIFICANCE DETECTED: Albuminuria category crossing`);
+        console.log(`${'='.repeat(80)}\n`);
         return true;
       }
     }
 
     // Creatinine: >10% change
-    // Lower threshold for creatinine as it's a key indicator
-    if (changes.creatinine && Math.abs(changes.creatinine.percentage) > 10) {
-      console.log(`[AI Analysis] Significant creatinine change: ${changes.creatinine.percentage.toFixed(1)}%`);
-      return true;
+    if (changes.creatinine) {
+      const pctChange = Math.abs(changes.creatinine.percentage);
+      const isSignificant = pctChange > 10;
+
+      console.log(`  ✓ Creatinine Check: ${changes.creatinine.percentage.toFixed(1)}%`);
+      console.log(`    - Percentage change: ${pctChange.toFixed(1)}% > 10%? ${isSignificant ? '✓ YES' : '✗ NO'}`);
+
+      if (isSignificant) {
+        console.log(`\n[AI Analysis] ✅ SIGNIFICANCE DETECTED: Creatinine change`);
+        console.log(`${'='.repeat(80)}\n`);
+        return true;
+      }
     }
 
     // Blood pressure: significant hypertension or changes >10 mmHg
-    if (current.systolic_bp && (current.systolic_bp > 160 || current.systolic_bp < 90)) {
-      console.log(`[AI Analysis] Abnormal blood pressure: ${current.systolic_bp} mmHg`);
-      return true;
+    if (current.systolic_bp) {
+      const isAbnormal = current.systolic_bp > 160 || current.systolic_bp < 90;
+      console.log(`  ✓ Blood Pressure Absolute Check: ${current.systolic_bp} mmHg`);
+      console.log(`    - Abnormal (<90 or >160)? ${isAbnormal ? '✓ YES - SIGNIFICANT' : '✗ NO'}`);
+
+      if (isAbnormal) {
+        console.log(`\n[AI Analysis] ✅ SIGNIFICANCE DETECTED: Abnormal blood pressure`);
+        console.log(`${'='.repeat(80)}\n`);
+        return true;
+      }
     }
-    if (changes.systolic_bp && Math.abs(changes.systolic_bp.absolute) > 10) {
-      console.log(`[AI Analysis] Significant BP change: ${changes.systolic_bp.absolute.toFixed(1)} mmHg`);
-      return true;
+
+    if (changes.systolic_bp) {
+      const absChange = Math.abs(changes.systolic_bp.absolute);
+      const isSignificant = absChange > 10;
+
+      console.log(`  ✓ Blood Pressure Change Check: ${changes.systolic_bp.absolute.toFixed(1)} mmHg`);
+      console.log(`    - Absolute change: ${absChange.toFixed(1)} > 10? ${isSignificant ? '✓ YES' : '✗ NO'}`);
+
+      if (isSignificant) {
+        console.log(`\n[AI Analysis] ✅ SIGNIFICANCE DETECTED: Blood pressure change`);
+        console.log(`${'='.repeat(80)}\n`);
+        return true;
+      }
     }
 
     // HbA1c: >0.3% change or poor control
-    // Important for diabetic CKD patients
-    if (changes.hba1c && (Math.abs(changes.hba1c.absolute) > 0.3 || (current.hba1c && current.hba1c > 8))) {
-      console.log(`[AI Analysis] Significant HbA1c change or poor control`);
-      return true;
+    if (changes.hba1c || current.hba1c) {
+      const absChange = changes.hba1c ? Math.abs(changes.hba1c.absolute) : 0;
+      const poorControl = current.hba1c && current.hba1c > 8;
+      const isSignificant = absChange > 0.3 || poorControl;
+
+      console.log(`  ✓ HbA1c Check: ${changes.hba1c ? changes.hba1c.absolute.toFixed(1) : '0.0'} (current: ${current.hba1c || 'N/A'})`);
+      console.log(`    - Absolute change: ${absChange.toFixed(1)} > 0.3? ${absChange > 0.3 ? '✓ YES' : '✗ NO'}`);
+      console.log(`    - Poor control (>8%)? ${poorControl ? '✓ YES' : '✗ NO'}`);
+
+      if (isSignificant) {
+        console.log(`\n[AI Analysis] ✅ SIGNIFICANCE DETECTED: HbA1c ${poorControl ? 'poor control' : 'change'}`);
+        console.log(`${'='.repeat(80)}\n`);
+        return true;
+      }
     }
 
     // Hemoglobin: anemia concerns or >5% change
-    // Anemia is common in CKD and requires monitoring
-    if (current.hemoglobin && current.hemoglobin < 10) {
-      console.log(`[AI Analysis] Anemia detected: ${current.hemoglobin} g/dL`);
-      return true;
-    }
-    if (changes.hemoglobin && Math.abs(changes.hemoglobin.percentage) > 5) {
-      console.log(`[AI Analysis] Significant hemoglobin change: ${changes.hemoglobin.percentage.toFixed(1)}%`);
-      return true;
+    if (current.hemoglobin) {
+      const isAnemic = current.hemoglobin < 10;
+      console.log(`  ✓ Hemoglobin Anemia Check: ${current.hemoglobin} g/dL`);
+      console.log(`    - Anemic (<10 g/dL)? ${isAnemic ? '✓ YES - SIGNIFICANT' : '✗ NO'}`);
+
+      if (isAnemic) {
+        console.log(`\n[AI Analysis] ✅ SIGNIFICANCE DETECTED: Anemia`);
+        console.log(`${'='.repeat(80)}\n`);
+        return true;
+      }
     }
 
-    // If no significant changes detected, log for debugging
-    console.log(`[AI Analysis] No significant changes detected - largest changes:`, {
-      egfr: changes.egfr ? `${changes.egfr.absolute.toFixed(1)} units` : 'none',
-      uacr: changes.uacr ? `${changes.uacr.percentage.toFixed(1)}%` : 'none',
-      creatinine: changes.creatinine ? `${changes.creatinine.percentage.toFixed(1)}%` : 'none'
-    });
+    if (changes.hemoglobin) {
+      const pctChange = Math.abs(changes.hemoglobin.percentage);
+      const isSignificant = pctChange > 5;
+
+      console.log(`  ✓ Hemoglobin Change Check: ${changes.hemoglobin.percentage.toFixed(1)}%`);
+      console.log(`    - Percentage change: ${pctChange.toFixed(1)}% > 5%? ${isSignificant ? '✓ YES' : '✗ NO'}`);
+
+      if (isSignificant) {
+        console.log(`\n[AI Analysis] ✅ SIGNIFICANCE DETECTED: Hemoglobin change`);
+        console.log(`${'='.repeat(80)}\n`);
+        return true;
+      }
+    }
+
+    // If no significant changes detected
+    console.log(`\n[AI Analysis] ❌ NO SIGNIFICANT CHANGES DETECTED`);
+    console.log(`  All values within acceptable clinical variation`);
+    console.log(`${'='.repeat(80)}\n`);
 
     return false;
   }
