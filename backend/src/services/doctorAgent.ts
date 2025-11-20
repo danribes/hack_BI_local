@@ -30,6 +30,63 @@ export class DoctorAgentService {
   }
 
   /**
+   * Calls Claude API with retry logic for transient errors
+   */
+  private async callClaudeWithRetry(
+    messages: any[],
+    systemPrompt: string,
+    maxRetries: number = 3
+  ): Promise<string> {
+    let lastError: Error | null = null;
+
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        console.log(`[DoctorAgent] Calling Claude API (attempt ${attempt + 1}/${maxRetries + 1})...`);
+
+        const response = await this.anthropic.messages.create({
+          model: 'claude-sonnet-4-5-20250929',
+          max_tokens: 4096,
+          system: systemPrompt,
+          messages: messages,
+        });
+
+        const textContent = response.content.find(block => block.type === 'text');
+        const result = textContent ? (textContent as any).text : 'No response generated';
+
+        console.log(`[DoctorAgent] Claude API call successful`);
+        return result;
+      } catch (error: any) {
+        lastError = error;
+
+        // Check if it's a retryable error (529 overloaded, 5xx server errors, rate limits)
+        const isRetryable =
+          error.status === 529 ||
+          error.status === 503 ||
+          error.status === 500 ||
+          (error.status >= 500 && error.status < 600) ||
+          error.message?.includes('overloaded') ||
+          error.message?.includes('rate_limit');
+
+        if (!isRetryable) {
+          console.error(`[DoctorAgent] Non-retryable error:`, error.status, error.message);
+          throw error;
+        }
+
+        if (attempt < maxRetries) {
+          // Exponential backoff: 2s, 4s, 8s
+          const delayMs = Math.pow(2, attempt + 1) * 1000;
+          console.log(`[DoctorAgent] Retryable error (${error.status}), waiting ${delayMs}ms before retry...`);
+          await new Promise(resolve => setTimeout(resolve, delayMs));
+        } else {
+          console.error(`[DoctorAgent] All retry attempts exhausted`);
+        }
+      }
+    }
+
+    throw lastError || new Error('Failed to call Claude API after multiple retries');
+  }
+
+  /**
    * Main chat endpoint - handles doctor queries with optional patient context
    */
   async chat(
@@ -37,6 +94,12 @@ export class DoctorAgentService {
     context?: PatientContext
   ): Promise<string> {
     try {
+      // Convert messages to Anthropic format
+      const anthropicMessages = messages.map(msg => ({
+        role: msg.role,
+        content: msg.content,
+      }));
+
       // Check if this is a population-level query
       const lastUserMessage = messages[messages.length - 1];
       if (lastUserMessage && lastUserMessage.role === 'user') {
@@ -46,45 +109,16 @@ export class DoctorAgentService {
           const systemPrompt = await this.buildSystemPrompt(context);
           const enhancedPrompt = systemPrompt + '\n\n--- POPULATION DATA ---\n' + populationData;
 
-          // Convert messages to Anthropic format
-          const anthropicMessages = messages.map(msg => ({
-            role: msg.role,
-            content: msg.content,
-          }));
-
-          // Call Claude API with enhanced context
-          const response = await this.anthropic.messages.create({
-            model: 'claude-sonnet-4-5-20250929',
-            max_tokens: 4096,
-            system: enhancedPrompt,
-            messages: anthropicMessages,
-          });
-
-          const textContent = response.content.find(block => block.type === 'text');
-          return textContent ? (textContent as any).text : 'No response generated';
+          // Call Claude API with enhanced context and retry logic
+          return await this.callClaudeWithRetry(anthropicMessages, enhancedPrompt);
         }
       }
 
       // Build system prompt based on context
       const systemPrompt = await this.buildSystemPrompt(context);
 
-      // Convert messages to Anthropic format
-      const anthropicMessages = messages.map(msg => ({
-        role: msg.role,
-        content: msg.content,
-      }));
-
-      // Call Claude API
-      const response = await this.anthropic.messages.create({
-        model: 'claude-sonnet-4-5-20250929',
-        max_tokens: 4096,
-        system: systemPrompt,
-        messages: anthropicMessages,
-      });
-
-      // Extract text from response
-      const textContent = response.content.find(block => block.type === 'text');
-      return textContent ? (textContent as any).text : 'No response generated';
+      // Call Claude API with retry logic
+      return await this.callClaudeWithRetry(anthropicMessages, systemPrompt);
     } catch (error) {
       console.error('Error in doctor agent chat:', error);
       throw new Error(`Failed to process chat request: ${error instanceof Error ? error.message : 'Unknown error'}`);
