@@ -262,11 +262,15 @@ export class AIUpdateAnalysisService {
       const currValue = current[key];
 
       if (prevValue !== undefined && currValue !== undefined) {
-        const absolute = currValue - prevValue;
-        const percentage = prevValue !== 0 ? (absolute / prevValue) * 100 : 0;
+        // Convert to numbers in case they're strings
+        const prevNum = typeof prevValue === 'string' ? parseFloat(prevValue) : prevValue;
+        const currNum = typeof currValue === 'string' ? parseFloat(currValue) : currValue;
+
+        const absolute = currNum - prevNum;
+        const percentage = prevNum !== 0 ? (absolute / prevNum) * 100 : 0;
         changes[key] = { absolute, percentage };
 
-        console.log(`  ${key}: ${prevValue.toFixed(2)} → ${currValue.toFixed(2)} (Δ ${absolute >= 0 ? '+' : ''}${absolute.toFixed(2)}, ${percentage >= 0 ? '+' : ''}${percentage.toFixed(1)}%)`);
+        console.log(`  ${key}: ${prevNum.toFixed(2)} → ${currNum.toFixed(2)} (Δ ${absolute >= 0 ? '+' : ''}${absolute.toFixed(2)}, ${percentage >= 0 ? '+' : ''}${percentage.toFixed(1)}%)`);
       }
     }
 
