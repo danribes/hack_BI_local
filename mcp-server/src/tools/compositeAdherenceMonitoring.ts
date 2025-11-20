@@ -218,8 +218,7 @@ async function getActiveTreatments(patient_id: string): Promise<any[]> {
        ckd_treatment_active,
        ckd_treatment_type,
        on_ras_inhibitor,
-       on_sglt2i,
-       on_glp1ra
+       on_sglt2i
      FROM patients
      WHERE id = $1`,
     [patient_id]
@@ -264,19 +263,6 @@ async function getActiveTreatments(patient_id: string): Promise<any[]> {
     syntheticTreatments.push({
       id: `synthetic-${patient_id}-sglt2i`,
       medication_name: 'SGLT2 Inhibitor',
-      medication_class: 'Antidiabetic/Renoprotective',
-      started_date: null,
-      started_cycle: null,
-      current_adherence: null,
-      synthetic: true
-    });
-  }
-
-  // Add GLP-1 RA if flag is set
-  if (patient.on_glp1ra) {
-    syntheticTreatments.push({
-      id: `synthetic-${patient_id}-glp1`,
-      medication_name: 'GLP-1 Receptor Agonist',
       medication_class: 'Antidiabetic/Renoprotective',
       started_date: null,
       started_cycle: null,
