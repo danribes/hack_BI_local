@@ -201,6 +201,11 @@ function App() {
   const [updatingPatient, setUpdatingPatient] = useState(false);
   const [resettingPatient, setResettingPatient] = useState(false);
 
+  // Doctor Assistant Chat states for patient detail view
+  const [chatMessages, setChatMessages] = useState<Array<{ role: 'user' | 'assistant'; content: string; timestamp: Date }>>([]);
+  const [chatInput, setChatInput] = useState('');
+  const [chatLoading, setChatLoading] = useState(false);
+
   // Filter states
   const [activeFilters, setActiveFilters] = useState<{
     patientType: 'all' | 'ckd' | 'non-ckd' | 'health-state-changed';
@@ -235,6 +240,12 @@ function App() {
       fetchFilteredPatients();
     }
   }, [activeFilters]);
+
+  // Clear chat messages when patient changes
+  useEffect(() => {
+    setChatMessages([]);
+    setChatInput('');
+  }, [selectedPatient?.id]);
 
   const fetchPatients = async () => {
     try {
@@ -658,6 +669,62 @@ function App() {
       console.error('Error populating database:', err);
     } finally {
       setPopulating(false);
+    }
+  };
+
+  const handleSendChatMessage = async () => {
+    if (!chatInput.trim() || !selectedPatient) return;
+
+    const userMessage = {
+      role: 'user' as const,
+      content: chatInput,
+      timestamp: new Date(),
+    };
+
+    setChatMessages(prev => [...prev, userMessage]);
+    setChatInput('');
+    setChatLoading(true);
+
+    try {
+      const response = await fetch(`${API_URL}/api/agent/chat`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          messages: [...chatMessages, userMessage].map(m => ({
+            role: m.role,
+            content: m.content,
+          })),
+          patientId: selectedPatient.id,
+          includeRecentLabs: true,
+          includeRiskAssessment: true,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`API error: ${response.status}`);
+      }
+
+      const data = await response.json();
+
+      const assistantMessage = {
+        role: 'assistant' as const,
+        content: data.response,
+        timestamp: new Date(),
+      };
+
+      setChatMessages(prev => [...prev, assistantMessage]);
+    } catch (error) {
+      console.error('Error sending chat message:', error);
+      const errorMessage = {
+        role: 'assistant' as const,
+        content: `Error: ${error instanceof Error ? error.message : 'Sorry, I encountered an error processing your request.'}`,
+        timestamp: new Date(),
+      };
+      setChatMessages(prev => [...prev, errorMessage]);
+    } finally {
+      setChatLoading(false);
     }
   };
 
@@ -1402,6 +1469,102 @@ function App() {
                       </div>
                     </div>
                   )}
+                </div>
+              </div>
+
+              {/* Doctor Assistant Chat */}
+              <div className="bg-white rounded-lg shadow-xl overflow-hidden">
+                <div className="px-8 py-4 bg-gradient-to-r from-blue-600 to-cyan-600">
+                  <h2 className="text-2xl font-bold text-white flex items-center">
+                    <svg className="h-6 w-6 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+                    </svg>
+                    Doctor Assistant
+                  </h2>
+                  <p className="text-blue-100 text-sm mt-1">
+                    Ask me about this patient's data, lab results, clinical guidelines, or treatment recommendations
+                  </p>
+                </div>
+
+                <div className="p-8">
+                  {/* Chat Messages */}
+                  <div className="mb-4 space-y-4 max-h-[400px] overflow-y-auto">
+                    {chatMessages.length === 0 ? (
+                      <div className="text-center text-gray-500 py-8">
+                        <svg className="h-12 w-12 mx-auto mb-2 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+                        </svg>
+                        <p className="font-medium mb-1">Hi! I'm your AI Doctor Assistant.</p>
+                        <p className="text-sm">
+                          Ask me about {selectedPatient.first_name}'s lab results, clinical guidelines, or treatment recommendations.
+                        </p>
+                      </div>
+                    ) : (
+                      chatMessages.map((message, index) => (
+                        <div
+                          key={index}
+                          className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                        >
+                          <div
+                            className={`max-w-[80%] rounded-lg px-4 py-3 ${
+                              message.role === 'user'
+                                ? 'bg-blue-600 text-white'
+                                : 'bg-gray-100 text-gray-900'
+                            }`}
+                          >
+                            <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                            <p
+                              className={`text-xs mt-1 ${
+                                message.role === 'user' ? 'text-blue-100' : 'text-gray-500'
+                              }`}
+                            >
+                              {message.timestamp.toLocaleTimeString()}
+                            </p>
+                          </div>
+                        </div>
+                      ))
+                    )}
+
+                    {chatLoading && (
+                      <div className="flex justify-start">
+                        <div className="bg-gray-100 text-gray-900 rounded-lg px-4 py-3">
+                          <div className="flex gap-2">
+                            <div className="w-2 h-2 bg-gray-500 rounded-full animate-bounce"></div>
+                            <div className="w-2 h-2 bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
+                            <div className="w-2 h-2 bg-gray-500 rounded-full animate-bounce" style={{ animationDelay: '0.4s' }}></div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Chat Input */}
+                  <div className="flex gap-2 border-t border-gray-200 pt-4">
+                    <input
+                      type="text"
+                      value={chatInput}
+                      onChange={(e) => setChatInput(e.target.value)}
+                      onKeyPress={(e) => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault();
+                          handleSendChatMessage();
+                        }
+                      }}
+                      placeholder="Ask a question..."
+                      disabled={chatLoading}
+                      className="flex-1 border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
+                    />
+                    <button
+                      onClick={handleSendChatMessage}
+                      disabled={chatLoading || !chatInput.trim()}
+                      className="bg-blue-600 hover:bg-blue-700 text-white rounded-lg px-6 py-3 disabled:bg-gray-300 disabled:cursor-not-allowed transition flex items-center gap-2"
+                    >
+                      <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                      </svg>
+                      Send
+                    </button>
+                  </div>
                 </div>
               </div>
 
