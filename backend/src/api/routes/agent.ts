@@ -71,12 +71,23 @@ export function createAgentRouter(db: Pool): Router {
         response,
         timestamp: new Date().toISOString(),
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error('[Agent Chat] Error in agent chat:', error);
       console.error('[Agent Chat] Error stack:', error instanceof Error ? error.stack : 'No stack');
+
+      // Check if it's an Anthropic overload error
+      const isOverloaded =
+        error.status === 529 ||
+        error.message?.includes('overloaded') ||
+        error.message?.includes('Overloaded');
+
       res.status(500).json({
-        error: 'Failed to process chat request',
+        error: isOverloaded ? 'AI service temporarily overloaded' : 'Failed to process chat request',
         message: error instanceof Error ? error.message : 'Unknown error',
+        retryable: isOverloaded,
+        suggestedAction: isOverloaded
+          ? 'The AI service is experiencing high load. Please try again in a moment.'
+          : 'An error occurred. Please try again or contact support if the issue persists.',
       });
     }
   });

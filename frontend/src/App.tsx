@@ -685,8 +685,10 @@ function App() {
     setChatInput('');
     setChatLoading(true);
 
+    let response: Response | null = null;
+
     try {
-      const response = await fetch(`${API_URL}/api/agent/chat`, {
+      response = await fetch(`${API_URL}/api/agent/chat`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -703,7 +705,14 @@ function App() {
       });
 
       if (!response.ok) {
-        throw new Error(`API error: ${response.status}`);
+        // Try to get error details from response
+        const errorData = await response.json().catch(() => null);
+
+        // Throw error with response data
+        const error: any = new Error(`API error: ${response.status}`);
+        error.response = response;
+        error.data = errorData;
+        throw error;
       }
 
       const data = await response.json();
@@ -715,11 +724,28 @@ function App() {
       };
 
       setChatMessages(prev => [...prev, assistantMessage]);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error sending chat message:', error);
+
+      // Provide user-friendly error messages
+      let errorContent = 'Sorry, I encountered an error processing your request.';
+
+      // Check if backend provided a suggested action
+      if (error.data?.suggestedAction) {
+        errorContent = `⚠️ ${error.data.suggestedAction}`;
+      } else if (error.data?.retryable) {
+        errorContent = '⚠️ The AI service is temporarily overloaded. Our system tried multiple times but couldn\'t get through. Please try again in a minute.';
+      } else if (error.response?.status === 500) {
+        errorContent = '⚠️ The AI service is temporarily overloaded. Please try again in a moment.';
+      } else if (error.response?.status === 429) {
+        errorContent = '⏳ Rate limit reached. Please wait a moment before trying again.';
+      } else if (error.response?.status === 401 || error.response?.status === 403) {
+        errorContent = '🔒 Authentication error. Please contact support.';
+      }
+
       const errorMessage = {
         role: 'assistant' as const,
-        content: `Error: ${error instanceof Error ? error.message : 'Sorry, I encountered an error processing your request.'}`,
+        content: errorContent,
         timestamp: new Date(),
       };
       setChatMessages(prev => [...prev, errorMessage]);
