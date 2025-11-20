@@ -446,7 +446,7 @@ export const AdherenceCard: React.FC<AdherenceCardProps> = ({ adherenceData, loa
               </div>
               <div className="flex items-center gap-1">
                 <div className="w-3 h-3 bg-red-500 rounded"></div>
-                <span className="text-gray-600">Poor (<75%)</span>
+                <span className="text-gray-600">Poor (&lt;75%)</span>
               </div>
             </div>
           </div>
