@@ -2056,10 +2056,9 @@ router.post('/:id/comments/:commentId/archive', async (req: Request, res: Respon
 router.get('/:id/adherence', async (req: Request, res: Response): Promise<any> => {
   try {
     const { id } = req.params;
-    const pool = getPool();
 
     // Get MCP client to call composite adherence monitoring tool
-    const mcpClient = getMCPClient();
+    const mcpClient = await getMCPClient();
 
     // Call the composite adherence monitoring MCP tool
     const adherenceResult = await mcpClient.callTool('monitor_composite_adherence', {
