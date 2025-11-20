@@ -199,13 +199,93 @@ export async function monitorCompositeAdherence(
 }
 
 async function getActiveTreatments(patient_id: string): Promise<any[]> {
+  // First, try to get treatments from patient_treatments table
   const result = await pool.query(
     `SELECT id, medication_name, medication_class, started_date, started_cycle, current_adherence
      FROM patient_treatments
      WHERE patient_id = $1 AND status = 'active'`,
     [patient_id]
   );
-  return result.rows;
+
+  // If we have treatments in the proper table, return them
+  if (result.rows.length > 0) {
+    return result.rows;
+  }
+
+  // Otherwise, fall back to checking the patients table for legacy treatment flags
+  const patientResult = await pool.query(
+    `SELECT
+       ckd_treatment_active,
+       ckd_treatment_type,
+       on_ras_inhibitor,
+       on_sglt2i,
+       on_glp1ra
+     FROM patients
+     WHERE id = $1`,
+    [patient_id]
+  );
+
+  if (patientResult.rows.length === 0 || !patientResult.rows[0].ckd_treatment_active) {
+    return []; // No active treatment
+  }
+
+  // Build synthetic treatment records from patient flags
+  const patient = patientResult.rows[0];
+  const syntheticTreatments = [];
+
+  // Add main CKD treatment if specified
+  if (patient.ckd_treatment_type) {
+    syntheticTreatments.push({
+      id: `synthetic-${patient_id}-primary`,
+      medication_name: patient.ckd_treatment_type,
+      medication_class: 'CKD Treatment',
+      started_date: null,
+      started_cycle: null,
+      current_adherence: null,
+      synthetic: true
+    });
+  }
+
+  // Add RAS inhibitor if flag is set
+  if (patient.on_ras_inhibitor) {
+    syntheticTreatments.push({
+      id: `synthetic-${patient_id}-ras`,
+      medication_name: 'RAS Inhibitor (ACE-I/ARB)',
+      medication_class: 'Antihypertensive',
+      started_date: null,
+      started_cycle: null,
+      current_adherence: null,
+      synthetic: true
+    });
+  }
+
+  // Add SGLT2i if flag is set
+  if (patient.on_sglt2i) {
+    syntheticTreatments.push({
+      id: `synthetic-${patient_id}-sglt2i`,
+      medication_name: 'SGLT2 Inhibitor',
+      medication_class: 'Antidiabetic/Renoprotective',
+      started_date: null,
+      started_cycle: null,
+      current_adherence: null,
+      synthetic: true
+    });
+  }
+
+  // Add GLP-1 RA if flag is set
+  if (patient.on_glp1ra) {
+    syntheticTreatments.push({
+      id: `synthetic-${patient_id}-glp1`,
+      medication_name: 'GLP-1 Receptor Agonist',
+      medication_class: 'Antidiabetic/Renoprotective',
+      started_date: null,
+      started_cycle: null,
+      current_adherence: null,
+      synthetic: true
+    });
+  }
+
+  return syntheticTreatments;
 }
 
 async function calculateMPRComponent(
@@ -260,11 +340,11 @@ async function calculateLabBasedComponent(
 ): Promise<AdherenceComponent | undefined> {
   // Get baseline and current labs
   const labQuery = `
-    SELECT observation_type, value, observed_date
+    SELECT observation_type, value_numeric as value, observation_date
     FROM observations
     WHERE patient_id = $1
       AND observation_type IN ('eGFR', 'uACR')
-    ORDER BY observed_date DESC
+    ORDER BY observation_date DESC
     LIMIT 6
   `;
 
@@ -397,11 +477,11 @@ async function calculateComposite(
 
 async function getClinicalContext(patient_id: string): Promise<any> {
   const labQuery = `
-    SELECT observation_type, value, observed_date
+    SELECT observation_type, value_numeric as value, observation_date
     FROM observations
     WHERE patient_id = $1
       AND observation_type IN ('eGFR', 'uACR')
-    ORDER BY observed_date DESC
+    ORDER BY observation_date DESC
     LIMIT 4
   `;
 
