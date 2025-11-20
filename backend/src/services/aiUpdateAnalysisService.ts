@@ -1205,16 +1205,38 @@ Return ONLY the JSON response, no additional text.`;
   private formatLabValues(labs: LabValues): string {
     const lines: string[] = [];
 
-    if (labs.egfr !== undefined) lines.push(`- eGFR: ${labs.egfr.toFixed(1)} mL/min/1.73m²`);
-    if (labs.uacr !== undefined) lines.push(`- uACR: ${labs.uacr.toFixed(1)} mg/g`);
-    if (labs.creatinine !== undefined) lines.push(`- Serum Creatinine: ${labs.creatinine.toFixed(2)} mg/dL`);
-    if (labs.bun !== undefined) lines.push(`- BUN: ${labs.bun.toFixed(1)} mg/dL`);
+    // Convert string values to numbers before calling .toFixed()
+    if (labs.egfr !== undefined) {
+      const egfr = typeof labs.egfr === 'string' ? parseFloat(labs.egfr) : labs.egfr;
+      lines.push(`- eGFR: ${egfr.toFixed(1)} mL/min/1.73m²`);
+    }
+    if (labs.uacr !== undefined) {
+      const uacr = typeof labs.uacr === 'string' ? parseFloat(labs.uacr) : labs.uacr;
+      lines.push(`- uACR: ${uacr.toFixed(1)} mg/g`);
+    }
+    if (labs.creatinine !== undefined) {
+      const creatinine = typeof labs.creatinine === 'string' ? parseFloat(labs.creatinine) : labs.creatinine;
+      lines.push(`- Serum Creatinine: ${creatinine.toFixed(2)} mg/dL`);
+    }
+    if (labs.bun !== undefined) {
+      const bun = typeof labs.bun === 'string' ? parseFloat(labs.bun) : labs.bun;
+      lines.push(`- BUN: ${bun.toFixed(1)} mg/dL`);
+    }
     if (labs.systolic_bp !== undefined && labs.diastolic_bp !== undefined) {
       lines.push(`- Blood Pressure: ${labs.systolic_bp}/${labs.diastolic_bp} mmHg`);
     }
-    if (labs.hba1c !== undefined) lines.push(`- HbA1c: ${labs.hba1c.toFixed(1)}%`);
-    if (labs.glucose !== undefined) lines.push(`- Glucose: ${labs.glucose.toFixed(0)} mg/dL`);
-    if (labs.hemoglobin !== undefined) lines.push(`- Hemoglobin: ${labs.hemoglobin.toFixed(1)} g/dL`);
+    if (labs.hba1c !== undefined) {
+      const hba1c = typeof labs.hba1c === 'string' ? parseFloat(labs.hba1c) : labs.hba1c;
+      lines.push(`- HbA1c: ${hba1c.toFixed(1)}%`);
+    }
+    if (labs.glucose !== undefined) {
+      const glucose = typeof labs.glucose === 'string' ? parseFloat(labs.glucose) : labs.glucose;
+      lines.push(`- Glucose: ${glucose.toFixed(0)} mg/dL`);
+    }
+    if (labs.hemoglobin !== undefined) {
+      const hemoglobin = typeof labs.hemoglobin === 'string' ? parseFloat(labs.hemoglobin) : labs.hemoglobin;
+      lines.push(`- Hemoglobin: ${hemoglobin.toFixed(1)} g/dL`);
+    }
     if (labs.heart_rate !== undefined) lines.push(`- Heart Rate: ${labs.heart_rate} bpm`);
     if (labs.oxygen_saturation !== undefined) lines.push(`- O2 Saturation: ${labs.oxygen_saturation}%`);
 
