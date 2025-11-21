@@ -98,339 +98,11 @@ CREATE INDEX idx_risk_assessments_patient_id ON risk_assessments(patient_id);
 -- Mock Patient Data - 5 CKD Patients
 -- ============================================
 
--- Patient 1: High Risk - Advanced CKD with Diabetes (Stage 4)
-INSERT INTO patients (
-    id, medical_record_number, first_name, last_name, date_of_birth, gender, email, phone,
-    weight, height, smoking_status, cvd_history, family_history_esrd,
-    on_ras_inhibitor, on_sglt2i, nephrotoxic_meds, nephrologist_referral,
-    diagnosis_date, last_visit_date, next_visit_date,
-    home_monitoring_device, home_monitoring_active,
-    ckd_treatment_active, ckd_treatment_type
-)
-VALUES (
-    '11111111-1111-1111-1111-111111111111', 'MRN001', 'John', 'Anderson', '1958-03-15', 'male',
-    'john.anderson@email.com', '+1-555-0101',
-    92.5, 172, 'Former', true, false,
-    true, false, true, false,
-    '2022-05-20', '2025-10-15', '2025-11-28',
-    'Minuteful Kidney', true,
-    true, 'Nephrology care + medications'
-);
-
--- Patient 2: Medium Risk - Hypertension with declining kidney function (Stage 3a)
-INSERT INTO patients (
-    id, medical_record_number, first_name, last_name, date_of_birth, gender, email, phone,
-    weight, height, smoking_status, cvd_history, family_history_esrd,
-    on_ras_inhibitor, on_sglt2i, nephrotoxic_meds, nephrologist_referral,
-    diagnosis_date, last_visit_date, next_visit_date,
-    home_monitoring_device, home_monitoring_active,
-    ckd_treatment_active, ckd_treatment_type
-)
-VALUES (
-    '22222222-2222-2222-2222-222222222222', 'MRN002', 'Maria', 'Rodriguez', '1965-07-22', 'female',
-    'maria.rodriguez@email.com', '+1-555-0102',
-    82.0, 162, 'Never', false, false,
-    true, false, false, false,
-    '2023-08-10', '2025-10-28', '2026-04-28',
-    'Minuteful Kidney', true,
-    true, 'ACE inhibitors + diet management'
-);
-
--- Patient 3: Low Risk - Normal kidney function (No CKD)
-INSERT INTO patients (
-    id, medical_record_number, first_name, last_name, date_of_birth, gender, email, phone,
-    weight, height, smoking_status, cvd_history, family_history_esrd,
-    on_ras_inhibitor, on_sglt2i, nephrotoxic_meds, nephrologist_referral,
-    diagnosis_date, last_visit_date, next_visit_date,
-    home_monitoring_device, home_monitoring_active,
-    ckd_treatment_active, ckd_treatment_type
-)
-VALUES (
-    '33333333-3333-3333-3333-333333333333', 'MRN003', 'David', 'Chen', '1980-11-08', 'male',
-    'david.chen@email.com', '+1-555-0103',
-    75.0, 178, 'Never', false, false,
-    false, false, false, false,
-    NULL, '2025-11-03', '2026-05-03',
-    'Minuteful Kidney', true,
-    false, NULL
-);
-
--- Patient 4: High Risk - Multiple comorbidities (Stage 3b)
-INSERT INTO patients (
-    id, medical_record_number, first_name, last_name, date_of_birth, gender, email, phone,
-    weight, height, smoking_status, cvd_history, family_history_esrd,
-    on_ras_inhibitor, on_sglt2i, nephrotoxic_meds, nephrologist_referral,
-    diagnosis_date, last_visit_date, next_visit_date,
-    home_monitoring_device, home_monitoring_active,
-    ckd_treatment_active, ckd_treatment_type
-)
-VALUES (
-    '44444444-4444-4444-4444-444444444444', 'MRN004', 'Sarah', 'Johnson', '1952-05-30', 'female',
-    'sarah.johnson@email.com', '+1-555-0104',
-    78.5, 160, 'Current', true, true,
-    true, true, false, true,
-    '2021-03-15', '2025-10-30', '2025-12-15',
-    'Minuteful Kidney', true,
-    true, 'ACE inhibitors + diet management'
-);
-
--- Patient 5: Medium Risk - Early CKD indicators (Stage 2)
-INSERT INTO patients (
-    id, medical_record_number, first_name, last_name, date_of_birth, gender, email, phone,
-    weight, height, smoking_status, cvd_history, family_history_esrd,
-    on_ras_inhibitor, on_sglt2i, nephrotoxic_meds, nephrologist_referral,
-    diagnosis_date, last_visit_date, next_visit_date,
-    home_monitoring_device, home_monitoring_active,
-    ckd_treatment_active, ckd_treatment_type
-)
-VALUES (
-    '55555555-5555-5555-5555-555555555555', 'MRN005', 'Michael', 'Thompson', '1970-09-12', 'male',
-    'michael.thompson@email.com', '+1-555-0105',
-    95.0, 180, 'Former', false, false,
-    true, false, false, false,
-    '2024-01-20', '2025-10-25', '2026-01-25',
-    'Minuteful Kidney', true,
-    true, 'Lifestyle modifications + monitoring'
-);
 
 -- ============================================
--- Clinical Observations - Lab Results
+-- PATIENT DATA POPULATION
 -- ============================================
 
--- Patient 1 (John Anderson) - High Risk: Advanced CKD (Stage 4)
-INSERT INTO observations (patient_id, observation_type, value_numeric, value_text, unit, observation_date, notes)
-VALUES
-    -- Kidney Function
-    ('11111111-1111-1111-1111-111111111111', 'eGFR', 28.5, NULL, 'mL/min/1.73m²', '2025-11-01 09:30:00', 'Stage 4 CKD'),
-    ('11111111-1111-1111-1111-111111111111', 'eGFR_trend', NULL, 'down', NULL, '2025-11-01 09:30:00', 'Declining kidney function'),
-    ('11111111-1111-1111-1111-111111111111', 'eGFR_change_percent', -8.5, NULL, '%', '2025-11-01 09:30:00', '8.5% decline from last measurement'),
-    ('11111111-1111-1111-1111-111111111111', 'serum_creatinine', 2.4, NULL, 'mg/dL', '2025-11-01 09:30:00', 'Elevated'),
-    ('11111111-1111-1111-1111-111111111111', 'BUN', 45, NULL, 'mg/dL', '2025-11-01 09:30:00', 'Elevated'),
-    ('11111111-1111-1111-1111-111111111111', 'uACR', 450, NULL, 'mg/g', '2025-11-01 09:30:00', 'Severely increased albuminuria'),
-    ('11111111-1111-1111-1111-111111111111', 'proteinuria_category', NULL, 'A3', NULL, '2025-11-01 09:30:00', 'Severely increased albuminuria (>300 mg/g)'),
-    -- Cardiovascular & Blood Pressure
-    ('11111111-1111-1111-1111-111111111111', 'blood_pressure_systolic', 152, NULL, 'mmHg', '2025-11-01 10:00:00', 'Hypertensive'),
-    ('11111111-1111-1111-1111-111111111111', 'blood_pressure_diastolic', 94, NULL, 'mmHg', '2025-11-01 10:00:00', 'Hypertensive'),
-    ('11111111-1111-1111-1111-111111111111', 'heart_rate', 88, NULL, 'bpm', '2025-11-01 10:00:00', 'Elevated'),
-    ('11111111-1111-1111-1111-111111111111', 'oxygen_saturation', 94, NULL, '%', '2025-11-01 10:00:00', 'Low normal'),
-    -- Lipid Panel
-    ('11111111-1111-1111-1111-111111111111', 'total_cholesterol', 220, NULL, 'mg/dL', '2025-11-01 09:30:00', 'Elevated'),
-    ('11111111-1111-1111-1111-111111111111', 'LDL_cholesterol', 142, NULL, 'mg/dL', '2025-11-01 09:30:00', 'Above target'),
-    ('11111111-1111-1111-1111-111111111111', 'HDL_cholesterol', 38, NULL, 'mg/dL', '2025-11-01 09:30:00', 'Low'),
-    ('11111111-1111-1111-1111-111111111111', 'triglycerides', 200, NULL, 'mg/dL', '2025-11-01 09:30:00', 'Borderline high'),
-    -- Metabolic
-    ('11111111-1111-1111-1111-111111111111', 'HbA1c', 7.8, NULL, '%', '2025-11-01 09:30:00', 'Suboptimal diabetes control'),
-    ('11111111-1111-1111-1111-111111111111', 'glucose', 165, NULL, 'mg/dL', '2025-11-01 09:30:00', 'Elevated fasting glucose'),
-    -- Hematology
-    ('11111111-1111-1111-1111-111111111111', 'hemoglobin', 10.2, NULL, 'g/dL', '2025-11-01 09:30:00', 'Anemia - CKD related'),
-    ('11111111-1111-1111-1111-111111111111', 'WBC', 7.8, NULL, 'K/uL', '2025-11-01 09:30:00', 'Normal'),
-    ('11111111-1111-1111-1111-111111111111', 'platelets', 185, NULL, 'K/uL', '2025-11-01 09:30:00', 'Normal'),
-    -- Electrolytes & Minerals
-    ('11111111-1111-1111-1111-111111111111', 'sodium', 138, NULL, 'mEq/L', '2025-11-01 09:30:00', 'Normal'),
-    ('11111111-1111-1111-1111-111111111111', 'potassium', 5.8, NULL, 'mEq/L', '2025-11-01 09:30:00', 'Hyperkalemia'),
-    ('11111111-1111-1111-1111-111111111111', 'chloride', 102, NULL, 'mEq/L', '2025-11-01 09:30:00', 'Normal'),
-    ('11111111-1111-1111-1111-111111111111', 'bicarbonate', 19, NULL, 'mEq/L', '2025-11-01 09:30:00', 'Low - metabolic acidosis'),
-    ('11111111-1111-1111-1111-111111111111', 'calcium', 8.9, NULL, 'mg/dL', '2025-11-01 09:30:00', 'Low normal'),
-    ('11111111-1111-1111-1111-111111111111', 'phosphorus', 5.2, NULL, 'mg/dL', '2025-11-01 09:30:00', 'Elevated - CKD'),
-    ('11111111-1111-1111-1111-111111111111', 'magnesium', 2.1, NULL, 'mg/dL', '2025-11-01 09:30:00', 'Normal'),
-    ('11111111-1111-1111-1111-111111111111', 'albumin', 3.2, NULL, 'g/dL', '2025-11-01 09:30:00', 'Low normal');
-
--- Patient 2 (Maria Rodriguez) - Medium Risk: Stage 2-3a CKD with HTN
-INSERT INTO observations (patient_id, observation_type, value_numeric, value_text, unit, observation_date, notes)
-VALUES
-    -- Kidney Function
-    ('22222222-2222-2222-2222-222222222222', 'eGFR', 52.3, NULL, 'mL/min/1.73m²', '2025-10-28 08:15:00', 'Stage 3a CKD'),
-    ('22222222-2222-2222-2222-222222222222', 'eGFR_trend', NULL, 'down', NULL, '2025-10-28 08:15:00', 'Slowly declining'),
-    ('22222222-2222-2222-2222-222222222222', 'eGFR_change_percent', -3.2, NULL, '%', '2025-10-28 08:15:00', '3.2% decline from last measurement'),
-    ('22222222-2222-2222-2222-222222222222', 'serum_creatinine', 1.3, NULL, 'mg/dL', '2025-10-28 08:15:00', 'Slightly elevated'),
-    ('22222222-2222-2222-2222-222222222222', 'BUN', 28, NULL, 'mg/dL', '2025-10-28 08:15:00', 'Upper normal'),
-    ('22222222-2222-2222-2222-222222222222', 'uACR', 85, NULL, 'mg/g', '2025-10-28 08:15:00', 'Moderately increased albuminuria'),
-    ('22222222-2222-2222-2222-222222222222', 'proteinuria_category', NULL, 'A2', NULL, '2025-10-28 08:15:00', 'Moderately increased albuminuria (30-300 mg/g)'),
-    -- Cardiovascular & Blood Pressure
-    ('22222222-2222-2222-2222-222222222222', 'blood_pressure_systolic', 148, NULL, 'mmHg', '2025-10-28 09:00:00', 'Stage 2 hypertension'),
-    ('22222222-2222-2222-2222-222222222222', 'blood_pressure_diastolic', 88, NULL, 'mmHg', '2025-10-28 09:00:00', 'Elevated'),
-    ('22222222-2222-2222-2222-222222222222', 'heart_rate', 76, NULL, 'bpm', '2025-10-28 09:00:00', 'Normal'),
-    ('22222222-2222-2222-2222-222222222222', 'oxygen_saturation', 97, NULL, '%', '2025-10-28 09:00:00', 'Normal'),
-    -- Lipid Panel
-    ('22222222-2222-2222-2222-222222222222', 'total_cholesterol', 195, NULL, 'mg/dL', '2025-10-28 08:15:00', 'Borderline'),
-    ('22222222-2222-2222-2222-222222222222', 'LDL_cholesterol', 118, NULL, 'mg/dL', '2025-10-28 08:15:00', 'Near optimal'),
-    ('22222222-2222-2222-2222-222222222222', 'HDL_cholesterol', 52, NULL, 'mg/dL', '2025-10-28 08:15:00', 'Normal'),
-    ('22222222-2222-2222-2222-222222222222', 'triglycerides', 125, NULL, 'mg/dL', '2025-10-28 08:15:00', 'Normal'),
-    -- Metabolic
-    ('22222222-2222-2222-2222-222222222222', 'HbA1c', 5.6, NULL, '%', '2025-10-28 08:15:00', 'Normal - no diabetes'),
-    ('22222222-2222-2222-2222-222222222222', 'glucose', 102, NULL, 'mg/dL', '2025-10-28 08:15:00', 'Normal fasting glucose'),
-    -- Hematology
-    ('22222222-2222-2222-2222-222222222222', 'hemoglobin', 12.8, NULL, 'g/dL', '2025-10-28 08:15:00', 'Normal'),
-    ('22222222-2222-2222-2222-222222222222', 'WBC', 6.5, NULL, 'K/uL', '2025-10-28 08:15:00', 'Normal'),
-    ('22222222-2222-2222-2222-222222222222', 'platelets', 225, NULL, 'K/uL', '2025-10-28 08:15:00', 'Normal'),
-    -- Electrolytes & Minerals
-    ('22222222-2222-2222-2222-222222222222', 'sodium', 140, NULL, 'mEq/L', '2025-10-28 08:15:00', 'Normal'),
-    ('22222222-2222-2222-2222-222222222222', 'potassium', 4.2, NULL, 'mEq/L', '2025-10-28 08:15:00', 'Normal'),
-    ('22222222-2222-2222-2222-222222222222', 'chloride', 104, NULL, 'mEq/L', '2025-10-28 08:15:00', 'Normal'),
-    ('22222222-2222-2222-2222-222222222222', 'bicarbonate', 24, NULL, 'mEq/L', '2025-10-28 08:15:00', 'Normal'),
-    ('22222222-2222-2222-2222-222222222222', 'calcium', 9.4, NULL, 'mg/dL', '2025-10-28 08:15:00', 'Normal'),
-    ('22222222-2222-2222-2222-222222222222', 'phosphorus', 3.6, NULL, 'mg/dL', '2025-10-28 08:15:00', 'Normal'),
-    ('22222222-2222-2222-2222-222222222222', 'magnesium', 2.0, NULL, 'mg/dL', '2025-10-28 08:15:00', 'Normal'),
-    ('22222222-2222-2222-2222-222222222222', 'albumin', 4.1, NULL, 'g/dL', '2025-10-28 08:15:00', 'Normal'),
-    ('22222222-2222-2222-2222-222222222222', 'BMI', 32.4, NULL, 'kg/m²', '2025-10-28 09:00:00', 'Obese');
-
--- Patient 3 (David Chen) - Low Risk: Normal kidney function
-INSERT INTO observations (patient_id, observation_type, value_numeric, value_text, unit, observation_date, notes)
-VALUES
-    -- Kidney Function
-    ('33333333-3333-3333-3333-333333333333', 'eGFR', 95.2, NULL, 'mL/min/1.73m²', '2025-11-03 10:45:00', 'Normal'),
-    ('33333333-3333-3333-3333-333333333333', 'eGFR_trend', NULL, 'stable', NULL, '2025-11-03 10:45:00', 'Stable kidney function'),
-    ('33333333-3333-3333-3333-333333333333', 'eGFR_change_percent', 1.2, NULL, '%', '2025-11-03 10:45:00', '1.2% increase from last measurement'),
-    ('33333333-3333-3333-3333-333333333333', 'serum_creatinine', 0.9, NULL, 'mg/dL', '2025-11-03 10:45:00', 'Normal'),
-    ('33333333-3333-3333-3333-333333333333', 'BUN', 16, NULL, 'mg/dL', '2025-11-03 10:45:00', 'Normal'),
-    ('33333333-3333-3333-3333-333333333333', 'uACR', 12, NULL, 'mg/g', '2025-11-03 10:45:00', 'Normal'),
-    ('33333333-3333-3333-3333-333333333333', 'proteinuria_category', NULL, 'A1', NULL, '2025-11-03 10:45:00', 'Normal albuminuria (<30 mg/g)'),
-    -- Cardiovascular & Blood Pressure
-    ('33333333-3333-3333-3333-333333333333', 'blood_pressure_systolic', 118, NULL, 'mmHg', '2025-11-03 11:00:00', 'Normal'),
-    ('33333333-3333-3333-3333-333333333333', 'blood_pressure_diastolic', 76, NULL, 'mmHg', '2025-11-03 11:00:00', 'Normal'),
-    ('33333333-3333-3333-3333-333333333333', 'heart_rate', 68, NULL, 'bpm', '2025-11-03 11:00:00', 'Normal'),
-    ('33333333-3333-3333-3333-333333333333', 'oxygen_saturation', 98, NULL, '%', '2025-11-03 11:00:00', 'Normal'),
-    -- Lipid Panel
-    ('33333333-3333-3333-3333-333333333333', 'total_cholesterol', 172, NULL, 'mg/dL', '2025-11-03 10:45:00', 'Desirable'),
-    ('33333333-3333-3333-3333-333333333333', 'LDL_cholesterol', 98, NULL, 'mg/dL', '2025-11-03 10:45:00', 'Near optimal'),
-    ('33333333-3333-3333-3333-333333333333', 'HDL_cholesterol', 58, NULL, 'mg/dL', '2025-11-03 10:45:00', 'Normal'),
-    ('33333333-3333-3333-3333-333333333333', 'triglycerides', 88, NULL, 'mg/dL', '2025-11-03 10:45:00', 'Normal'),
-    -- Metabolic
-    ('33333333-3333-3333-3333-333333333333', 'HbA1c', 5.2, NULL, '%', '2025-11-03 10:45:00', 'Normal'),
-    ('33333333-3333-3333-3333-333333333333', 'glucose', 92, NULL, 'mg/dL', '2025-11-03 10:45:00', 'Normal fasting glucose'),
-    -- Hematology
-    ('33333333-3333-3333-3333-333333333333', 'hemoglobin', 14.8, NULL, 'g/dL', '2025-11-03 10:45:00', 'Normal'),
-    ('33333333-3333-3333-3333-333333333333', 'WBC', 7.2, NULL, 'K/uL', '2025-11-03 10:45:00', 'Normal'),
-    ('33333333-3333-3333-3333-333333333333', 'platelets', 245, NULL, 'K/uL', '2025-11-03 10:45:00', 'Normal'),
-    -- Electrolytes & Minerals
-    ('33333333-3333-3333-3333-333333333333', 'sodium', 139, NULL, 'mEq/L', '2025-11-03 10:45:00', 'Normal'),
-    ('33333333-3333-3333-3333-333333333333', 'potassium', 4.0, NULL, 'mEq/L', '2025-11-03 10:45:00', 'Normal'),
-    ('33333333-3333-3333-3333-333333333333', 'chloride', 103, NULL, 'mEq/L', '2025-11-03 10:45:00', 'Normal'),
-    ('33333333-3333-3333-3333-333333333333', 'bicarbonate', 25, NULL, 'mEq/L', '2025-11-03 10:45:00', 'Normal'),
-    ('33333333-3333-3333-3333-333333333333', 'calcium', 9.6, NULL, 'mg/dL', '2025-11-03 10:45:00', 'Normal'),
-    ('33333333-3333-3333-3333-333333333333', 'phosphorus', 3.2, NULL, 'mg/dL', '2025-11-03 10:45:00', 'Normal'),
-    ('33333333-3333-3333-3333-333333333333', 'magnesium', 2.2, NULL, 'mg/dL', '2025-11-03 10:45:00', 'Normal'),
-    ('33333333-3333-3333-3333-333333333333', 'albumin', 4.5, NULL, 'g/dL', '2025-11-03 10:45:00', 'Normal'),
-    ('33333333-3333-3333-3333-333333333333', 'BMI', 24.1, NULL, 'kg/m²', '2025-11-03 11:00:00', 'Normal weight');
-
--- Patient 4 (Sarah Johnson) - High Risk: Multiple comorbidities, Stage 3b CKD
-INSERT INTO observations (patient_id, observation_type, value_numeric, value_text, unit, observation_date, notes)
-VALUES
-    -- Kidney Function
-    ('44444444-4444-4444-4444-444444444444', 'eGFR', 38.7, NULL, 'mL/min/1.73m²', '2025-10-30 07:30:00', 'Stage 3b CKD'),
-    ('44444444-4444-4444-4444-444444444444', 'eGFR_trend', NULL, 'down', NULL, '2025-10-30 07:30:00', 'Progressive decline'),
-    ('44444444-4444-4444-4444-444444444444', 'eGFR_change_percent', -6.8, NULL, '%', '2025-10-30 07:30:00', '6.8% decline from last measurement'),
-    ('44444444-4444-4444-4444-444444444444', 'serum_creatinine', 1.8, NULL, 'mg/dL', '2025-10-30 07:30:00', 'Elevated'),
-    ('44444444-4444-4444-4444-444444444444', 'BUN', 38, NULL, 'mg/dL', '2025-10-30 07:30:00', 'Elevated'),
-    ('44444444-4444-4444-4444-444444444444', 'uACR', 320, NULL, 'mg/g', '2025-10-30 07:30:00', 'Severely increased albuminuria'),
-    ('44444444-4444-4444-4444-444444444444', 'proteinuria_category', NULL, 'A3', NULL, '2025-10-30 07:30:00', 'Severely increased albuminuria (>300 mg/g)'),
-    -- Cardiovascular & Blood Pressure
-    ('44444444-4444-4444-4444-444444444444', 'blood_pressure_systolic', 165, NULL, 'mmHg', '2025-10-30 08:00:00', 'Stage 2 hypertension'),
-    ('44444444-4444-4444-4444-444444444444', 'blood_pressure_diastolic', 95, NULL, 'mmHg', '2025-10-30 08:00:00', 'Hypertensive'),
-    ('44444444-4444-4444-4444-444444444444', 'heart_rate', 92, NULL, 'bpm', '2025-10-30 08:00:00', 'Elevated'),
-    ('44444444-4444-4444-4444-444444444444', 'oxygen_saturation', 93, NULL, '%', '2025-10-30 08:00:00', 'Low normal'),
-    -- Lipid Panel
-    ('44444444-4444-4444-4444-444444444444', 'total_cholesterol', 238, NULL, 'mg/dL', '2025-10-30 07:30:00', 'Elevated'),
-    ('44444444-4444-4444-4444-444444444444', 'LDL_cholesterol', 145, NULL, 'mg/dL', '2025-10-30 07:30:00', 'Above target'),
-    ('44444444-4444-4444-4444-444444444444', 'HDL_cholesterol', 42, NULL, 'mg/dL', '2025-10-30 07:30:00', 'Low'),
-    ('44444444-4444-4444-4444-444444444444', 'triglycerides', 255, NULL, 'mg/dL', '2025-10-30 07:30:00', 'High'),
-    -- Metabolic
-    ('44444444-4444-4444-4444-444444444444', 'HbA1c', 7.8, NULL, '%', '2025-10-30 07:30:00', 'Suboptimal diabetes control'),
-    ('44444444-4444-4444-4444-444444444444', 'glucose', 178, NULL, 'mg/dL', '2025-10-30 07:30:00', 'Elevated fasting glucose'),
-    -- Hematology
-    ('44444444-4444-4444-4444-444444444444', 'hemoglobin', 11.2, NULL, 'g/dL', '2025-10-30 07:30:00', 'Mild anemia'),
-    ('44444444-4444-4444-4444-444444444444', 'WBC', 8.5, NULL, 'K/uL', '2025-10-30 07:30:00', 'Normal'),
-    ('44444444-4444-4444-4444-444444444444', 'platelets', 198, NULL, 'K/uL', '2025-10-30 07:30:00', 'Normal'),
-    -- Electrolytes & Minerals
-    ('44444444-4444-4444-4444-444444444444', 'sodium', 137, NULL, 'mEq/L', '2025-10-30 07:30:00', 'Normal'),
-    ('44444444-4444-4444-4444-444444444444', 'potassium', 5.2, NULL, 'mEq/L', '2025-10-30 07:30:00', 'Borderline elevated'),
-    ('44444444-4444-4444-4444-444444444444', 'chloride', 101, NULL, 'mEq/L', '2025-10-30 07:30:00', 'Normal'),
-    ('44444444-4444-4444-4444-444444444444', 'bicarbonate', 21, NULL, 'mEq/L', '2025-10-30 07:30:00', 'Low normal'),
-    ('44444444-4444-4444-4444-444444444444', 'calcium', 9.1, NULL, 'mg/dL', '2025-10-30 07:30:00', 'Normal'),
-    ('44444444-4444-4444-4444-444444444444', 'phosphorus', 4.6, NULL, 'mg/dL', '2025-10-30 07:30:00', 'Borderline elevated'),
-    ('44444444-4444-4444-4444-444444444444', 'magnesium', 1.9, NULL, 'mg/dL', '2025-10-30 07:30:00', 'Normal'),
-    ('44444444-4444-4444-4444-444444444444', 'albumin', 3.6, NULL, 'g/dL', '2025-10-30 07:30:00', 'Low normal'),
-    ('44444444-4444-4444-4444-444444444444', 'BMI', 34.8, NULL, 'kg/m²', '2025-10-30 08:00:00', 'Obese class I');
-
--- Patient 5 (Michael Thompson) - Medium Risk: Early CKD Stage 2
-INSERT INTO observations (patient_id, observation_type, value_numeric, value_text, unit, observation_date, notes)
-VALUES
-    -- Kidney Function
-    ('55555555-5555-5555-5555-555555555555', 'eGFR', 68.5, NULL, 'mL/min/1.73m²', '2025-11-02 09:00:00', 'Stage 2 CKD'),
-    ('55555555-5555-5555-5555-555555555555', 'eGFR_trend', NULL, 'down', NULL, '2025-11-02 09:00:00', 'Mild decline'),
-    ('55555555-5555-5555-5555-555555555555', 'eGFR_change_percent', -4.5, NULL, '%', '2025-11-02 09:00:00', '4.5% decline from last measurement'),
-    ('55555555-5555-5555-5555-555555555555', 'serum_creatinine', 1.2, NULL, 'mg/dL', '2025-11-02 09:00:00', 'Upper normal'),
-    ('55555555-5555-5555-5555-555555555555', 'BUN', 22, NULL, 'mg/dL', '2025-11-02 09:00:00', 'Normal'),
-    ('55555555-5555-5555-5555-555555555555', 'uACR', 42, NULL, 'mg/g', '2025-11-02 09:00:00', 'Mildly increased albuminuria'),
-    ('55555555-5555-5555-5555-555555555555', 'proteinuria_category', NULL, 'A2', NULL, '2025-11-02 09:00:00', 'Moderately increased albuminuria (30-300 mg/g)'),
-    -- Cardiovascular & Blood Pressure
-    ('55555555-5555-5555-5555-555555555555', 'blood_pressure_systolic', 138, NULL, 'mmHg', '2025-11-02 09:30:00', 'Prehypertension'),
-    ('55555555-5555-5555-5555-555555555555', 'blood_pressure_diastolic', 84, NULL, 'mmHg', '2025-11-02 09:30:00', 'Borderline'),
-    ('55555555-5555-5555-5555-555555555555', 'heart_rate', 72, NULL, 'bpm', '2025-11-02 09:30:00', 'Normal'),
-    ('55555555-5555-5555-5555-555555555555', 'oxygen_saturation', 96, NULL, '%', '2025-11-02 09:30:00', 'Normal'),
-    -- Lipid Panel
-    ('55555555-5555-5555-5555-555555555555', 'total_cholesterol', 205, NULL, 'mg/dL', '2025-11-02 09:00:00', 'Borderline high'),
-    ('55555555-5555-5555-5555-555555555555', 'LDL_cholesterol', 128, NULL, 'mg/dL', '2025-11-02 09:00:00', 'Near optimal'),
-    ('55555555-5555-5555-5555-555555555555', 'HDL_cholesterol', 48, NULL, 'mg/dL', '2025-11-02 09:00:00', 'Borderline low'),
-    ('55555555-5555-5555-5555-555555555555', 'triglycerides', 145, NULL, 'mg/dL', '2025-11-02 09:00:00', 'Normal'),
-    -- Metabolic
-    ('55555555-5555-5555-5555-555555555555', 'HbA1c', 5.8, NULL, '%', '2025-11-02 09:00:00', 'Prediabetic range'),
-    ('55555555-5555-5555-5555-555555555555', 'glucose', 115, NULL, 'mg/dL', '2025-11-02 09:00:00', 'Impaired fasting glucose'),
-    -- Hematology
-    ('55555555-5555-5555-5555-555555555555', 'hemoglobin', 13.5, NULL, 'g/dL', '2025-11-02 09:00:00', 'Normal'),
-    ('55555555-5555-5555-5555-555555555555', 'WBC', 7.0, NULL, 'K/uL', '2025-11-02 09:00:00', 'Normal'),
-    ('55555555-5555-5555-5555-555555555555', 'platelets', 210, NULL, 'K/uL', '2025-11-02 09:00:00', 'Normal'),
-    -- Electrolytes & Minerals
-    ('55555555-5555-5555-5555-555555555555', 'sodium', 141, NULL, 'mEq/L', '2025-11-02 09:00:00', 'Normal'),
-    ('55555555-5555-5555-5555-555555555555', 'potassium', 4.5, NULL, 'mEq/L', '2025-11-02 09:00:00', 'Normal'),
-    ('55555555-5555-5555-5555-555555555555', 'chloride', 105, NULL, 'mEq/L', '2025-11-02 09:00:00', 'Normal'),
-    ('55555555-5555-5555-5555-555555555555', 'bicarbonate', 23, NULL, 'mEq/L', '2025-11-02 09:00:00', 'Normal'),
-    ('55555555-5555-5555-5555-555555555555', 'calcium', 9.5, NULL, 'mg/dL', '2025-11-02 09:00:00', 'Normal'),
-    ('55555555-5555-5555-5555-555555555555', 'phosphorus', 3.8, NULL, 'mg/dL', '2025-11-02 09:00:00', 'Normal'),
-    ('55555555-5555-5555-5555-555555555555', 'magnesium', 2.0, NULL, 'mg/dL', '2025-11-02 09:00:00', 'Normal'),
-    ('55555555-5555-5555-5555-555555555555', 'albumin', 4.2, NULL, 'g/dL', '2025-11-02 09:00:00', 'Normal'),
-    ('55555555-5555-5555-5555-555555555555', 'BMI', 28.5, NULL, 'kg/m²', '2025-11-02 09:30:00', 'Overweight');
-
--- ============================================
--- Clinical Conditions - Diagnoses
--- ============================================
-
--- Patient 1 (John Anderson) - Type 2 Diabetes, CKD Stage 4, Hypertension
-INSERT INTO conditions (patient_id, condition_code, condition_name, clinical_status, onset_date, severity, notes)
-VALUES
-    ('11111111-1111-1111-1111-111111111111', 'E11.9', 'Type 2 Diabetes Mellitus', 'active', '2005-06-15', 'moderate', 'Long-standing, on insulin'),
-    ('11111111-1111-1111-1111-111111111111', 'N18.4', 'Chronic Kidney Disease, Stage 4', 'active', '2020-03-20', 'severe', 'eGFR 15-29, nephrology follow-up'),
-    ('11111111-1111-1111-1111-111111111111', 'I10', 'Essential Hypertension', 'active', '2008-09-10', 'moderate', 'On multiple antihypertensives'),
-    ('11111111-1111-1111-1111-111111111111', 'E78.5', 'Hyperlipidemia', 'active', '2010-01-05', 'mild', 'On statin therapy');
-
--- Patient 2 (Maria Rodriguez) - Hypertension, CKD Stage 3a
-INSERT INTO conditions (patient_id, condition_code, condition_name, clinical_status, onset_date, severity, notes)
-VALUES
-    ('22222222-2222-2222-2222-222222222222', 'I10', 'Essential Hypertension', 'active', '2015-04-12', 'moderate', 'On ACE inhibitor'),
-    ('22222222-2222-2222-2222-222222222222', 'N18.3', 'Chronic Kidney Disease, Stage 3a', 'active', '2022-08-15', 'mild', 'eGFR 45-59, monitoring'),
-    ('22222222-2222-2222-2222-222222222222', 'E66.9', 'Obesity', 'active', '2012-02-20', 'moderate', 'BMI >30');
-
--- Patient 3 (David Chen) - No significant chronic conditions
-INSERT INTO conditions (patient_id, condition_code, condition_name, clinical_status, onset_date, severity, notes)
-VALUES
-    ('33333333-3333-3333-3333-333333333333', 'Z00.00', 'Encounter for general adult medical examination', 'active', '2025-11-03', 'none', 'Annual physical, all normal');
-
--- Patient 4 (Sarah Johnson) - Multiple comorbidities
-INSERT INTO conditions (patient_id, condition_code, condition_name, clinical_status, onset_date, severity, notes)
-VALUES
-    ('44444444-4444-4444-4444-444444444444', 'E11.9', 'Type 2 Diabetes Mellitus', 'active', '2000-03-10', 'moderate', 'Long duration, multiple complications'),
-    ('44444444-4444-4444-4444-444444444444', 'N18.3', 'Chronic Kidney Disease, Stage 3b', 'active', '2018-11-22', 'moderate', 'eGFR 30-44, diabetic nephropathy'),
-    ('44444444-4444-4444-4444-444444444444', 'I10', 'Essential Hypertension', 'active', '2002-07-15', 'severe', 'Difficult to control'),
-    ('44444444-4444-4444-4444-444444444444', 'I25.10', 'Coronary Artery Disease', 'active', '2016-05-20', 'moderate', 'Post-MI, on dual antiplatelet'),
-    ('44444444-4444-4444-4444-444444444444', 'E78.5', 'Hyperlipidemia', 'active', '2005-01-08', 'moderate', 'On high-intensity statin'),
-    ('44444444-4444-4444-4444-444444444444', 'E66.9', 'Obesity', 'active', '1995-01-01', 'moderate', 'BMI >30');
-
--- Patient 5 (Michael Thompson) - Prehypertension, Early CKD
-INSERT INTO conditions (patient_id, condition_code, condition_name, clinical_status, onset_date, severity, notes)
-VALUES
-    ('55555555-5555-5555-5555-555555555555', 'R03.0', 'Elevated blood pressure reading', 'active', '2024-06-10', 'mild', 'Prehypertensive, lifestyle modifications'),
-    ('55555555-5555-5555-5555-555555555555', 'N18.2', 'Chronic Kidney Disease, Stage 2', 'active', '2024-09-15', 'mild', 'eGFR 60-89 with kidney damage, monitoring'),
-    ('55555555-5555-5555-5555-555555555555', 'E66.9', 'Overweight', 'active', '2020-01-01', 'mild', 'BMI 25-30, diet counseling');
 
 -- ============================================
 -- Summary Statistics
@@ -1853,3 +1525,789 @@ SET
 -- ============================================
 
 SELECT 'Migration 008: Jardiance Adherence Tracking installed successfully' AS status;
+
+-- ============================================
+-- Populate 1001 Realistic CKD Patients
+-- ============================================
+
+-- ===============================================================
+-- POPULATE 1001 PATIENTS WITH COMPREHENSIVE CKD DATA + VERIFICATION
+-- Based on: Unified_CKD_Complete_Specification_Enhanced_v3
+-- ===============================================================
+-- This script generates 1001 realistic patients with:
+-- - Unique name combinations (no duplicate first+last name pairs)
+-- - Gender-appropriate names with verification
+-- - Demographics and vital signs
+-- - Comprehensive lab values
+-- - Comorbidities and conditions
+-- - Medications and prescriptions
+-- - Refill history for adherence tracking
+-- - Risk assessments
+-- - POST-GENERATION VERIFICATION:
+--   * Duplicate name detection
+--   * Gender-name concordance check
+-- ===============================================================
+
+DO $$
+DECLARE
+    v_patient_id UUID;
+    v_age INTEGER;
+    v_has_diabetes BOOLEAN;
+    v_has_hypertension BOOLEAN;
+    v_has_heart_failure BOOLEAN;
+    v_has_obesity BOOLEAN;
+    v_weight DECIMAL;
+    v_height INTEGER;
+    v_bmi DECIMAL;
+    v_egfr DECIMAL;
+    v_uacr DECIMAL;
+    v_creatinine DECIMAL;
+    v_hba1c DECIMAL;
+    v_sbp INTEGER;
+    v_dbp INTEGER;
+    v_gender VARCHAR(10);
+    v_first_name TEXT;
+    v_last_name TEXT;
+    v_name_exists BOOLEAN;
+    v_retry_count INTEGER;
+
+    -- Expanded gender-specific name arrays (75 names each for more combinations)
+    v_male_first_names TEXT[] := ARRAY[
+        'James', 'Robert', 'Michael', 'William', 'David',
+        'Richard', 'Joseph', 'Thomas', 'Charles', 'Christopher',
+        'Daniel', 'Matthew', 'Anthony', 'Mark', 'Donald',
+        'Steven', 'Paul', 'Andrew', 'Joshua', 'Kenneth',
+        'Kevin', 'Brian', 'George', 'Edward', 'Ronald',
+        'Timothy', 'Jason', 'Jeffrey', 'Ryan', 'Jacob',
+        'Gary', 'Nicholas', 'Eric', 'Jonathan', 'Stephen',
+        'Larry', 'Justin', 'Scott', 'Brandon', 'Benjamin',
+        'Samuel', 'Raymond', 'Gregory', 'Frank', 'Alexander',
+        'Patrick', 'Jack', 'Dennis', 'Jerry', 'Tyler',
+        'Aaron', 'Jose', 'Adam', 'Henry', 'Nathan',
+        'Douglas', 'Zachary', 'Peter', 'Kyle', 'Walter',
+        'Ethan', 'Jeremy', 'Harold', 'Keith', 'Christian',
+        'Roger', 'Noah', 'Gerald', 'Carl', 'Terry',
+        'Sean', 'Austin', 'Arthur', 'Lawrence', 'Jesse'
+    ];
+
+    v_female_first_names TEXT[] := ARRAY[
+        'Mary', 'Patricia', 'Jennifer', 'Linda', 'Barbara',
+        'Elizabeth', 'Susan', 'Jessica', 'Sarah', 'Karen',
+        'Nancy', 'Lisa', 'Betty', 'Margaret', 'Sandra',
+        'Ashley', 'Kimberly', 'Emily', 'Donna', 'Michelle',
+        'Dorothy', 'Carol', 'Amanda', 'Melissa', 'Deborah',
+        'Stephanie', 'Rebecca', 'Sharon', 'Laura', 'Cynthia',
+        'Kathleen', 'Amy', 'Angela', 'Shirley', 'Anna',
+        'Brenda', 'Pamela', 'Emma', 'Nicole', 'Helen',
+        'Samantha', 'Katherine', 'Christine', 'Debra', 'Rachel',
+        'Carolyn', 'Janet', 'Catherine', 'Maria', 'Heather',
+        'Diane', 'Ruth', 'Julie', 'Joyce', 'Virginia',
+        'Victoria', 'Kelly', 'Lauren', 'Christina', 'Joan',
+        'Evelyn', 'Judith', 'Megan', 'Cheryl', 'Andrea',
+        'Hannah', 'Jacqueline', 'Martha', 'Gloria', 'Teresa',
+        'Ann', 'Sara', 'Madison', 'Frances', 'Kathryn'
+    ];
+
+    v_last_names TEXT[] := ARRAY[
+        'Smith', 'Johnson', 'Williams', 'Brown', 'Jones',
+        'Garcia', 'Miller', 'Davis', 'Rodriguez', 'Martinez',
+        'Hernandez', 'Lopez', 'Gonzalez', 'Wilson', 'Anderson',
+        'Thomas', 'Taylor', 'Moore', 'Jackson', 'Martin',
+        'Lee', 'Perez', 'Thompson', 'White', 'Harris',
+        'Sanchez', 'Clark', 'Ramirez', 'Lewis', 'Robinson',
+        'Walker', 'Young', 'Allen', 'King', 'Wright',
+        'Scott', 'Torres', 'Nguyen', 'Hill', 'Flores',
+        'Green', 'Adams', 'Nelson', 'Baker', 'Hall',
+        'Rivera', 'Campbell', 'Mitchell', 'Carter', 'Roberts'
+    ];
+
+    v_prescription_id UUID;
+    v_med_name TEXT;
+    v_med_class TEXT;
+    v_days_supply INTEGER;
+    v_refill_date DATE;
+    v_patient_counter INTEGER := 0;
+    v_batch_size INTEGER := 100;
+BEGIN
+    RAISE NOTICE '========================================';
+    RAISE NOTICE 'Starting population of 1001 patients with unique names...';
+    RAISE NOTICE '========================================';
+
+    -- Generate 1001 patients
+    FOR i IN 1..1001 LOOP
+        v_patient_id := gen_random_uuid();
+        v_patient_counter := v_patient_counter + 1;
+
+        -- Progress notification every 100 patients
+        IF v_patient_counter % v_batch_size = 0 THEN
+            RAISE NOTICE 'Processed % patients...', v_patient_counter;
+        END IF;
+
+        -- Determine gender first (roughly equal distribution)
+        v_gender := CASE WHEN random() < 0.48 THEN 'male' ELSE 'female' END;
+
+        -- Generate unique name combination
+        v_name_exists := TRUE;
+        v_retry_count := 0;
+        WHILE v_name_exists AND v_retry_count < 100 LOOP
+            -- Pick gender-appropriate first name
+            IF v_gender = 'male' THEN
+                v_first_name := v_male_first_names[1 + floor(random() * array_length(v_male_first_names, 1))::int];
+            ELSE
+                v_first_name := v_female_first_names[1 + floor(random() * array_length(v_female_first_names, 1))::int];
+            END IF;
+
+            -- Pick random last name
+            v_last_name := v_last_names[1 + floor(random() * array_length(v_last_names, 1))::int];
+
+            -- Check if this combination already exists
+            SELECT EXISTS(
+                SELECT 1 FROM patients
+                WHERE first_name = v_first_name AND last_name = v_last_name
+            ) INTO v_name_exists;
+
+            v_retry_count := v_retry_count + 1;
+        END LOOP;
+
+        -- If we couldn't find a unique combination, add a middle initial
+        IF v_name_exists THEN
+            v_first_name := v_first_name || ' ' || chr(65 + floor(random() * 26)::int) || '.';
+        END IF;
+
+        -- Generate demographics
+        v_age := 40 + floor(random() * 45)::INTEGER;  -- Ages 40-85
+        v_height := 160 + floor(random() * 30)::INTEGER;  -- 160-190 cm
+        v_weight := 60 + (random() * 60);  -- 60-120 kg
+        v_bmi := v_weight / ((v_height / 100.0) ^ 2);
+        v_has_obesity := v_bmi >= 30;
+
+        -- Determine comorbidities (correlated with age and BMI)
+        v_has_diabetes := (random() < 0.45) OR (v_age > 60 AND random() < 0.6) OR (v_bmi > 32 AND random() < 0.55);
+        v_has_hypertension := (random() < 0.60) OR (v_age > 65 AND random() < 0.75) OR v_has_diabetes;
+        v_has_heart_failure := (v_age > 70 AND random() < 0.15) OR (v_has_diabetes AND v_has_hypertension AND random() < 0.10);
+
+        -- Generate vital signs
+        v_sbp := 110 + floor(random() * 70)::INTEGER;  -- 110-180 mmHg
+        v_dbp := 70 + floor(random() * 30)::INTEGER;   -- 70-100 mmHg
+
+        -- If hypertensive, increase BP
+        IF v_has_hypertension THEN
+            v_sbp := v_sbp + 15 + floor(random() * 20)::INTEGER;
+            v_dbp := v_dbp + 10 + floor(random() * 15)::INTEGER;
+        END IF;
+
+        -- Generate lab values based on comorbidities
+        -- eGFR: Lower if diabetes/hypertension/age
+        v_egfr := 90 - (CASE WHEN v_has_diabetes THEN 15 ELSE 0 END)
+                     - (CASE WHEN v_has_hypertension THEN 10 ELSE 0 END)
+                     - ((v_age - 40) * 0.5)
+                     + (random() * 30 - 15);
+        v_egfr := GREATEST(15, LEAST(120, v_egfr));  -- Clamp between 15-120
+
+        -- uACR: Higher if diabetes/CKD
+        IF v_has_diabetes OR v_egfr < 60 THEN
+            v_uacr := 30 + (random() * 400);  -- Likely proteinuria
+        ELSE
+            v_uacr := 5 + (random() * 40);   -- Normal to mild
+        END IF;
+
+        -- Creatinine (inversely related to eGFR)
+        v_creatinine := 0.7 + (120 - v_egfr) / 100.0 + (random() * 0.3);
+
+        -- HbA1c (elevated if diabetic)
+        IF v_has_diabetes THEN
+            v_hba1c := 6.5 + (random() * 3.5);  -- 6.5-10% (diabetic range)
+        ELSE
+            v_hba1c := 5.0 + (random() * 1.0);  -- 5-6% (normal)
+        END IF;
+
+        -- Insert patient
+        INSERT INTO patients (
+            id,
+            medical_record_number,
+            first_name,
+            last_name,
+            date_of_birth,
+            gender,
+            email,
+            phone,
+            weight,
+            height,
+            bmi,
+            systolic_bp,
+            diastolic_bp,
+            bp_control_status,
+            heart_rate,
+            oxygen_saturation,
+            smoking_status,
+            has_diabetes,
+            has_hypertension,
+            has_heart_failure,
+            has_cad,
+            has_aki_history,
+            has_obesity,
+            has_metabolic_syndrome,
+            cvd_history,
+            family_history_esrd,
+            on_ras_inhibitor,
+            on_sglt2i,
+            resistant_hypertension,
+            antihypertensive_count,
+            ckd_diagnosed,
+            monitoring_status,
+            current_risk_score,
+            last_visit_date,
+            next_visit_date
+        ) VALUES (
+            v_patient_id,
+            'MRN' || lpad(i::text, 6, '0'),
+            v_first_name,
+            v_last_name,
+            (CURRENT_DATE - (v_age * 365 + floor(random() * 365)::int))::date,
+            v_gender,
+            lower(regexp_replace(v_first_name, '[^a-zA-Z]', '', 'g')) || '.' || lower(v_last_name) || i || '@example.com',
+            '555-' || lpad(floor(random() * 10000)::text, 4, '0') || '-' || lpad(floor(random() * 10000)::text, 4, '0'),
+            v_weight,
+            v_height,
+            v_bmi,
+            v_sbp,
+            v_dbp,
+            CASE WHEN v_sbp >= 140 OR v_dbp >= 90 THEN 'Uncontrolled' ELSE 'Controlled' END,
+            60 + floor(random() * 40)::INTEGER,  -- Heart rate 60-100
+            95 + (random() * 5),  -- O2 sat 95-100%
+            CASE
+                WHEN random() < 0.50 THEN 'Never'
+                WHEN random() < 0.85 THEN 'Former'
+                ELSE 'Current'
+            END,
+            v_has_diabetes,
+            v_has_hypertension,
+            v_has_heart_failure,
+            v_has_heart_failure AND random() < 0.4,  -- CAD
+            v_age > 65 AND random() < 0.12,  -- AKI history
+            v_has_obesity,
+            v_has_obesity AND v_has_hypertension AND v_has_diabetes,
+            v_has_heart_failure OR (random() < 0.15),
+            random() < 0.18,  -- Family history ESRD
+            v_has_hypertension OR (v_egfr < 60 AND v_uacr >= 30),  -- On RAS inhibitor
+            v_has_diabetes AND v_egfr >= 20 AND v_egfr < 75 AND v_uacr >= 30,  -- On SGLT2i
+            v_sbp >= 160 AND v_has_hypertension,  -- Resistant HTN
+            CASE
+                WHEN v_has_hypertension AND v_sbp >= 160 THEN 3 + floor(random() * 2)::INTEGER
+                WHEN v_has_hypertension THEN 1 + floor(random() * 2)::INTEGER
+                ELSE 0
+            END,
+            v_egfr < 60 OR v_uacr >= 30,  -- CKD diagnosed
+            CASE WHEN v_egfr < 60 THEN 'active' ELSE 'inactive' END,
+            floor(random() * 100)::INTEGER,
+            CURRENT_DATE - (floor(random() * 90)::INTEGER),  -- Last visit within 3 months
+            CURRENT_DATE + (30 + floor(random() * 120)::INTEGER)  -- Next visit 1-5 months
+        );
+
+        -- ============================================
+        -- Insert observations (labs)
+        -- ============================================
+
+        -- eGFR (multiple measurements over past 12 months)
+        FOR j IN 0..3 LOOP
+            INSERT INTO observations (patient_id, observation_type, value_numeric, unit, observation_date, status)
+            VALUES (
+                v_patient_id,
+                'eGFR',
+                v_egfr + (random() * 10 - 5) - (j * (random() * 2)),  -- Slight decline over time
+                'mL/min/1.73m²',
+                CURRENT_DATE - ((j * 90 + floor(random() * 30)::INTEGER)),
+                'final'
+            );
+        END LOOP;
+
+        -- uACR
+        FOR j IN 0..3 LOOP
+            INSERT INTO observations (patient_id, observation_type, value_numeric, unit, observation_date, status)
+            VALUES (
+                v_patient_id,
+                'uACR',
+                v_uacr + (random() * 50 - 25),
+                'mg/g',
+                CURRENT_DATE - ((j * 90 + floor(random() * 30)::INTEGER)),
+                'final'
+            );
+        END LOOP;
+
+        -- Serum Creatinine
+        INSERT INTO observations (patient_id, observation_type, value_numeric, unit, observation_date, status)
+        VALUES (v_patient_id, 'Creatinine', v_creatinine, 'mg/dL', CURRENT_DATE - floor(random() * 90)::INTEGER, 'final');
+
+        -- Potassium
+        INSERT INTO observations (patient_id, observation_type, value_numeric, unit, observation_date, status)
+        VALUES (v_patient_id, 'Potassium', 3.5 + (random() * 1.5), 'mEq/L', CURRENT_DATE - floor(random() * 90)::INTEGER, 'final');
+
+        -- HbA1c (if diabetic)
+        IF v_has_diabetes THEN
+            INSERT INTO observations (patient_id, observation_type, value_numeric, unit, observation_date, status)
+            VALUES (v_patient_id, 'HbA1c', v_hba1c, '%', CURRENT_DATE - floor(random() * 90)::INTEGER, 'final');
+        END IF;
+
+        -- Lipid panel
+        INSERT INTO observations (patient_id, observation_type, value_numeric, unit, observation_date, status) VALUES
+        (v_patient_id, 'Total Cholesterol', 150 + (random() * 100), 'mg/dL', CURRENT_DATE - floor(random() * 180)::INTEGER, 'final'),
+        (v_patient_id, 'LDL', 70 + (random() * 100), 'mg/dL', CURRENT_DATE - floor(random() * 180)::INTEGER, 'final'),
+        (v_patient_id, 'HDL', 35 + (random() * 40), 'mg/dL', CURRENT_DATE - floor(random() * 180)::INTEGER, 'final'),
+        (v_patient_id, 'Triglycerides', 80 + (random() * 200), 'mg/dL', CURRENT_DATE - floor(random() * 180)::INTEGER, 'final');
+
+        -- Additional labs
+        INSERT INTO observations (patient_id, observation_type, value_numeric, unit, observation_date, status) VALUES
+        (v_patient_id, 'Hemoglobin', 11.5 + (random() * 4.5), 'g/dL', CURRENT_DATE - floor(random() * 90)::INTEGER, 'final'),
+        (v_patient_id, 'Albumin', 3.0 + (random() * 1.5), 'g/dL', CURRENT_DATE - floor(random() * 90)::INTEGER, 'final'),
+        (v_patient_id, 'Calcium', 8.5 + (random() * 1.5), 'mg/dL', CURRENT_DATE - floor(random() * 90)::INTEGER, 'final'),
+        (v_patient_id, 'Phosphorus', 2.5 + (random() * 2.0), 'mg/dL', CURRENT_DATE - floor(random() * 90)::INTEGER, 'final'),
+        (v_patient_id, 'Uric Acid', 4.0 + (random() * 5.0), 'mg/dL', CURRENT_DATE - floor(random() * 180)::INTEGER, 'final');
+
+        -- ============================================
+        -- Insert conditions
+        -- ============================================
+
+        IF v_has_diabetes THEN
+            INSERT INTO conditions (patient_id, condition_code, condition_name, clinical_status, onset_date, severity)
+            VALUES (
+                v_patient_id,
+                'E11.22',
+                'Type 2 Diabetes Mellitus with Diabetic Chronic Kidney Disease',
+                'active',
+                (CURRENT_DATE - ((2 + floor(random() * 8)::INTEGER) * 365))::date,
+                CASE WHEN v_hba1c > 9 THEN 'severe' WHEN v_hba1c > 7.5 THEN 'moderate' ELSE 'mild' END
+            );
+        END IF;
+
+        IF v_has_hypertension THEN
+            INSERT INTO conditions (patient_id, condition_code, condition_name, clinical_status, onset_date, severity)
+            VALUES (
+                v_patient_id,
+                'I12.9',
+                'Hypertensive Chronic Kidney Disease',
+                'active',
+                (CURRENT_DATE - ((3 + floor(random() * 10)::INTEGER) * 365))::date,
+                CASE WHEN v_sbp >= 160 THEN 'severe' WHEN v_sbp >= 140 THEN 'moderate' ELSE 'mild' END
+            );
+        END IF;
+
+        IF v_has_heart_failure THEN
+            INSERT INTO conditions (patient_id, condition_code, condition_name, clinical_status, onset_date, severity)
+            VALUES (
+                v_patient_id,
+                'I50.9',
+                'Heart Failure, Unspecified',
+                'active',
+                (CURRENT_DATE - ((1 + floor(random() * 5)::INTEGER) * 365))::date,
+                'moderate'
+            );
+        END IF;
+
+        IF v_egfr < 60 OR v_uacr >= 30 THEN
+            INSERT INTO conditions (patient_id, condition_code, condition_name, clinical_status, onset_date, severity)
+            VALUES (
+                v_patient_id,
+                CASE
+                    WHEN v_egfr >= 60 THEN 'N18.2'  -- Stage 2
+                    WHEN v_egfr >= 45 THEN 'N18.31' -- Stage 3a
+                    WHEN v_egfr >= 30 THEN 'N18.32' -- Stage 3b
+                    WHEN v_egfr >= 15 THEN 'N18.4'  -- Stage 4
+                    ELSE 'N18.5'                     -- Stage 5
+                END,
+                CASE
+                    WHEN v_egfr >= 60 THEN 'Chronic Kidney Disease, Stage 2'
+                    WHEN v_egfr >= 45 THEN 'Chronic Kidney Disease, Stage 3a'
+                    WHEN v_egfr >= 30 THEN 'Chronic Kidney Disease, Stage 3b'
+                    WHEN v_egfr >= 15 THEN 'Chronic Kidney Disease, Stage 4'
+                    ELSE 'Chronic Kidney Disease, Stage 5'
+                END,
+                'active',
+                (CURRENT_DATE - ((1 + floor(random() * 3)::INTEGER) * 365))::date,
+                CASE WHEN v_egfr < 30 THEN 'severe' WHEN v_egfr < 60 THEN 'moderate' ELSE 'mild' END
+            );
+        END IF;
+
+        -- ============================================
+        -- Insert prescriptions and refills
+        -- ============================================
+
+        -- RAS Inhibitor (if indicated)
+        IF v_has_hypertension OR (v_egfr < 60 AND v_uacr >= 30) THEN
+            v_med_name := CASE floor(random() * 3)::INTEGER
+                WHEN 0 THEN 'Lisinopril'
+                WHEN 1 THEN 'Losartan'
+                ELSE 'Valsartan'
+            END;
+            v_med_class := CASE WHEN v_med_name = 'Lisinopril' THEN 'ACEi' ELSE 'ARB' END;
+
+            INSERT INTO prescriptions (
+                patient_id, medication_name, generic_name, medication_class,
+                prescribed_date, dosage, frequency, quantity_per_fill, days_supply,
+                refills_authorized, refills_remaining, status
+            ) VALUES (
+                v_patient_id, v_med_name, v_med_name, v_med_class,
+                CURRENT_DATE - floor(random() * 730)::INTEGER,
+                '10mg', 'Once daily', 30, 30, 11, floor(random() * 12)::INTEGER, 'active'
+            )
+            RETURNING id INTO v_prescription_id;
+
+            -- Generate 12 months of refills
+            FOR j IN 1..12 LOOP
+                v_refill_date := CURRENT_DATE - ((12 - j) * 30 + floor(random() * 10 - 5)::INTEGER);
+
+                -- Simulate occasional missed refills (10% chance)
+                IF random() > 0.10 THEN
+                    INSERT INTO refills (
+                        prescription_id, patient_id, fill_date, quantity_dispensed,
+                        days_supply, fill_status, cost_patient
+                    ) VALUES (
+                        v_prescription_id, v_patient_id, v_refill_date, 30, 30,
+                        'completed', 5 + (random() * 20)
+                    );
+                END IF;
+            END LOOP;
+        END IF;
+
+        -- SGLT2i (Jardiance) if indicated
+        IF v_has_diabetes AND v_egfr >= 20 AND v_egfr < 75 AND v_uacr >= 30 THEN
+            INSERT INTO prescriptions (
+                patient_id, medication_name, generic_name, medication_class,
+                prescribed_date, dosage, frequency, quantity_per_fill, days_supply,
+                refills_authorized, refills_remaining, status
+            ) VALUES (
+                v_patient_id, 'Jardiance', 'Empagliflozin', 'SGLT2i',
+                CURRENT_DATE - floor(random() * 365)::INTEGER,
+                '10mg', 'Once daily', 30, 30, 11, floor(random() * 12)::INTEGER, 'active'
+            )
+            RETURNING id INTO v_prescription_id;
+
+            -- Generate refills
+            FOR j IN 1..12 LOOP
+                v_refill_date := CURRENT_DATE - ((12 - j) * 30 + floor(random() * 10 - 5)::INTEGER);
+
+                -- Simulate suboptimal adherence (15% miss rate)
+                IF random() > 0.15 THEN
+                    INSERT INTO refills (
+                        prescription_id, patient_id, fill_date, quantity_dispensed,
+                        days_supply, fill_status, cost_patient
+                    ) VALUES (
+                        v_prescription_id, v_patient_id, v_refill_date, 30, 30,
+                        'completed', 25 + (random() * 50)
+                    );
+                END IF;
+            END LOOP;
+        END IF;
+
+        -- Statin (most CKD patients should be on one)
+        IF v_egfr < 60 OR v_age > 50 THEN
+            INSERT INTO prescriptions (
+                patient_id, medication_name, generic_name, medication_class,
+                prescribed_date, dosage, frequency, quantity_per_fill, days_supply,
+                refills_authorized, refills_remaining, status
+            ) VALUES (
+                v_patient_id, 'Atorvastatin', 'Atorvastatin', 'Statin',
+                CURRENT_DATE - floor(random() * 730)::INTEGER,
+                '20mg', 'Once daily', 30, 30, 11, floor(random() * 12)::INTEGER, 'active'
+            )
+            RETURNING id INTO v_prescription_id;
+
+            -- Good adherence for statins (90%)
+            FOR j IN 1..12 LOOP
+                v_refill_date := CURRENT_DATE - ((12 - j) * 30 + floor(random() * 10 - 5)::INTEGER);
+
+                IF random() > 0.10 THEN
+                    INSERT INTO refills (
+                        prescription_id, patient_id, fill_date, quantity_dispensed,
+                        days_supply, fill_status, cost_patient
+                    ) VALUES (
+                        v_prescription_id, v_patient_id, v_refill_date, 30, 30,
+                        'completed', 3 + (random() * 10)
+                    );
+                END IF;
+            END LOOP;
+        END IF;
+
+        -- Diuretic (if hypertensive or heart failure)
+        IF v_has_heart_failure OR (v_has_hypertension AND v_sbp >= 150) THEN
+            INSERT INTO prescriptions (
+                patient_id, medication_name, generic_name, medication_class,
+                prescribed_date, dosage, frequency, quantity_per_fill, days_supply,
+                refills_authorized, refills_remaining, status
+            ) VALUES (
+                v_patient_id,
+                CASE WHEN v_has_heart_failure THEN 'Furosemide' ELSE 'Hydrochlorothiazide' END,
+                CASE WHEN v_has_heart_failure THEN 'Furosemide' ELSE 'Hydrochlorothiazide' END,
+                CASE WHEN v_has_heart_failure THEN 'Loop Diuretic' ELSE 'Thiazide' END,
+                CURRENT_DATE - floor(random() * 730)::INTEGER,
+                CASE WHEN v_has_heart_failure THEN '40mg' ELSE '25mg' END,
+                'Once daily', 30, 30, 11, floor(random() * 12)::INTEGER, 'active'
+            );
+        END IF;
+
+        -- Metformin (if diabetic and eGFR >30)
+        IF v_has_diabetes AND v_egfr >= 30 THEN
+            INSERT INTO prescriptions (
+                patient_id, medication_name, generic_name, medication_class,
+                prescribed_date, dosage, frequency, quantity_per_fill, days_supply,
+                refills_authorized, refills_remaining, status
+            ) VALUES (
+                v_patient_id, 'Metformin', 'Metformin', 'Biguanide',
+                CURRENT_DATE - floor(random() * 730)::INTEGER,
+                '1000mg', 'Twice daily', 60, 30, 11, floor(random() * 12)::INTEGER, 'active'
+            );
+        END IF;
+
+    END LOOP;
+
+    RAISE NOTICE '========================================';
+    RAISE NOTICE 'Successfully populated 1001 patients!';
+    RAISE NOTICE '========================================';
+
+END $$;
+
+-- ===============================================================
+-- COMPREHENSIVE VERIFICATION QUERIES
+-- ===============================================================
+
+RAISE NOTICE '';
+RAISE NOTICE '========================================';
+RAISE NOTICE 'RUNNING VERIFICATION CHECKS...';
+RAISE NOTICE '========================================';
+
+-- ===============================================================
+-- 1. DUPLICATE NAME DETECTION
+-- ===============================================================
+
+DO $$
+DECLARE
+    v_duplicate_count INTEGER;
+BEGIN
+    SELECT COUNT(*) INTO v_duplicate_count
+    FROM (
+        SELECT first_name, last_name, COUNT(*) as dup_count
+        FROM patients
+        GROUP BY first_name, last_name
+        HAVING COUNT(*) > 1
+    ) dup;
+
+    RAISE NOTICE '';
+    RAISE NOTICE '--- DUPLICATE NAME CHECK ---';
+    IF v_duplicate_count = 0 THEN
+        RAISE NOTICE '✓ PASSED: No duplicate names found!';
+    ELSE
+        RAISE WARNING '✗ FAILED: Found % duplicate name combinations!', v_duplicate_count;
+    END IF;
+END $$;
+
+-- Show detailed duplicate names if any exist
+SELECT
+    first_name,
+    last_name,
+    gender,
+    COUNT(*) as occurrences,
+    STRING_AGG(medical_record_number, ', ') as mrns
+FROM patients
+GROUP BY first_name, last_name, gender
+HAVING COUNT(*) > 1
+ORDER BY COUNT(*) DESC, first_name, last_name;
+
+-- ===============================================================
+-- 2. GENDER-NAME CONCORDANCE CHECK
+-- ===============================================================
+
+DO $$
+DECLARE
+    v_male_with_female_names INTEGER;
+    v_female_with_male_names INTEGER;
+    v_total_errors INTEGER;
+BEGIN
+    -- Check males with female names
+    SELECT COUNT(*) INTO v_male_with_female_names
+    FROM patients
+    WHERE gender = 'male'
+      AND TRIM(REGEXP_REPLACE(first_name, ' [A-Z]\.', '')) IN (
+        'Mary', 'Patricia', 'Jennifer', 'Linda', 'Barbara',
+        'Elizabeth', 'Susan', 'Jessica', 'Sarah', 'Karen',
+        'Nancy', 'Lisa', 'Betty', 'Margaret', 'Sandra',
+        'Ashley', 'Kimberly', 'Emily', 'Donna', 'Michelle',
+        'Dorothy', 'Carol', 'Amanda', 'Melissa', 'Deborah',
+        'Stephanie', 'Rebecca', 'Sharon', 'Laura', 'Cynthia',
+        'Kathleen', 'Amy', 'Angela', 'Shirley', 'Anna',
+        'Brenda', 'Pamela', 'Emma', 'Nicole', 'Helen',
+        'Samantha', 'Katherine', 'Christine', 'Debra', 'Rachel',
+        'Carolyn', 'Janet', 'Catherine', 'Maria', 'Heather',
+        'Diane', 'Ruth', 'Julie', 'Joyce', 'Virginia',
+        'Victoria', 'Kelly', 'Lauren', 'Christina', 'Joan',
+        'Evelyn', 'Judith', 'Megan', 'Cheryl', 'Andrea',
+        'Hannah', 'Jacqueline', 'Martha', 'Gloria', 'Teresa',
+        'Ann', 'Sara', 'Madison', 'Frances', 'Kathryn'
+      );
+
+    -- Check females with male names
+    SELECT COUNT(*) INTO v_female_with_male_names
+    FROM patients
+    WHERE gender = 'female'
+      AND TRIM(REGEXP_REPLACE(first_name, ' [A-Z]\.', '')) IN (
+        'James', 'Robert', 'Michael', 'William', 'David',
+        'Richard', 'Joseph', 'Thomas', 'Charles', 'Christopher',
+        'Daniel', 'Matthew', 'Anthony', 'Mark', 'Donald',
+        'Steven', 'Paul', 'Andrew', 'Joshua', 'Kenneth',
+        'Kevin', 'Brian', 'George', 'Edward', 'Ronald',
+        'Timothy', 'Jason', 'Jeffrey', 'Ryan', 'Jacob',
+        'Gary', 'Nicholas', 'Eric', 'Jonathan', 'Stephen',
+        'Larry', 'Justin', 'Scott', 'Brandon', 'Benjamin',
+        'Samuel', 'Raymond', 'Gregory', 'Frank', 'Alexander',
+        'Patrick', 'Jack', 'Dennis', 'Jerry', 'Tyler',
+        'Aaron', 'Jose', 'Adam', 'Henry', 'Nathan',
+        'Douglas', 'Zachary', 'Peter', 'Kyle', 'Walter',
+        'Ethan', 'Jeremy', 'Harold', 'Keith', 'Christian',
+        'Roger', 'Noah', 'Gerald', 'Carl', 'Terry',
+        'Sean', 'Austin', 'Arthur', 'Lawrence', 'Jesse'
+      );
+
+    v_total_errors := v_male_with_female_names + v_female_with_male_names;
+
+    RAISE NOTICE '';
+    RAISE NOTICE '--- GENDER-NAME CONCORDANCE CHECK ---';
+    IF v_total_errors = 0 THEN
+        RAISE NOTICE '✓ PASSED: All names match patient gender!';
+    ELSE
+        RAISE WARNING '✗ FAILED: Found % gender-name mismatches!', v_total_errors;
+        RAISE WARNING '  - Males with female names: %', v_male_with_female_names;
+        RAISE WARNING '  - Females with male names: %', v_female_with_male_names;
+    END IF;
+END $$;
+
+-- Show detailed gender-name mismatches if any exist
+SELECT
+    'Male patient with female name' as issue,
+    medical_record_number,
+    first_name,
+    last_name,
+    gender
+FROM patients
+WHERE gender = 'male'
+  AND TRIM(REGEXP_REPLACE(first_name, ' [A-Z]\.', '')) IN (
+    'Mary', 'Patricia', 'Jennifer', 'Linda', 'Barbara',
+    'Elizabeth', 'Susan', 'Jessica', 'Sarah', 'Karen',
+    'Nancy', 'Lisa', 'Betty', 'Margaret', 'Sandra',
+    'Ashley', 'Kimberly', 'Emily', 'Donna', 'Michelle'
+  )
+UNION ALL
+SELECT
+    'Female patient with male name' as issue,
+    medical_record_number,
+    first_name,
+    last_name,
+    gender
+FROM patients
+WHERE gender = 'female'
+  AND TRIM(REGEXP_REPLACE(first_name, ' [A-Z]\.', '')) IN (
+    'James', 'Robert', 'Michael', 'William', 'David',
+    'Richard', 'Joseph', 'Thomas', 'Charles', 'Christopher',
+    'Daniel', 'Matthew', 'Anthony', 'Mark', 'Donald',
+    'Steven', 'Paul', 'Andrew', 'Joshua', 'Kenneth'
+  )
+ORDER BY gender, first_name;
+
+-- ===============================================================
+-- 3. STANDARD VERIFICATION QUERIES
+-- ===============================================================
+
+-- Count patients
+SELECT
+    'Total Patients' as metric,
+    COUNT(*) as count
+FROM patients;
+
+-- Gender distribution
+SELECT
+    'Gender Distribution' as section,
+    gender,
+    COUNT(*) as count,
+    ROUND(100.0 * COUNT(*) / (SELECT COUNT(*) FROM patients), 1) as percentage
+FROM patients
+GROUP BY gender
+ORDER BY gender;
+
+-- Count by CKD status
+SELECT
+    'CKD Status Distribution' as section,
+    CASE WHEN ckd_diagnosed THEN 'Has CKD' ELSE 'No CKD' END as status,
+    COUNT(*) as count,
+    ROUND(100.0 * COUNT(*) / (SELECT COUNT(*) FROM patients), 1) as percentage
+FROM patients
+GROUP BY ckd_diagnosed
+ORDER BY ckd_diagnosed DESC;
+
+-- Count observations
+SELECT
+    'Total Observations' as metric,
+    COUNT(*) as count
+FROM observations;
+
+-- Count prescriptions
+SELECT
+    'Total Prescriptions' as metric,
+    COUNT(*) as count
+FROM prescriptions;
+
+-- Count refills
+SELECT
+    'Total Refills' as metric,
+    COUNT(*) as count
+FROM refills;
+
+-- Summary by condition
+SELECT
+    'Top Conditions' as section,
+    condition_name,
+    COUNT(*) as patient_count
+FROM conditions
+GROUP BY condition_name
+ORDER BY patient_count DESC
+LIMIT 10;
+
+-- Summary by medication class
+SELECT
+    'Top Medication Classes' as section,
+    medication_class,
+    COUNT(DISTINCT patient_id) as patient_count
+FROM prescriptions
+GROUP BY medication_class
+ORDER BY patient_count DESC;
+
+-- eGFR distribution
+SELECT
+    'eGFR Distribution' as section,
+    CASE
+        WHEN value_numeric >= 90 THEN 'G1 (≥90)'
+        WHEN value_numeric >= 60 THEN 'G2 (60-89)'
+        WHEN value_numeric >= 45 THEN 'G3a (45-59)'
+        WHEN value_numeric >= 30 THEN 'G3b (30-44)'
+        WHEN value_numeric >= 15 THEN 'G4 (15-29)'
+        ELSE 'G5 (<15)'
+    END as gfr_category,
+    COUNT(*) as count
+FROM (
+    SELECT DISTINCT ON (patient_id) value_numeric
+    FROM observations
+    WHERE observation_type = 'eGFR'
+    ORDER BY patient_id, observation_date DESC
+) recent_egfr
+GROUP BY gfr_category
+ORDER BY
+    CASE
+        WHEN gfr_category = 'G1 (≥90)' THEN 1
+        WHEN gfr_category = 'G2 (60-89)' THEN 2
+        WHEN gfr_category = 'G3a (45-59)' THEN 3
+        WHEN gfr_category = 'G3b (30-44)' THEN 4
+        WHEN gfr_category = 'G4 (15-29)' THEN 5
+        ELSE 6
+    END;
+
+RAISE NOTICE '';
+RAISE NOTICE '========================================';
+RAISE NOTICE 'VERIFICATION COMPLETE!';
+RAISE NOTICE '========================================';
+RAISE NOTICE 'Data population complete! Review results above.';
