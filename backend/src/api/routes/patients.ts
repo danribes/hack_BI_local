@@ -4,6 +4,7 @@ import { classifyKDIGO, classifyKDIGOWithSCORED, calculateSCORED, calculateFrami
 import { HealthStateCommentService } from '../../services/healthStateCommentService';
 import { AIUpdateAnalysisService } from '../../services/aiUpdateAnalysisService';
 import { EmailService } from '../../services/emailService';
+import { ClinicalAlertsService } from '../../services/clinicalAlertsService';
 import { getMCPClient } from '../../services/mcpClient';
 
 const router = Router();
@@ -1944,6 +1945,71 @@ Provide ONLY the JSON object, nothing else.`;
   } else {
     console.log(`[Patient Update] Skipping AI analysis after reset (no previous data to compare)`);
   }
+
+    // =================================================================================
+    // PHASE 4: CLINICAL ALERTS & EMAIL NOTIFICATIONS
+    // =================================================================================
+    console.log(`\n${'='.repeat(80)}`);
+    console.log(`[Patient Update] 📧 PHASE 4: CHECKING CLINICAL ALERTS`);
+    console.log(`${'='.repeat(80)}\n`);
+
+    try {
+      const clinicalAlertsService = new ClinicalAlertsService(pool);
+
+      // Gather clinical change data
+      const clinicalChange = {
+        previous_egfr: baselineAnalysis?.patient_summary?.latest_egfr,
+        current_egfr: postUpdateAnalysis?.patient_summary?.latest_egfr || generatedValues.eGFR,
+        previous_uacr: baselineAnalysis?.patient_summary?.latest_uacr,
+        current_uacr: postUpdateAnalysis?.patient_summary?.latest_uacr || generatedValues.uACR,
+        previous_health_state: previousHealthState,
+        current_health_state: newHealthState,
+        egfr_change_percent: baselineAnalysis?.patient_summary?.latest_egfr && postUpdateAnalysis?.patient_summary?.latest_egfr
+          ? ((baselineAnalysis.patient_summary.latest_egfr - postUpdateAnalysis.patient_summary.latest_egfr) / baselineAnalysis.patient_summary.latest_egfr) * 100
+          : undefined,
+        uacr_change_percent: baselineAnalysis?.patient_summary?.latest_uacr && postUpdateAnalysis?.patient_summary?.latest_uacr
+          ? ((postUpdateAnalysis.patient_summary.latest_uacr - baselineAnalysis.patient_summary.latest_uacr) / baselineAnalysis.patient_summary.latest_uacr) * 100
+          : undefined,
+        cycle_number: nextMonthNumber,
+      };
+
+      // Get adherence data if patient is treated
+      let adherenceData;
+      if (isTreated) {
+        try {
+          const mcpClient = await getMCPClient();
+          const adherenceResult = await mcpClient.monitorCompositeAdherence(id, 90, false);
+          if (adherenceResult && !adherenceResult.error) {
+            adherenceData = {
+              compositeScore: adherenceResult.compositeScore,
+              adherenceCategory: adherenceResult.adherenceCategory,
+              compositePercentage: adherenceResult.compositePercentage,
+            };
+          }
+        } catch (adhError) {
+          console.log('[Clinical Alerts] Could not fetch adherence data:', adhError);
+        }
+      }
+
+      // Check and send clinical alerts
+      await clinicalAlertsService.checkAndSendAlerts(
+        {
+          id: patient.id,
+          medical_record_number: patient.medical_record_number,
+          first_name: patient.first_name,
+          last_name: patient.last_name,
+          email: patient.email,
+          home_monitoring_active: patient.home_monitoring_active,
+        },
+        clinicalChange,
+        adherenceData
+      );
+
+      console.log('[Clinical Alerts] ✓ Alert checking completed');
+    } catch (alertError) {
+      console.error('[Clinical Alerts] Error checking clinical alerts:', alertError);
+      // Don't fail the update if alert checking fails
+    }
 
     res.json({
       status: 'success',
