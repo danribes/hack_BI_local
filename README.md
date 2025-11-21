@@ -2,40 +2,106 @@
 
 A comprehensive CKD (Chronic Kidney Disease) Risk Screening System with AI-powered analysis using Claude 3.5 Sonnet. This application provides real-time health state classification, progression tracking, and personalized risk assessments.
 
-## 🚀 Quick Start
+## 🚀 Quick Start (5 Minutes)
 
 ### Prerequisites
 
-- Docker Desktop (v20.10+)
-- Docker Compose (v2.0+)
-- Anthropic API Key ([Get one here](https://console.anthropic.com))
+**Required:**
+- **Docker Desktop** (v20.10+) - [Download here](https://www.docker.com/products/docker-desktop)
+  - Includes Docker Compose (no separate installation needed)
 
-### Setup Instructions
+**Optional:**
+- **Anthropic API Key** - [Get one here](https://console.anthropic.com)
+  - Only required for AI-powered risk analysis features
+  - Basic features work without it
 
-1. **Clone the repository**
-   ```bash
-   git clone <repository-url>
-   cd hack_BI_local
-   ```
+### Deployment Steps
 
-2. **Configure environment**
-   ```bash
-   # .env file already exists - just add your API key
-   nano .env
-   # Add your Anthropic API key to the ANTHROPIC_API_KEY field
-   ```
+#### 1. Clone the Repository
+```bash
+git clone https://github.com/danribes/hack_BI_local.git
+cd hack_BI_local
+```
 
-3. **Start all services**
-   ```bash
-   docker-compose up -d
-   ```
+#### 2. Configure Environment (Optional)
 
-4. **Access the application**
-   - Frontend: http://localhost:8080
-   - Backend API: http://localhost:3000
-   - Database: localhost:5433
+**Quick Deploy (No Configuration Needed):**
+You can skip this step entirely! The application has sensible defaults and will run without creating a `.env` file. AI features will be disabled but all other functionality works.
 
-That's it! The application is now running locally.
+**Full Setup (With AI Features):**
+```bash
+# Create environment file from template
+cp .env.example .env
+
+# Add your Anthropic API key
+nano .env
+# or use your preferred editor to edit .env
+# Update line: ANTHROPIC_API_KEY=your-actual-api-key-here
+```
+
+**Note:** All database credentials and ports are pre-configured. You only need to add an API key for AI-powered analysis.
+
+#### 3. Start All Services
+```bash
+# Start all containers in detached mode
+docker-compose up -d
+```
+
+**What happens during startup:**
+- PostgreSQL database initializes (30-60 seconds first time)
+- Database schema created automatically from `infrastructure/postgres/init.sql`
+- 5 sample CKD patients loaded into database
+- Backend API starts and connects to database
+- Frontend builds and serves via nginx
+
+**First-time startup:** 3-5 minutes (downloads images)
+**Subsequent startups:** 10-20 seconds
+
+#### 4. Verify Deployment
+```bash
+# Check all services are running and healthy
+docker-compose ps
+
+# Test backend API
+curl http://localhost:3000/health
+
+# Test frontend (should return HTTP 200)
+curl -I http://localhost:8080
+```
+
+Expected output from `docker-compose ps`:
+```
+NAME                  STATUS              PORTS
+healthcare-backend    Up (healthy)        0.0.0.0:3000->3000/tcp
+healthcare-frontend   Up (healthy)        0.0.0.0:8080->8080/tcp
+healthcare-postgres   Up (healthy)        0.0.0.0:5433->5432/tcp
+```
+
+#### 5. Access the Application
+
+- **Frontend Web Interface:** http://localhost:8080
+- **Backend API:** http://localhost:3000
+- **Database:** localhost:5433
+  - User: `healthcare_user`
+  - Password: `healthcare_pass`
+  - Database: `healthcare_ai_db`
+
+**That's it!** The application is now running locally with 5 sample patients ready to explore.
+
+### Next Steps
+
+**Generate More Patient Data** (optional):
+```bash
+# Generate 1000 realistic CKD patients
+curl -X POST http://localhost:3000/api/init/populate-realistic-cohort \
+  -H "Content-Type: application/json" \
+  -d '{"patient_count": 1000}'
+```
+
+**Enable AI Features** (optional):
+1. Get API key from https://console.anthropic.com
+2. Edit `.env` file and add your key
+3. Restart backend: `docker-compose restart backend`
 
 ## 📋 Architecture
 
@@ -172,11 +238,11 @@ GET  /api/patients/:id/health-states    - Get health state history
 POST /api/analyze         - Trigger AI risk analysis for a patient
 ```
 
-## 📖 Additional Documentation
+## 📖 Additional Resources
 
-- [Local Deployment Guide](LOCAL_DEPLOYMENT_GUIDE.md) - Detailed setup instructions
-- [Database Setup Guide](DATABASE_SETUP_GUIDE.md) - Database configuration details
-- [Deployment Options](DEPLOYMENT_OPTIONS.md) - Local vs Cloud comparison
+- **API Documentation**: All endpoints documented in the [API Endpoints](#-api-endpoints) section
+- **Development Mode**: See [Development Mode](#-development-mode-hot-reload) for hot-reload setup
+- **Troubleshooting**: Comprehensive guide in the [Troubleshooting](#-troubleshooting) section
 
 ## 🐛 Troubleshooting
 
