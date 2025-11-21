@@ -29,11 +29,9 @@ interface AdherenceData {
 }
 
 export class ClinicalAlertsService {
-  private db: Pool;
   private emailService: EmailService;
 
   constructor(db: Pool) {
-    this.db = db;
     this.emailService = new EmailService(db);
   }
 
@@ -284,7 +282,7 @@ export class ClinicalAlertsService {
    * AI-powered blood analysis scheduling
    */
   private async generateBloodAnalysisSchedule(
-    patient: PatientData,
+    _patient: PatientData,
     change: ClinicalChange
   ): Promise<string> {
     const urgency = this.calculateUrgency(change);
@@ -363,7 +361,7 @@ export class ClinicalAlertsService {
   /**
    * Get interpretation of state change
    */
-  private getStateChangeInterpretation(previous: string, current: string): string {
+  private getStateChangeInterpretation(_previous: string, current: string): string {
     if (current.startsWith('G5')) {
       return '• Patient has progressed to Stage 5 CKD (Kidney Failure)\n' +
              '• Kidney replacement therapy (dialysis or transplant) should be discussed\n' +

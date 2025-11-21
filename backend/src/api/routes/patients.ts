@@ -1962,7 +1962,7 @@ Provide ONLY the JSON object, nothing else.`;
         current_egfr: postUpdateAnalysis?.patient_summary?.latest_egfr || generatedValues.eGFR,
         previous_uacr: baselineAnalysis?.patient_summary?.latest_uacr,
         current_uacr: postUpdateAnalysis?.patient_summary?.latest_uacr || generatedValues.uACR,
-        previous_health_state: previousHealthState,
+        previous_health_state: previousHealthState || undefined,
         current_health_state: newHealthState,
         egfr_change_percent: baselineAnalysis?.patient_summary?.latest_egfr && postUpdateAnalysis?.patient_summary?.latest_egfr
           ? ((baselineAnalysis.patient_summary.latest_egfr - postUpdateAnalysis.patient_summary.latest_egfr) / baselineAnalysis.patient_summary.latest_egfr) * 100
